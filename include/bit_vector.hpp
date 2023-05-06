@@ -98,17 +98,6 @@ struct bit_vector_iterator {
         m_buf &= uint64_t(-1) << (m_pos & 63);  // clear low bits
     }
 
-    /* return 1 byte assuming position is aligned to a 8-bit boundary  */
-    // inline uint64_t take_one_byte() {
-    //     assert(m_pos % 8 == 0);
-    //     if (m_avail == 0) fill_buf();
-    //     uint64_t val = m_buf & 255;
-    //     m_buf >>= 8;
-    //     m_avail -= 8;
-    //     m_pos += 8;
-    //     return val;
-    // }
-
     /* return the next l bits from the current position and advance by l bits */
     inline uint64_t take(uint64_t l) {
         assert(l <= 64);

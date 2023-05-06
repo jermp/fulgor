@@ -1,4 +1,3 @@
-#include <iostream>
 #include <unordered_map>
 #include <chrono>
 
@@ -206,7 +205,7 @@ void permute_and_write(build_configuration const& build_config) {
     }
 }
 
-int main(int argc, char** argv) {
+int permute_unitigs(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("file_base_name", "Cuttlefish input file_base_name.", "-i", true);
     parser.add("RAM",

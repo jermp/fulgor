@@ -25,8 +25,38 @@ If you forgot `--recursive`, do
 
 before compiling.
 
+To compile the code for a release environment (see file `CMakeLists.txt` for the used compilation flags), it is sufficient to do the following:
+
+    mkdir build
+    cd build
+    cmake ..
+    make -j
+
+For a testing environment, use the following instead:
+
+    mkdir debug_build
+    cd debug_build
+    cmake .. -D CMAKE_BUILD_TYPE=Debug -D FULGOR_USE_SANITIZERS=On
+    make -j
+    
 Tools
 -----
+
+There is one executable called `fulgor` after the compilation, which can be used to run a tool.
+Run `./fulgor` to see a list of available tools.
+
+	== Fulgor: a colored compacted de Bruijn graph index ==========================
+	
+	Usage: ./fulgor <tool> ...
+	
+	Available tools:
+	  invert          	 invert the reference-to-unitig Cuttlefish's file 
+	  sort-unique     	 deduplicate the color sets 
+	  permute-unitigs 	 permute unitigs according to the color they map to 
+	  build           	 build a fulgor index 
+	  pseudoalign     	 pseudoalign reads to references using a fulgor index 
+	  stats           	 print index statistics 
+	  print-filenames 	 print all reference filenames 
 
 
 Demo
@@ -52,23 +82,23 @@ Then, from the parent directory `fulgor`, do
 
 	python3 scripts/build_index.py --bin-dir build -k 31 -m 17 --tmp-dir build -g 1 test_data/salmonella_10 
 
-which will run, in order, the sub-tools `invert`, `sort_unique`, `permute_unitigs`, and `build`.
+which will run, in order, the tools `invert`, `sort_unique`, `permute_unitigs`, and `build`.
 
 <!--Then, from within `fulgor/build`, invert the reference to unitig mapping with:
 
-    ./invert -i ../test_data/salmonella_10 -g 1 -d tmp_dir --verbose
+    ./fulgor invert -i ../test_data/salmonella_10 -g 1 -d tmp_dir --verbose
 
 Deduplicate the color classes and build the map from unitig ids to color classes:
 
-    ./sort_unique -i ../test_data/salmonella_10 -g 1 -d tmp_dir --verbose
+    ./fulgor sort_unique -i ../test_data/salmonella_10 -g 1 -d tmp_dir --verbose
 
 Then permute the unitigs by color class:
 
-    ./permute_unitigs -i ../test_data/salmonella_10 -g 1 -d tmp_dir --verbose
+    ./fulgor permute_unitigs -i ../test_data/salmonella_10 -g 1 -d tmp_dir --verbose
 
 And finally build the index with:
 
-    ./build_index -i ../test_data/salmonella_10 -k 31 -m 17 -d tmp_dir --verbose
+    ./fulgor build -i ../test_data/salmonella_10 -k 31 -m 17 -d tmp_dir --verbose
 
 Check correctness of colors:
 

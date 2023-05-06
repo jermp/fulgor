@@ -14,19 +14,20 @@ def run_cmd(args):
     if proc.returncode != 0:
         print(f"{args[0]} returned exit code {proc.returncode}")
     end = timer()
-    print(f"{args[0]} took {(end - start)}")
+    print(f"{args[0]} {args[1]} took {(end - start)}")
 
 
-VALID_STEPS = ["invert", "sort_unique", "permute_unitigs", "build_index"]
+VALID_STEPS = ["invert", "sort_unique", "permute_unitigs", "build"]
 
 
-def build(args, paths):
+def build(args):
 
     cf_input_prefix = args.cuttlefish_input
     step_list = []
 
     invert_cmd = [
-        paths["invert"],
+        args.bin_dir + "/fulgor",
+        "invert",
         "-i",
         cf_input_prefix,
         "-g",
@@ -38,7 +39,8 @@ def build(args, paths):
     step_list.append(invert_cmd)
 
     sort_unique_cmd = [
-        paths["sort_unique"],
+        args.bin_dir + "/fulgor",
+        "sort-unique",
         "-i",
         cf_input_prefix,
         "-g",
@@ -50,7 +52,8 @@ def build(args, paths):
     step_list.append(sort_unique_cmd)
 
     permute_unitigs_cmd = [
-        paths["permute_unitigs"],
+        args.bin_dir + "/fulgor",
+        "permute-unitigs",
         "-i",
         cf_input_prefix,
         "-g",
@@ -61,8 +64,9 @@ def build(args, paths):
     ]
     step_list.append(permute_unitigs_cmd)
 
-    build_index_cmd = [
-        paths["build_index"],
+    build_cmd = [
+        args.bin_dir + "/fulgor",
+        "build",
         "-i",
         cf_input_prefix,
         "-k",
@@ -73,7 +77,7 @@ def build(args, paths):
         args.tmp_dir,
         "--verbose",
     ]
-    step_list.append(build_index_cmd)
+    step_list.append(build_cmd)
 
     step_idx = VALID_STEPS.index(args.s)
     ns = len(VALID_STEPS)
@@ -94,7 +98,7 @@ def build_step(s):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        prog="build_color_index", description="Builds the color class index"
+        prog="build_color_index", description="Builds the fulgor index"
     )
     parser.add_argument("cuttlefish_input")
     parser.add_argument(
@@ -108,7 +112,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-s",
         type=build_step,
-        help="which step to start from; these are, in order, [invert, sort_unique, permute_unitigs, build_index]",
+        help="which step to start from; these are, in order, [invert, sort_unique, permute_unitigs, build]",
         default="invert",
     )
 
@@ -117,18 +121,4 @@ if __name__ == "__main__":
     if args.bin_dir == ".":
         args.bin_dir = os.getcwd()
 
-    exes = ["invert", "sort_unique", "permute_unitigs", "build_index"]
-    paths = {}
-    for e in exes:
-        p = Path(os.path.sep.join([args.bin_dir, e]))
-        if not p.is_file():
-            print(
-                f"could not find required executable {e} in the binary directory {args.bin_dir}"
-            )
-            exit(1)
-        else:
-            paths[e] = str(p)
-    print("executable paths\n================")
-    pprint.pprint(paths)
-    print("\n")
-    build(args, paths)
+    build(args)

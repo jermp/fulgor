@@ -82,25 +82,4 @@ static uint64_t read_rice(bit_vector_iterator& it, const uint64_t k) {
 }
 /***/
 
-// /* Variable-Byte */
-// static void write_vbyte(bit_vector_builder& builder, uint64_t x) {
-//     if (x < 128) {
-//         builder.append_bits(x, 8);
-//         return;
-//     }
-//     uint8_t data_bits = x & 127;
-//     builder.append_bits(data_bits | 128, 8);
-//     write_vbyte(builder, x >> 7);
-// }
-// static uint64_t read_vbyte(bit_vector_iterator& it) {
-//     uint64_t val = 0;
-//     for (uint64_t shift = 0;; shift += 7) {
-//         uint8_t byte = it.take_one_byte();
-//         val += (byte & 127) << shift;
-//         if (byte < 128) break;
-//     }
-//     return val;
-// }
-// /***/
-
 }  // namespace fulgor::util

@@ -1,6 +1,5 @@
 #include <iostream>
 #include <fstream>
-#include <string>  // for std::getline
 #include <sstream>
 
 #include "../external/CLI11.hpp"
@@ -12,9 +11,6 @@
 #include "../kallisto_psa/psa.cpp"
 #include "../src/psa/full_intersection.cpp"
 #include "../src/psa/threshold_union.cpp"
-
-#include "../include/index.hpp"
-#include "../include/index_types.hpp"
 
 using namespace fulgor;
 
@@ -183,7 +179,7 @@ int do_map(index_type const& index, fastx_parser::FastxParser<fastx_parser::Read
     return 0;
 }
 
-int main(int argc, char** argv) {
+int pseudoalign(int argc, char** argv) {
     std::string index_filename;
     std::string query_filename;
     std::string output_filename;

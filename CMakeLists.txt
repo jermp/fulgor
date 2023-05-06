@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(SSHASH)
+project(FULGOR)
 
 set(CMAKE_CXX_STANDARD 17)
 if (NOT CMAKE_BUILD_TYPE)
@@ -39,7 +39,7 @@ if (UNIX)
   # Flags for PTHash:
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread") # for multi-threading
 
-  if (SSHASH_USE_SANITIZERS)
+  if (FULGOR_USE_SANITIZERS)
     MESSAGE(STATUS "Using sanitizers. Compiling with flags: -fsanitize=address -fno-omit-frame-pointer")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
   endif()
@@ -47,10 +47,6 @@ if (UNIX)
 endif()
 
 include_directories(include)
-
-add_executable(invert tools/invert.cpp)
-add_executable(sort_unique tools/sort_unique.cpp)
-add_executable(permute_unitigs tools/permute_unitigs.cpp)
 
 set(Z_LIB_SOURCES
   external/sshash/include/gz/zip_stream.cpp
@@ -68,8 +64,8 @@ add_library(sshash_static STATIC
   ${SSHASH_SOURCES}
 )
 
-add_executable(build_index tools/build_index.cpp)
-target_link_libraries(build_index
+add_executable(fulgor tools/fulgor.cpp)
+target_link_libraries(fulgor
   sshash_static
   z
 )
@@ -77,20 +73,4 @@ target_link_libraries(build_index
 add_executable(check_colors tools/check_colors.cpp)
 target_link_libraries(check_colors
   sshash_static
-)
-
-add_executable(print_ref_mappings tools/print_ref_mappings.cpp)
-target_link_libraries(print_ref_mappings
-  sshash_static
-)
-
-add_executable(stats tools/stats.cpp)
-target_link_libraries(stats
-  sshash_static
-)
-
-add_executable(pseudoalign tools/pseudoalign.cpp)
-target_link_libraries(pseudoalign
-  sshash_static
-  z
 )

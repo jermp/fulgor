@@ -1,11 +1,8 @@
-#include <iostream>
-
 #include "../include/inverted_index_builder.hpp"
-#include "../external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
 
 using namespace fulgor;
 
-int main(int argc, char** argv) {
+int invert(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("file_base_name", "Cuttlefish input file_base_name.", "-i", true);
     parser.add("RAM",

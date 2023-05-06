@@ -62,7 +62,7 @@ Demo
 ----
 
 First, download [Cuttlefish](https://github.com/COMBINE-lab/cuttlefish).
-Then, from withing `cuttlefish`, do
+Then, from within `cuttlefish`, do
 
 	git checkout inverted-colors 
 	

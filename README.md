@@ -8,7 +8,7 @@ Fulgor is a *colored compacted de Bruijn graph* index for large-scale matching a
 * [Compiling the code](#compiling-the-code)
 * [Tools](#tools)
 * [Demo](#Demo)
-* [Indexing an example Salmonella pan-genome](#indexing-an-example-pan-genome)
+* [Indexing an example Salmonella pan-genome](#indexing-an-example-salmonella-pan-genome)
 
 
 Compiling the code
@@ -82,7 +82,7 @@ Then, from the parent directory `fulgor`, do
 
 	python3 scripts/build_index.py --bin-dir build -k 31 -m 17 --tmp-dir build -g 1 test_data/salmonella_10 
 
-which will run, in order, the tools `invert`, `sort_unique`, `permute_unitigs`, and `build`.
+which will run, in order, the tools `invert`, `sort-unique`, `permute-unitigs`, and `build`.
 
 <!--Then, from within `fulgor/build`, invert the reference to unitig mapping with:
 
@@ -110,7 +110,7 @@ Indexing an example Salmonella pan-genome
 
 The genomes can be downloaded from [here](https://zenodo.org/record/1323684). We will build a Fulgor index for the 4,546 Salmonella genomes.
 
-Then create a list of all `.fasta` filenames with
+First, create a list of all `.fasta` filenames with
 
 	find $(pwd)/Salmonella_enterica/Genomes/*.fasta > salmonella_4546_filenames.txt
 	
@@ -118,6 +118,6 @@ and run Cuttlefish with
 
     ./src/cuttlefish build -l salmonella_4546_filenames.txt -k 31 -t 8 -w tmp_dir/ -o salmonella_4546 --extract-inverted-colors
     
-Then from `fulgor`, do
+Then from `fulgor` parent directory, do
 
 	python3 scripts/build_index.py --bin-dir build -k 31 -m 20 --tmp-dir build/tmp_dir -g 8 build/salmonella_4546

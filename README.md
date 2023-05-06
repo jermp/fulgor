@@ -3,7 +3,6 @@ Fulgor
 
 Fulgor is a *colored compacted de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash).
 
-
 #### Table of contents
 * [Compiling the code](#compiling-the-code)
 * [Tools](#tools)
@@ -84,6 +83,10 @@ Then, from the parent directory `fulgor`, do
 
 which will run, in order, the tools `invert`, `sort-unique`, `permute-unitigs`, and `build`.
 
+We now have an index serialized to the file `test_data/salmonella_10.hybrid.index`.
+
+
+
 <!--Then, from within `fulgor/build`, invert the reference to unitig mapping with:
 
     ./fulgor invert -i ../test_data/salmonella_10 -g 1 -d tmp_dir --verbose
@@ -108,16 +111,42 @@ Check correctness of colors:
 Indexing an example Salmonella pan-genome
 -----------------------------------------
 
-The genomes can be downloaded from [here](https://zenodo.org/record/1323684). We will build a Fulgor index for the 4,546 Salmonella genomes.
+In this example, we will build a Fulgor index for the 4,546 Salmonella genomes that can be downloaded from [here](https://zenodo.org/record/1323684).
 
-First, create a list of all `.fasta` filenames with
+We assume all commands are issue from within the home (`~/`) directory.
+
+After download,
+create a list of all `.fasta` filenames with
 
 	find $(pwd)/Salmonella_enterica/Genomes/*.fasta > salmonella_4546_filenames.txt
 	
 and run Cuttlefish with
 
-    ./src/cuttlefish build -l salmonella_4546_filenames.txt -k 31 -t 8 -w tmp_dir/ -o salmonella_4546 --extract-inverted-colors
+    ./src/cuttlefish build -l ~/salmonella_4546_filenames.txt -k 31 -t 8 -w tmp_dir/ -o ~/Salmonella_enterica/salmonella_4546 --extract-inverted-colors
     
-Then from `fulgor` parent directory, do
+Then from the `fulgor` parent directory, do
 
-	python3 scripts/build_index.py --bin-dir build -k 31 -m 20 --tmp-dir build/tmp_dir -g 8 build/salmonella_4546
+	python3 scripts/build_index.py --bin-dir build -k 31 -m 20 --tmp-dir build/tmp_dir -g 8 ~/Salmonella_enterica/salmonella_4546
+
+which will create an index with the following stats:
+
+	total index size: 0.266677 GB
+	SPACE BREAKDOWN:
+	  K2U: 66154784 bytes / 0.0661548 GB (24.8071%)
+	  CCs: 199938374 bytes / 0.199938 GB (74.9741%)
+	  Other: 583396 bytes / 0.000583396 GB (0.218765%)
+	    U2C: 298192 bytes / 0.000298192 GB (0.111818%)
+	    filenames: 285204 bytes / 0.000285204 GB (0.106948%)
+	Color id range 0..4545
+	Number of distinct color classes: 972178
+	Number of ints in distinct color classes: 2139057102 (0.747763 bits/int)
+	k: 31
+	m: 20 (minimizer length used in K2U)
+	Number of kmers in dBG: 43788757 (12.0862 bits/kmer)
+	Number of unitigs in dBG: 1908149
+
+Lastly, we can now pseudoalign the reads from [SRR801268](ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR801/SRR801268/SRR801268_1.fastq.gz) with:
+
+	./build/fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.hybrid.index -q ~/SRR801268_1.fastq.gz -t 8 -o /dev/null
+
+using 8 parallel threads and writing the output to `/dev/null`.

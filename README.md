@@ -61,23 +61,25 @@ Run `./fulgor` to see a list of available tools.
 Demo
 ----
 
-First, download [Cuttlefish](https://github.com/COMBINE-lab/cuttlefish).
-Then, from within `cuttlefish`, do
+This short demo shows how to index the 10-genome collection
+in the folder `test_data/salmonella_10` with Fulgor.
+
+First, download [Cuttlefish](https://github.com/COMBINE-lab/cuttlefish) and, from within `cuttlefish`, do
 
 	git checkout inverted-colors 
 	
-then compile the Cufflefish code. After compilation,
+Then compile the Cufflefish code as explained [here](https://github.com/COMBINE-lab/cuttlefish#installation). After compilation,
 from within `cuttlefish/build`, do
 
     ulimit -n 2048
     ./src/cuttlefish build -d [RELATIVE-FULGOR-PATH]/fulgor/test_data/salmonella_10 -k 31 -t 2 -o [RELATIVE-FULGOR-PATH]/fulgor/test_data/salmonella_10 --extract-inverted-colors
 
-on our example data in `test_data/salmonella_10`, where `[RELATIVE-FULGOR-PATH]` is the path to `fulgor` relative to your machine.
+where `[RELATIVE-FULGOR-PATH]` is the path to the directory `fulgor` relative to your machine.
 
 Cuttlefish will then generate the files
-`salmonella_10.fa` and `salmonella_10.cf_inv_col`.
+`salmonella_10.fa` and `salmonella_10.cf_inv_col`. We will now use these files to build a Fulgor index.
 
-Then, from the parent directory `fulgor`, do
+From the parent directory `fulgor`, do
 
 	python3 scripts/build_index.py --bin-dir build -k 31 -m 17 --tmp-dir build -g 1 test_data/salmonella_10 
 
@@ -145,8 +147,8 @@ which will create an index with the following stats:
 	Number of kmers in dBG: 43788757 (12.0862 bits/kmer)
 	Number of unitigs in dBG: 1908149
 
-Lastly, we can now pseudoalign the reads from [SRR801268](ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR801/SRR801268/SRR801268_1.fastq.gz) with:
+We can now pseudoalign the reads from [SRR801268](ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR801/SRR801268/SRR801268_1.fastq.gz) with:
 
 	./build/fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.hybrid.index -q ~/SRR801268_1.fastq.gz -t 8 -o /dev/null
 
-using 8 parallel threads and writing the output to `/dev/null`.
+using 8 parallel threads and writing the mapping output to `/dev/null`.

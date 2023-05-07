@@ -63,6 +63,7 @@ Demo
 
 This short demo shows how to index the 10-genome collection
 in the folder `test_data/salmonella_10` with Fulgor.
+We will use the standard value k = 31.
 
 First, download [Cuttlefish](https://github.com/COMBINE-lab/cuttlefish) and, from within `cuttlefish`, do
 
@@ -113,7 +114,7 @@ Check correctness of colors:
 Indexing an example Salmonella pan-genome
 -----------------------------------------
 
-In this example, we will build a Fulgor index for the 4,546 Salmonella genomes that can be downloaded from [here](https://zenodo.org/record/1323684).
+In this example, we will build a Fulgor index, with k = 31, for the 4,546 Salmonella genomes that can be downloaded from [here](https://zenodo.org/record/1323684).
 
 We assume all commands are issue from within the home (`~/`) directory.
 

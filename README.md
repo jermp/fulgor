@@ -3,7 +3,7 @@ Fulgor
 
 Fulgor is a *colored compacted de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash).
 
-#### Table of contents
+### Table of contents
 * [Compiling the code](#compiling-the-code)
 * [Tools](#tools)
 * [Demo](#Demo)
@@ -37,7 +37,7 @@ For a testing environment, use the following instead:
     cd debug_build
     cmake .. -D CMAKE_BUILD_TYPE=Debug -D FULGOR_USE_SANITIZERS=On
     make -j
-    
+
 Tools
 -----
 
@@ -45,17 +45,17 @@ There is one executable called `fulgor` after the compilation, which can be used
 Run `./fulgor` to see a list of available tools.
 
 	== Fulgor: a colored compacted de Bruijn graph index ==========================
-	
+
 	Usage: ./fulgor <tool> ...
-	
+
 	Available tools:
-	  invert          	 invert the reference-to-unitig Cuttlefish's file 
-	  sort-unique     	 deduplicate the color sets 
-	  permute-unitigs 	 permute unitigs according to the color they map to 
-	  build           	 build a fulgor index 
-	  pseudoalign     	 pseudoalign reads to references using a fulgor index 
-	  stats           	 print index statistics 
-	  print-filenames 	 print all reference filenames 
+	  invert          	 invert the reference-to-unitig Cuttlefish's file
+	  sort-unique     	 deduplicate the color sets
+	  permute-unitigs 	 permute unitigs according to the color they map to
+	  build           	 build a fulgor index
+	  pseudoalign     	 pseudoalign reads to references using a fulgor index
+	  stats           	 print index statistics
+	  print-filenames 	 print all reference filenames
 
 
 Demo
@@ -67,8 +67,8 @@ We will use the standard value k = 31.
 
 First, download [Cuttlefish](https://github.com/COMBINE-lab/cuttlefish) and, from within `cuttlefish`, do
 
-	git checkout inverted-colors 
-	
+	git checkout inverted-colors
+
 Then compile the Cufflefish code as explained [here](https://github.com/COMBINE-lab/cuttlefish#installation). After compilation,
 from within `cuttlefish/build`, do
 
@@ -122,11 +122,11 @@ After download,
 create a list of all `.fasta` filenames with
 
 	find $(pwd)/Salmonella_enterica/Genomes/*.fasta > salmonella_4546_filenames.txt
-	
+
 and run Cuttlefish with
 
     ./src/cuttlefish build -l ~/salmonella_4546_filenames.txt -k 31 -t 8 -w tmp_dir/ -o ~/Salmonella_enterica/salmonella_4546 --extract-inverted-colors
-    
+
 Then from the `fulgor` parent directory, do
 
 	python3 scripts/build_index.py --bin-dir build -k 31 -m 20 --tmp-dir build/tmp_dir -g 8 ~/Salmonella_enterica/salmonella_4546

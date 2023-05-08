@@ -152,4 +152,8 @@ We can now pseudoalign the reads from [SRR801268](ftp://ftp.sra.ebi.ac.uk/vol1/f
 
 	./build/fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.hybrid.index -q ~/SRR801268_1.fastq.gz -t 8 -o /dev/null
 
+	mapped 6584304 reads
+	elapsed = 130133 millisec / 130.133 sec / 2.16888 min / 19.7641 musec/read
+	num_mapped_reads 5797119/6584304 (88.0445%)
+
 using 8 parallel threads and writing the mapping output to `/dev/null`.

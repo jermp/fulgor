@@ -327,7 +327,6 @@ struct hybrid {
 
         std::cout << "CCs SPACE BREAKDOWN:\n";
         uint64_t integers = 0;
-        uint64_t lists = 0;
         uint64_t bits = 0;
         curr_list_size_upper_bound = 0;
         const uint64_t total_bits = num_bits();
@@ -340,7 +339,6 @@ struct hybrid {
             if (num_lists_per_bucket[i] > 0) {
                 uint64_t n = num_ints_per_bucket[i];
                 integers += n;
-                lists += num_lists_per_bucket[i];
                 bits += num_bits_per_bucket[i];
                 std::cout << "num. lists of size > " << (curr_list_size_upper_bound - bucket_size)
                           << " and <= " << curr_list_size_upper_bound << ": "
@@ -354,7 +352,8 @@ struct hybrid {
             }
         }
         assert(integers == num_total_integers);
-        assert(lists == num_lists);
+        assert(std::accumulate(num_lists_per_bucket.begin(), num_lists_per_bucket.end(),
+                               uint64_t(0)) == num_lists);
         std::cout << "  colors: " << static_cast<double>(bits) / integers << " bits/int"
                   << std::endl;
         std::cout << "  offsets: "

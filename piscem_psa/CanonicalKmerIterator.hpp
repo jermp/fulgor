@@ -5,20 +5,17 @@
 // https://github.com/pmelsted/bfgraph/blob/master/src/KmerIterator.cpp
 
 #include "CanonicalKmer.hpp"
-// #include "string_view.hpp"
 #include <string_view>
 #include <iterator>
 
 namespace pufferfish {
+
 namespace kmers = combinelib::kmers;
-// class CanonicalKmerIterator : public std::iterator<std::input_iterator_tag,
-// std::pair<CanonicalKmer, int>, int> {
-class CanonicalKmerIterator
-    : public std::iterator<std::input_iterator_tag, std::pair<CanonicalKmer, int>, int> {
+
+class CanonicalKmerIterator  // input_iterator
+{
     std::string_view s_;
     std::pair<CanonicalKmer, int> p_;
-    // CanonicalKmer km_;
-    // int pos_;
     bool invalid_;
     int lastinvalid_;
     int k_;
@@ -153,45 +150,5 @@ public:
         lastinvalid_ = pos - 1;
         find_next(pos - 1, (pos - 1));
     }
-
-private:
-    /*
-  // use:  find_next(i,j, last_valid);
-  // pre:
-  // post: *iter is either invalid or is a pair of:
-  //       1) the next valid kmer in the string that does not have any 'N'
-  //       2) the location of that kmer in the string
-  inline void find_next(int i, int j){//}, bool last_valid) {
-  ++i;
-  ++j;
-  bool valid{false};
-  // j is the last nucleotide in the k-mer we're building
-  while (j < s_.length()) {
-    // get the code for the last nucleotide, save it as c
-    int c = kmers::codeForChar(s_[j]);
-    // c is a valid code if != -1
-    if (c != -1) {
-      km_.shiftFw(c);
-      valid = (j - lastinvalid_ >= k_);
-    } else {
-      // if c is not a valid code, then j is the last invalid position
-      lastinvalid_ = j;
-      // the start position is the next (potentially) valid position
-      i = j+1;
-      // this k-mer is clearly not valid
-      valid = false;
-    }
-    if (valid) {
-      //p_.second = i;
-      pos_ = i;
-      return;
-    }
-    ++j;
-  }
-  invalid_ = true;
-  }
-  */
-
-private:
 };
 }  // namespace pufferfish

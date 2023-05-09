@@ -101,7 +101,8 @@ struct inverted_index {
             uint32_t size() const { return m_size; }
             std::vector<uint32_t> const& cache() const { return m_cache; }
 
-            struct iterator : public std::iterator<std::forward_iterator_tag, uint32_t> {
+            struct iterator  // forward_iterator
+            {
                 iterator(bit_vector_iterator* it, uint32_t pos_in_list, uint32_t size)
                     : m_it(it)
                     , m_pos_in_list(pos_in_list)

@@ -101,8 +101,14 @@ struct inverted_index {
             uint32_t size() const { return m_size; }
             std::vector<uint32_t> const& cache() const { return m_cache; }
 
-            struct iterator : public std::iterator<std::forward_iterator_tag, uint32_t> {
-                iterator(bit_vector_iterator* it, uint32_t pos_in_list, uint32_t size)
+            struct const_iterator {
+                using value_type = const uint32_t;
+                using reference = uint32_t const&;
+                using pointer = uint32_t const*;
+                using iterator_category = std::forward_iterator_tag;
+                using difference_type = int64_t;
+
+                const_iterator(bit_vector_iterator* it, uint32_t pos_in_list, uint32_t size)
                     : m_it(it)
                     , m_pos_in_list(pos_in_list)
                     , m_size(size)
@@ -111,10 +117,10 @@ struct inverted_index {
                     if (pos_in_list != m_size) m_curr_val = util::read_delta(*m_it);
                 }
 
-                bool operator==(iterator const& rhs) const {
+                bool operator==(const_iterator const& rhs) const {
                     return m_pos_in_list == rhs.m_pos_in_list;
                 }
-                bool operator!=(iterator const& rhs) const { return !(*this == rhs); }
+                bool operator!=(const_iterator const& rhs) const { return !(*this == rhs); }
                 uint32_t operator*() const { return m_curr_val; }
                 void operator++() {
                     m_pos_in_list += 1;
@@ -131,8 +137,8 @@ struct inverted_index {
                 uint32_t m_curr_val;
             };
 
-            iterator begin() const { return iterator(m_it, 0, size()); }
-            iterator end() const { return iterator(m_it, size(), size()); }
+            const_iterator begin() const { return const_iterator(m_it, 0, size()); }
+            const_iterator end() const { return const_iterator(m_it, size(), size()); }
 
         private:
             bit_vector_iterator* m_it;

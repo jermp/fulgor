@@ -1,7 +1,5 @@
 #pragma once
 
-#include "inverted_index.hpp"
-
 namespace fulgor::color_classes {
 
 struct hybrid {

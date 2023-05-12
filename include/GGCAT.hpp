@@ -10,8 +10,6 @@ namespace fulgor {
 struct GGCAT {
     GGCAT() : m_instance(nullptr), m_graph_file(""), m_k(0) {}
 
-    ~GGCAT() { delete m_instance; }
-
     void build(std::string const& filenames_list, uint64_t mem_gigas, uint64_t k,
                uint64_t num_threads, std::string const& tmp_dirname,
                std::string const& output_basename) {

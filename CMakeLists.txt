@@ -54,11 +54,11 @@ include_directories(include)
 add_custom_target(
    ggcat_cpp_api
    COMMAND make
-   WORKING_DIRECTORY external/ggcat/crates/capi/ggcat-cpp-api
+   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api
 )
-set(GGCAT_CPP_BINDINGS external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cpp_bindings.a)
-set(GGCAT_CXX_INTEROP external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cxx_interop.a)
-set(GGCAT_API external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_api.a)
+set(GGCAT_CPP_BINDINGS ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cpp_bindings.a)
+set(GGCAT_CXX_INTEROP ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cxx_interop.a)
+set(GGCAT_API ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_api.a)
 
 
 ## Fulgor ###
@@ -80,9 +80,11 @@ add_library(sshash_static STATIC
 )
 
 add_executable(fulgor tools/fulgor.cpp)
+add_dependencies(fulgor ggcat_cpp_api sshash_static)
 target_link_libraries(fulgor
   sshash_static
   z
+  ${GGCAT}
   ${GGCAT_API}
   ${GGCAT_CPP_BINDINGS}
   ${GGCAT_CXX_INTEROP}

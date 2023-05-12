@@ -88,6 +88,7 @@ target_link_libraries(fulgor
   ${GGCAT_API}
   ${GGCAT_CPP_BINDINGS}
   ${GGCAT_CXX_INTEROP}
+  ${CMAKE_DL_LIBS}
 )
 
 add_executable(check_colors tools/check_colors.cpp)

@@ -10,13 +10,8 @@ struct hybrid {
     enum list_type { delta_gaps = 0, bitmap = 1, complementary_delta_gaps = 2 };
 
     void build(build_configuration const& build_config) {
-        std::string color_classes_filename = build_config.file_base_name + ".unique_color_classes";
-        mm::file_source<uint64_t> mm_index_file(color_classes_filename, mm::advice::sequential);
-        inverted_index::iterator it(mm_index_file.data(), mm_index_file.size());
-        uint64_t num_docs = it.num_docs();
-        uint64_t num_ints = it.num_ints();
+        uint64_t num_docs = build_config.ggcat->num_docs();
         std::cout << "num_docs: " << num_docs << std::endl;
-        std::cout << "num_ints: " << num_ints << std::endl;
 
         m_num_docs = num_docs;
 
@@ -41,76 +36,80 @@ struct hybrid {
         std::cout << "m_very_dense_set_threshold_size " << m_very_dense_set_threshold_size
                   << std::endl;
 
-        while (it.has_next()) {
-            auto list = it.list();
-            uint64_t list_size = list.size();
-            /* encode list_size */
-            util::write_delta(bvb, list_size);
-
-            if (list_size < m_sparse_set_threshold_size) {
-                auto list_it = list.begin();
-                uint32_t prev_val = *list_it;
-                util::write_delta(bvb, prev_val);
-                ++list_it;
-                for (uint64_t i = 1; i != list_size; ++i, ++list_it) {
-                    uint32_t val = *list_it;
-                    assert(val >= prev_val + 1);
-                    util::write_delta(bvb, val - (prev_val + 1));
-                    prev_val = val;
-                }
-            } else if (list_size < m_very_dense_set_threshold_size) {
-                bit_vector_builder bvb_ints;
-                bvb_ints.resize(m_num_docs);
-                for (auto x : list) bvb_ints.set(x);
-                bvb.append(bvb_ints);
-            } else {
-                bool first = true;
-                uint32_t val = 0;
-                uint32_t prev_val = -1;
-                uint32_t written = 0;
-                for (auto x : list) {
-                    while (val < x) {
-                        if (first) {
-                            util::write_delta(bvb, val);
-                            first = false;
-                            ++written;
-                        } else {
+        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const /* read */,
+                                                     ggcat::Slice<uint32_t> const colors,
+                                                     bool same_color) {
+            try {
+                if (!same_color) {
+                    uint64_t list_size = colors.size;
+                    /* encode list_size */
+                    util::write_delta(bvb, list_size);
+                    if (list_size < m_sparse_set_threshold_size) {
+                        auto list_it = colors.data;
+                        uint32_t prev_val = *list_it;
+                        util::write_delta(bvb, prev_val);
+                        ++list_it;
+                        for (uint64_t i = 1; i != list_size; ++i, ++list_it) {
+                            uint32_t val = *list_it;
                             assert(val >= prev_val + 1);
                             util::write_delta(bvb, val - (prev_val + 1));
+                            prev_val = val;
+                        }
+                    } else if (list_size < m_very_dense_set_threshold_size) {
+                        bit_vector_builder bvb_ints;
+                        bvb_ints.resize(m_num_docs);
+                        for (uint64_t i = 0; i != list_size; ++i) bvb_ints.set(colors.data[i]);
+                        bvb.append(bvb_ints);
+                    } else {
+                        bool first = true;
+                        uint32_t val = 0;
+                        uint32_t prev_val = -1;
+                        uint32_t written = 0;
+                        for (uint64_t i = 0; i != list_size; ++i) {
+                            uint32_t x = colors.data[i];
+                            while (val < x) {
+                                if (first) {
+                                    util::write_delta(bvb, val);
+                                    first = false;
+                                    ++written;
+                                } else {
+                                    assert(val >= prev_val + 1);
+                                    util::write_delta(bvb, val - (prev_val + 1));
+                                    ++written;
+                                }
+                                prev_val = val;
+                                ++val;
+                            }
+                            assert(val == x);
+                            val++;  // skip x
+                        }
+                        while (val < num_docs) {
+                            assert(val >= prev_val + 1);
+                            util::write_delta(bvb, val - (prev_val + 1));
+                            prev_val = val;
+                            ++val;
                             ++written;
                         }
-                        prev_val = val;
-                        ++val;
+                        assert(val == num_docs);
+                        /* complementary_list_size = num_docs - list_size */
+                        assert(num_docs - list_size <= m_num_docs);
+                        assert(written == num_docs - list_size);
                     }
-                    assert(val == x);
-                    val++;  // skip x
+                    offsets.push_back(bvb.num_bits());
+                    num_total_integers += list_size;
+                    num_lists += 1;
+                    if (num_lists % 500000 == 0) {
+                        std::cout << "processed " << num_lists << " lists" << std::endl;
+                    }
                 }
-                while (val < num_docs) {
-                    assert(val >= prev_val + 1);
-                    util::write_delta(bvb, val - (prev_val + 1));
-                    prev_val = val;
-                    ++val;
-                    ++written;
-                }
-                assert(val == num_docs);
-                /* complementary_list_size = num_docs - list_size */
-                assert(num_docs - list_size <= m_num_docs);
-                assert(written == num_docs - list_size);
+            } catch (std::exception const& e) {
+                std::cerr << e.what() << std::endl;
+                exit(1);
             }
-
-            offsets.push_back(bvb.num_bits());
-            num_total_integers += list_size;
-            it.advance_to_next_list();
-            num_lists += 1;
-            if (num_lists % 500000 == 0) {
-                std::cout << "processed " << num_lists << " lists" << std::endl;
-            }
-        }
-        mm_index_file.close();
+        });
 
         std::cout << "processed " << num_lists << " lists" << std::endl;
         std::cout << "num_total_integers " << num_total_integers << std::endl;
-        assert(num_total_integers == num_ints);
         assert(num_lists == offsets.size() - 1);
 
         m_offsets.encode(offsets.begin(), offsets.size(), offsets.back());

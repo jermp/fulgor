@@ -5,6 +5,7 @@ using namespace fulgor;
 int run_ggcat(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("filenames_list", "Filenames list.", "-l", true);
+    parser.add("output_basename", "Output basename.", "-o", true);
     parser.add("k", "K-mer length (must be <= " + std::to_string(sshash::constants::max_k) + ").",
                "-k", true);
     parser.add(
@@ -38,8 +39,11 @@ int run_ggcat(int argc, char** argv) {
         std::cout << "about to process " << filenames.size() << " files..." << std::endl;
     }
 
-    GGCAT builder(filenames, parser.get<uint64_t>("RAM"), parser.get<uint64_t>("k"),
-                  parser.get<uint64_t>("num_threads"), tmp_dirname);
+    uint64_t mem_gigas = parser.get<uint64_t>("RAM");
+    uint64_t k = parser.get<uint64_t>("k");
+    uint64_t num_threads = parser.get<uint64_t>("num_threads");
+    std::string output_basename = parser.get<std::string>("output_basename");
+    GGCAT builder(filenames, mem_gigas, k, num_threads, tmp_dirname, output_basename);
 
     timer.stop();
     std::cout << "** running GGCAT took " << timer.elapsed() << " seconds / "

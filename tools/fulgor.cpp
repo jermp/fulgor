@@ -6,10 +6,6 @@
 
 #include "../external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
 
-#include "run_ggcat.cpp"
-#include "invert.cpp"
-#include "sort_unique.cpp"
-#include "permute_unitigs.cpp"
 #include "build.cpp"
 #include "pseudoalign.cpp"
 
@@ -50,9 +46,6 @@ int help(char* arg0) {
               << std::endl;
     std::cout << "Usage: " << arg0 << " <tool> ...\n\n"
               << "Available tools:\n"
-              << "  invert          \t invert the reference-to-unitig Cuttlefish's file \n"
-              << "  sort-unique     \t deduplicate the color sets \n"
-              << "  permute-unitigs \t permute unitigs according to the color they map to \n"
               << "  build           \t build a fulgor index \n"
               << "  pseudoalign     \t pseudoalign reads to references using a fulgor index \n"
               << "  stats           \t print index statistics \n"
@@ -63,15 +56,7 @@ int help(char* arg0) {
 int main(int argc, char** argv) {
     if (argc < 2) return help(argv[0]);
     auto tool = std::string(argv[1]);
-    if (tool == "run_ggcat") {
-        return run_ggcat(argc - 1, argv + 1);
-    } else if (tool == "invert") {
-        return invert(argc - 1, argv + 1);
-    } else if (tool == "sort-unique") {
-        return sort_unique(argc - 1, argv + 1);
-    } else if (tool == "permute-unitigs") {
-        return permute_unitigs(argc - 1, argv + 1);
-    } else if (tool == "build") {
+    if (tool == "build") {
         return build(argc - 1, argv + 1);
     } else if (tool == "pseudoalign") {
         return pseudoalign(argc - 1, argv + 1);

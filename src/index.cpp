@@ -6,8 +6,36 @@ template <typename ColorClasses>
 void index<ColorClasses>::build(build_configuration const& build_config) {
     if (m_k2u.size() != 0) throw std::runtime_error("index already built");
 
+    uint64_t num_unitigs = 0;
     {
-        essentials::logger("step 1. build m_k2u");
+        essentials::logger("step 1. build m_u2c");
+        uint64_t num_distinct_colors = 0;
+        std::ofstream out((build_config.file_base_name + ".fa").c_str());
+        if (!out.is_open()) throw std::runtime_error("cannot open output file");
+
+        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const read,
+                                                     ggcat::Slice<uint32_t> const /* colors */,
+                                                     bool same_color) {
+            num_unitigs += 1;
+            try {
+                out << ">\n";
+                out.write(read.data, read.size);
+                out << '\n';
+                if (!same_color) num_distinct_colors += 1;
+            } catch (std::exception const& e) {
+                std::cerr << e.what() << std::endl;
+                exit(1);
+            }
+        });
+
+        assert(num_unitigs < (uint64_t(1) << 32));
+
+        std::cout << "num_unitigs " << num_unitigs << std::endl;
+        std::cout << "num_distinct_colors " << num_distinct_colors << std::endl;
+
+        out.close();
+
+        essentials::logger("step 2. build m_k2u");
         sshash::build_configuration sshash_build_config;
         sshash_build_config.k = build_config.k;
         sshash_build_config.m = build_config.m;
@@ -15,61 +43,28 @@ void index<ColorClasses>::build(build_configuration const& build_config) {
         sshash_build_config.verbose = build_config.verbose;
         sshash_build_config.tmp_dirname = build_config.tmp_dirname;
         sshash_build_config.print();
-        m_k2u.build(build_config.file_base_name + ".permuted.fa", sshash_build_config);
+        m_k2u.build(build_config.file_base_name + ".fa", sshash_build_config);
     }
 
     {
         essentials::logger("step 2. build m_u2c");
-        mm::file_source<seg_id_t> in(build_config.file_base_name + ".map", mm::advice::sequential);
-        uint64_t num_sequences = in.bytes() / (sizeof(seg_id_t) + sizeof(uint64_t));
-        pthash::bit_vector_builder bvb(num_sequences);
-        seg_id_t const* data = in.data();
-        assert(num_sequences < (uint64_t(1) << 32));
-        uint64_t prev_color_class_id = 0;
-        for (uint64_t i = 0; i != num_sequences; ++i) {
-            data += 1;  // skip seg_id
-            uint64_t color_class_id = 0;
-            if constexpr (sizeof(seg_id_t) == 4) {
-                color_class_id = *reinterpret_cast<uint64_t const*>(data);
-                data += 2;
-            } else {
-                assert(sizeof(seg_id_t) == 8);
-                color_class_id = *data;
-                data += 1;
+        uint64_t i = 0;
+        pthash::bit_vector_builder bvb(num_unitigs);
+        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const /* read */,
+                                                     ggcat::Slice<uint32_t> const /* colors */,
+                                                     bool same_color) {
+            try {
+                if (i > 0 and !same_color) bvb.set(i - 1, 1);
+                i += 1;
+            } catch (std::exception const& e) {
+                std::cerr << e.what() << std::endl;
+                exit(1);
             }
-            if (color_class_id != prev_color_class_id) {
-                assert(i > 0);
-                bvb.set(i - 1, 1);
-            }
-            prev_color_class_id = color_class_id;
-        }
+        });
         m_u2c.build(&bvb);
         std::cout << "m_u2c.size() " << m_u2c.size() << std::endl;
         std::cout << "m_u2c.num_ones() " << m_u2c.num_ones() << std::endl;
         std::cout << "m_u2c.num_zeros() " << m_u2c.num_zeros() << std::endl;
-    }
-
-    {
-        essentials::logger("step 2.1. check correctness of m_u2c");
-        mm::file_source<seg_id_t> in(build_config.file_base_name + ".map", mm::advice::sequential);
-        uint64_t num_sequences = in.bytes() / (sizeof(seg_id_t) + sizeof(uint64_t));
-        seg_id_t const* data = in.data();
-        for (uint64_t i = 0; i != num_sequences; ++i) {
-            data += 1;  // skip seg_id
-            uint64_t color = 0;
-            if constexpr (sizeof(seg_id_t) == 4) {
-                color = *reinterpret_cast<uint64_t const*>(data);
-                data += 2;
-            } else {
-                assert(sizeof(seg_id_t) == 8);
-                color = *data;
-                data += 1;
-            }
-            uint64_t got = m_u2c.rank(i);
-            if (got != color) {
-                std::cout << "Error: expected color " << color << " but got " << got << std::endl;
-            }
-        }
     }
 
     {
@@ -79,25 +74,7 @@ void index<ColorClasses>::build(build_configuration const& build_config) {
 
     {
         essentials::logger("step 4. write filenames");
-        std::vector<std::string> filenames;
-        uint64_t n = num_docs();
-        filenames.reserve(n);
-        std::ifstream in(build_config.file_base_name + ".json");
-        if (!in.is_open()) throw std::runtime_error("error in opening file");
-        std::string line;
-        std::getline(in, line, ':');
-        std::getline(in, line, ':');
-        in.get();  // skip '"'
-        for (uint64_t i = 0; i != n; ++i) {
-            in.get();  // skip ' '
-            char delim = ',';
-            if (i == n - 1) {
-                delim = '"';  // last
-            }
-            std::getline(in, line, delim);
-            filenames.push_back(line);
-        }
-        m_filenames.build(filenames);
+        m_filenames.build(build_config.ggcat->filenames());
         // m_filenames.print();
     }
 }

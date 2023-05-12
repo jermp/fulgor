@@ -7,6 +7,8 @@
 #include <sstream>
 #include <chrono>
 
+#include "GGCAT.hpp"
+
 namespace fulgor {
 
 /* This *must* currently be uint64_t as Cuttlefish output 8-byte uints in .cf_inv_col file. */
@@ -26,7 +28,10 @@ struct build_configuration {
         , ram_limit_in_GiB(constants::default_ram_limit_in_GiB)
         , tmp_dirname(constants::default_tmp_dirname)
         , verbose(false)
-        , canonical_parsing(true) {}
+        , canonical_parsing(true)
+        , ggcat(new GGCAT()) {}
+
+    ~build_configuration() { delete ggcat; }
 
     uint32_t k;         // kmer length
     uint32_t m;         // minimizer length
@@ -36,6 +41,7 @@ struct build_configuration {
     std::string file_base_name;
     bool verbose;
     bool canonical_parsing;
+    GGCAT* ggcat;
 };
 
 namespace util {

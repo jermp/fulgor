@@ -6,6 +6,7 @@
 
 #include "../external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
 
+#include "run_ggcat.cpp"
 #include "invert.cpp"
 #include "sort_unique.cpp"
 #include "permute_unitigs.cpp"
@@ -62,7 +63,9 @@ int help(char* arg0) {
 int main(int argc, char** argv) {
     if (argc < 2) return help(argv[0]);
     auto tool = std::string(argv[1]);
-    if (tool == "invert") {
+    if (tool == "run_ggcat") {
+        return run_ggcat(argc - 1, argv + 1);
+    } else if (tool == "invert") {
         return invert(argc - 1, argv + 1);
     } else if (tool == "sort-unique") {
         return sort_unique(argc - 1, argv + 1);

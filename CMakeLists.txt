@@ -48,6 +48,21 @@ endif()
 
 include_directories(include)
 
+
+## GGCAT ####
+
+add_custom_target(
+   ggcat_cpp_api
+   COMMAND make
+   WORKING_DIRECTORY external/ggcat/crates/capi/ggcat-cpp-api
+)
+set(GGCAT_CPP_BINDINGS external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cpp_bindings.a)
+set(GGCAT_CXX_INTEROP external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cxx_interop.a)
+set(GGCAT_API external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_api.a)
+
+
+## Fulgor ###
+
 set(Z_LIB_SOURCES
   external/sshash/include/gz/zip_stream.cpp
 )
@@ -68,6 +83,9 @@ add_executable(fulgor tools/fulgor.cpp)
 target_link_libraries(fulgor
   sshash_static
   z
+  ${GGCAT_API}
+  ${GGCAT_CPP_BINDINGS}
+  ${GGCAT_CXX_INTEROP}
 )
 
 add_executable(check_colors tools/check_colors.cpp)

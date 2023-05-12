@@ -11,9 +11,6 @@
 
 namespace fulgor {
 
-/* This *must* currently be uint64_t as Cuttlefish output 8-byte uints in .cf_inv_col file. */
-typedef uint64_t seg_id_t;
-
 namespace constants {
 constexpr double invalid_threshold = -1.0;
 constexpr uint64_t default_ram_limit_in_GiB = 2;

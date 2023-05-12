@@ -10,6 +10,15 @@ namespace fulgor {
 struct GGCAT {
     GGCAT() : m_instance(nullptr), m_graph_file(""), m_k(0) {}
 
+    ~GGCAT() {
+        try {
+            /* remove all tmp file */
+            std::remove((m_graph_file).c_str());                             // ccdbg filename
+            std::remove((m_output_filename + ".fa").c_str());                // unitigs
+            std::remove((m_output_filename + ".ggcat.colors.dat").c_str());  // colors tmp filename
+        } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
+    }
+
     void build(std::string const& filenames_list, uint64_t mem_gigas, uint64_t k,
                uint64_t num_threads, std::string const& tmp_dirname,
                std::string const& output_basename) {
@@ -22,6 +31,7 @@ struct GGCAT {
             in.close();
         }
 
+        m_output_filename = output_basename;
         m_graph_file = output_basename + ".ggcat.fa";
         m_k = k;
 
@@ -54,11 +64,6 @@ struct GGCAT {
             ggcat::Slice<std::string>(m_filenames.data(), m_filenames.size()), m_graph_file, m_k,
             num_threads, forward_only, min_multiplicity, ggcat::ExtraElaborationStep_UnitigLinks,
             output_colors, ggcat::Slice<std::string>(color_names.data(), color_names.size()));
-
-        try {
-            // remove tmp file
-            std::remove((output_basename + ".colors.data").c_str());
-        } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
     }
 
     void loop_through_unitigs(
@@ -74,6 +79,7 @@ private:
     ggcat::GGCATInstance* m_instance;
     std::string m_graph_file;
     std::vector<std::string> m_filenames;
+    std::string m_output_filename;
     uint64_t m_k;
 };
 

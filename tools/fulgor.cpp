@@ -46,10 +46,10 @@ int help(char* arg0) {
               << std::endl;
     std::cout << "Usage: " << arg0 << " <tool> ...\n\n"
               << "Available tools:\n"
-              << "  build           \t build a fulgor index \n"
-              << "  pseudoalign     \t pseudoalign reads to references using a fulgor index \n"
-              << "  stats           \t print index statistics \n"
-              << "  print-filenames \t print all reference filenames " << std::endl;
+              << "  build           \t build a fulgor index\n"
+              << "  pseudoalign     \t pseudoalign reads to references using a fulgor index\n"
+              << "  stats           \t print index statistics\n"
+              << "  print-filenames \t print all reference filenames" << std::endl;
     return 1;
 }
 

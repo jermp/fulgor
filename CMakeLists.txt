@@ -90,3 +90,15 @@ target_link_libraries(fulgor
   ${GGCAT_CXX_INTEROP}
   ${CMAKE_DL_LIBS}
 )
+
+
+# test
+add_executable(ggcat_test tools/ggcat_test.cpp)
+add_dependencies(ggcat_test ggcat_cpp_api)
+target_link_libraries(ggcat_test
+  ${GGCAT}
+  ${GGCAT_API}
+  ${GGCAT_CPP_BINDINGS}
+  ${GGCAT_CXX_INTEROP}
+  ${CMAKE_DL_LIBS}
+)

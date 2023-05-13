@@ -13,13 +13,13 @@ void index<ColorClasses>::build(build_configuration const& build_config) {
         std::ofstream out((build_config.file_base_name + ".fa").c_str());
         if (!out.is_open()) throw std::runtime_error("cannot open output file");
 
-        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const read,
+        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const unitig,
                                                      ggcat::Slice<uint32_t> const /* colors */,
                                                      bool same_color) {
             num_unitigs += 1;
             try {
                 out << ">\n";
-                out.write(read.data, read.size);
+                out.write(unitig.data, unitig.size);
                 out << '\n';
                 if (!same_color) num_distinct_colors += 1;
             } catch (std::exception const& e) {
@@ -50,7 +50,7 @@ void index<ColorClasses>::build(build_configuration const& build_config) {
         essentials::logger("step 2. build m_u2c");
         uint64_t i = 0;
         pthash::bit_vector_builder bvb(num_unitigs);
-        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const /* read */,
+        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const /* unitig */,
                                                      ggcat::Slice<uint32_t> const /* colors */,
                                                      bool same_color) {
             try {

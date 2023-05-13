@@ -34,7 +34,7 @@ struct hybrid {
         std::cout << "m_very_dense_set_threshold_size " << m_very_dense_set_threshold_size
                   << std::endl;
 
-        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const /* read */,
+        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const /* unitig */,
                                                      ggcat::Slice<uint32_t> const colors,
                                                      bool same_color) {
             try {

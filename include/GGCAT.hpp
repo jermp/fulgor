@@ -67,9 +67,12 @@ struct GGCAT {
     }
 
     void loop_through_unitigs(
-        std::function<void(ggcat::Slice<char> const, ggcat::Slice<uint32_t> const, bool)> callback)
-        const {
-        m_instance->dump_unitigs(m_graph_file, m_k, 1, true, callback, true);
+        std::function<void(ggcat::Slice<char> const /* unitig */,
+                           ggcat::Slice<uint32_t> const /* colors */, bool /* same_color */)>
+            callback) const {
+        m_instance->dump_unitigs(m_graph_file, m_k,
+                                 1,  // use one thread, so we do not need synchronization code
+                                 true, callback, true);
     }
 
     uint64_t num_docs() const { return m_filenames.size(); }

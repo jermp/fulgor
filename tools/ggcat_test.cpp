@@ -46,15 +46,15 @@ int main(int argc, char const* argv[]) {
 
     std::string output_file = instance->build_graph_from_files(
         Slice<std::string>(input_files.data(), input_files.size()), graph_file, k, 1, false, 1,
-        ExtraElaborationStep_UnitigLinks, true,
+        ExtraElaborationStep_UnitigLinks, true,  // output_colors
         Slice<std::string>(color_names.data(), color_names.size()));
 
-    auto file_color_names =
+    std::vector<std::string> file_color_names =
         GGCATInstance::dump_colors(GGCATInstance::get_colormap_file(graph_file));
 
     instance->dump_unitigs(
         graph_file, k, 1, true,
-        [&](Slice<char> unitig, Slice<uint32_t> color, bool /* same_color */) {
+        [&](Slice<char> unitig, Slice<uint32_t> color, bool same_color) {
             std::cout << "unitig: '" << std::string(unitig.data, unitig.data + unitig.size) << "'"
                       << std::endl;
             std::cout << "color: [ ";
@@ -66,7 +66,8 @@ int main(int argc, char const* argv[]) {
             }
             std::cout << "]" << std::endl;
         },
-        true);
+        true  // output_colors
+    );
 
     std::remove("ref1.fa");
     std::remove("ref2.fa");

@@ -74,7 +74,6 @@ void index<ColorClasses>::build(build_configuration const& build_config) {
     {
         essentials::logger("step 3. write filenames");
         m_filenames.build(build_config.ggcat->filenames());
-        // m_filenames.print();
     }
 
     if (build_config.check) {
@@ -85,6 +84,13 @@ void index<ColorClasses>::build(build_configuration const& build_config) {
             auto lookup_result = m_k2u.lookup_advanced(unitig.data);
             uint32_t unitig_id = lookup_result.contig_id;
             uint32_t color_id = u2c(unitig_id);
+            for (uint64_t i = 1; i != unitig.size - m_k2u.k() + 1; ++i) {
+                uint32_t got = m_k2u.lookup_advanced(unitig.data + i).contig_id;
+                if (got != unitig_id) {
+                    std::cout << "got unitig_id " << got << " but expected " << unitig_id
+                              << std::endl;
+                }
+            }
             auto fwd_it = m_ccs.colors(color_id);
             uint64_t size = fwd_it.size();
             if (size != colors.size) {
@@ -97,6 +103,7 @@ void index<ColorClasses>::build(build_configuration const& build_config) {
                 if (ref != colors.data[i]) {
                     std::cout << "got ref " << ref << " but expected " << colors.data[i]
                               << std::endl;
+                    return;
                 }
             }
         });

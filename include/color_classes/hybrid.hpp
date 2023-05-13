@@ -320,7 +320,6 @@ struct hybrid {
             uint64_t num_bits = m_offsets.access(color_class_id + 1) - offset;
             auto bucket_it = std::upper_bound(list_size_upperbounds.begin(),
                                               list_size_upperbounds.end(), list_size);
-            assert(bucket_it != list_size_upperbounds.end());
             if (bucket_it != list_size_upperbounds.begin() and *(bucket_it - 1) == list_size) {
                 --bucket_it;
             }

@@ -86,7 +86,7 @@ create a list of all `.fasta` filenames with
 
 	find $(pwd)/Salmonella_enterica/Genomes/*.fasta > salmonella_4546_filenames.txt
 
-and run Fulgor with
+and, from `fulgor/build`, run
 
 	./fulgor build -l ~/salmonella_4546_filenames.txt -o ~/Salmonella_enterica/salmonella_4546 -k 31 -m 20 -d tmp_dir -g 8 -t 8 --verbose
 
@@ -109,7 +109,7 @@ which will create an index with the following stats:
 
 We can now pseudoalign the reads from [SRR801268](ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR801/SRR801268/SRR801268_1.fastq.gz) with:
 
-	./build/fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.hybrid.index -q ~/SRR801268_1.fastq.gz -t 8 -o /dev/null
+	./fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.hybrid.index -q ~/SRR801268_1.fastq.gz -t 8 -o /dev/null
 
 	mapped 6584304 reads
 	elapsed = 130133 millisec / 130.133 sec / 2.16888 min / 19.7641 musec/read

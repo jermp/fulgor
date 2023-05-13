@@ -6,35 +6,60 @@ template <typename ColorClasses>
 void index<ColorClasses>::build(build_configuration const& build_config) {
     if (m_k2u.size() != 0) throw std::runtime_error("index already built");
 
-    uint64_t num_unitigs = 0;
     {
-        essentials::logger("step 1. build m_u2c");
+        essentials::logger("step 1. build m_u2c and m_ccs");
+
+        uint64_t num_unitigs = 0;
         uint64_t num_distinct_colors = 0;
+
+        pthash::bit_vector_builder bvb;  // for m_u2c
+
+        /* write unitigs to fasta file for SSHash */
         std::ofstream out((build_config.file_base_name + ".fa").c_str());
         if (!out.is_open()) throw std::runtime_error("cannot open output file");
 
+        typename ColorClasses::builder colors_builder(build_config);
+
         build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const unitig,
-                                                     ggcat::Slice<uint32_t> const /* colors */,
+                                                     ggcat::Slice<uint32_t> const colors,
                                                      bool same_color) {
-            num_unitigs += 1;
             try {
+                if (!same_color) {
+                    num_distinct_colors += 1;
+                    if (num_unitigs > 0) bvb.set(num_unitigs - 1, 1);
+
+                    /* compress colors */
+                    colors_builder.process(colors.data, colors.size);
+                }
+                bvb.push_back(0);
+
                 out << ">\n";
                 out.write(unitig.data, unitig.size);
                 out << '\n';
-                if (!same_color) num_distinct_colors += 1;
+
+                num_unitigs += 1;
+
             } catch (std::exception const& e) {
                 std::cerr << e.what() << std::endl;
                 exit(1);
             }
         });
 
-        assert(num_unitigs < (uint64_t(1) << 32));
+        out.close();
 
+        assert(num_unitigs < (uint64_t(1) << 32));
         std::cout << "num_unitigs " << num_unitigs << std::endl;
         std::cout << "num_distinct_colors " << num_distinct_colors << std::endl;
 
-        out.close();
+        m_u2c.build(&bvb);
+        std::cout << "m_u2c.size() " << m_u2c.size() << std::endl;
+        std::cout << "m_u2c.num_ones() " << m_u2c.num_ones() << std::endl;
+        std::cout << "m_u2c.num_zeros() " << m_u2c.num_zeros() << std::endl;
 
+        colors_builder.build(m_ccs);
+    }
+
+    {
         essentials::logger("step 2. build m_k2u");
         sshash::build_configuration sshash_build_config;
         sshash_build_config.k = build_config.k;
@@ -47,35 +72,35 @@ void index<ColorClasses>::build(build_configuration const& build_config) {
     }
 
     {
-        essentials::logger("step 2. build m_u2c");
-        uint64_t i = 0;
-        pthash::bit_vector_builder bvb(num_unitigs);
-        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const /* unitig */,
-                                                     ggcat::Slice<uint32_t> const /* colors */,
-                                                     bool same_color) {
-            try {
-                if (i > 0 and !same_color) bvb.set(i - 1, 1);
-                i += 1;
-            } catch (std::exception const& e) {
-                std::cerr << e.what() << std::endl;
-                exit(1);
-            }
-        });
-        m_u2c.build(&bvb);
-        std::cout << "m_u2c.size() " << m_u2c.size() << std::endl;
-        std::cout << "m_u2c.num_ones() " << m_u2c.num_ones() << std::endl;
-        std::cout << "m_u2c.num_zeros() " << m_u2c.num_zeros() << std::endl;
-    }
-
-    {
-        essentials::logger("step 3. build colors");
-        m_ccs.build(build_config);
-    }
-
-    {
-        essentials::logger("step 4. write filenames");
+        essentials::logger("step 3. write filenames");
         m_filenames.build(build_config.ggcat->filenames());
         // m_filenames.print();
+    }
+
+    if (build_config.check) {
+        essentials::logger("step 4. check correctness...");
+        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const unitig,
+                                                     ggcat::Slice<uint32_t> const colors,
+                                                     bool /* same_color */) {
+            auto lookup_result = m_k2u.lookup_advanced(unitig.data);
+            uint32_t unitig_id = lookup_result.contig_id;
+            uint32_t color_id = u2c(unitig_id);
+            auto fwd_it = m_ccs.colors(color_id);
+            uint64_t size = fwd_it.size();
+            if (size != colors.size) {
+                std::cout << "got colors list of size " << size << " but expected " << colors.size
+                          << std::endl;
+                return;
+            }
+            for (uint64_t i = 0; i != size; ++i, ++fwd_it) {
+                uint32_t ref = *fwd_it;
+                if (ref != colors.data[i]) {
+                    std::cout << "got ref " << ref << " but expected " << colors.data[i]
+                              << std::endl;
+                }
+            }
+        });
+        essentials::logger("DONE!");
     }
 }
 

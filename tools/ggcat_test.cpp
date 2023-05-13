@@ -11,8 +11,9 @@ int main(int argc, char const* argv[]) {
 
     // AAAAACACACATATACAGTGTGTGAGTAGTATGATGTGCAACCGAT
     //                 AGTGTGTGAGTAGTATGATGTGCAACCGATTTTCAG
-    const char* sequences[] = {"AAAAACACACATATACAGTGTGTGAGTAGTATGATGTGCAACCGAT",
-                               "AGTGTGTGAGTAGTATGATGTGCAACCGATTTTCAG"};
+    const char* sequences[] = {
+        "AAAAACACACATATACAGTGTGTGAGTAGTATGATGTGCAACCGAT", "GCTAGCGATATAATATATGGCGTATATAGAAAA",
+        "AGTGTGTGAGTAGTATGATGTGCAACCGATTTTCAGGCTAGCGATATAATATATGGCGTATATAGAAAA"};
 
     std::vector<std::string> input_files{"ref1.fa", "ref2.fa"};
 
@@ -20,10 +21,13 @@ int main(int argc, char const* argv[]) {
     out0 << ">\n";
     out0.write(sequences[0], strlen(sequences[0]));
     out0 << '\n';
+    out0 << ">\n";
+    out0.write(sequences[1], strlen(sequences[1]));
+    out0 << '\n';
     out0.close();
     std::ofstream out1((input_files[1]).c_str());
     out1 << ">\n";
-    out1.write(sequences[1], strlen(sequences[1]));
+    out1.write(sequences[2], strlen(sequences[2]));
     out1 << '\n';
     out1.close();
 
@@ -68,6 +72,12 @@ int main(int argc, char const* argv[]) {
         },
         true  // output_colors
     );
+
+    // queries
+    std::string output_query =
+        instance->query_graph(graph_file, input_files[0], "tmp_dir/query-results", k, 1, false,
+                              true, ColoredQueryOutputFormat_JsonLinesWithNumbers);
+    std::cout << output_query << std::endl;
 
     std::remove("ref1.fa");
     std::remove("ref2.fa");

@@ -7,120 +7,125 @@ struct hybrid {
 
     enum list_type { delta_gaps = 0, bitmap = 1, complementary_delta_gaps = 2 };
 
-    void build(build_configuration const& build_config) {
-        uint64_t num_docs = build_config.ggcat->num_docs();
-        std::cout << "num_docs: " << num_docs << std::endl;
+    struct builder {
+        builder(build_configuration const& build_config) {
+            m_num_docs = build_config.ggcat->num_docs();
 
-        m_num_docs = num_docs;
+            /* if list contains < sparse_set_threshold_size ints, code it with gaps+delta */
+            m_sparse_set_threshold_size = 0.25 * m_num_docs;
 
-        /* if list contains < sparse_set_threshold_size ints, code it with gaps+delta */
-        m_sparse_set_threshold_size = 0.25 * m_num_docs;
+            /* if list contains > very_dense_set_threshold_size ints, code it as a complementary set
+               with gaps+delta */
+            m_very_dense_set_threshold_size = 0.75 * m_num_docs;
+            /* otherwise: code it as a bitmap of m_num_docs bits */
 
-        /* if list contains > very_dense_set_threshold_size ints, code it as a complementary set
-           with gaps+delta */
-        m_very_dense_set_threshold_size = 0.75 * m_num_docs;
-        /* otherwise: code it as a bitmap of m_num_docs bits */
+            std::cout << "m_num_docs: " << m_num_docs << std::endl;
+            std::cout << "m_sparse_set_threshold_size " << m_sparse_set_threshold_size << std::endl;
+            std::cout << "m_very_dense_set_threshold_size " << m_very_dense_set_threshold_size
+                      << std::endl;
 
-        bit_vector_builder bvb;
-        bvb.reserve(8 * essentials::GB);
+            m_bvb.reserve(8 * essentials::GB);
+            m_offsets.push_back(0);
 
-        std::vector<uint64_t> offsets;
-        offsets.push_back(0);
+            m_num_lists = 0;
+            m_num_total_integers = 0;
+        }
 
-        uint64_t num_lists = 0;
-        uint64_t num_total_integers = 0;
-
-        std::cout << "m_sparse_set_threshold_size " << m_sparse_set_threshold_size << std::endl;
-        std::cout << "m_very_dense_set_threshold_size " << m_very_dense_set_threshold_size
-                  << std::endl;
-
-        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const /* unitig */,
-                                                     ggcat::Slice<uint32_t> const colors,
-                                                     bool same_color) {
-            try {
-                if (!same_color) {
-                    uint64_t list_size = colors.size;
-                    /* encode list_size */
-                    util::write_delta(bvb, list_size);
-                    if (list_size < m_sparse_set_threshold_size) {
-                        auto list_it = colors.data;
-                        uint32_t prev_val = *list_it;
-                        util::write_delta(bvb, prev_val);
-                        ++list_it;
-                        for (uint64_t i = 1; i != list_size; ++i, ++list_it) {
-                            uint32_t val = *list_it;
+        void process(uint32_t* const colors, uint64_t list_size) {
+            /* encode list_size */
+            util::write_delta(m_bvb, list_size);
+            if (list_size < m_sparse_set_threshold_size) {
+                uint32_t prev_val = colors[0];
+                util::write_delta(m_bvb, prev_val);
+                for (uint64_t i = 1; i != list_size; ++i) {
+                    uint32_t val = colors[i];
+                    assert(val >= prev_val + 1);
+                    util::write_delta(m_bvb, val - (prev_val + 1));
+                    prev_val = val;
+                }
+            } else if (list_size < m_very_dense_set_threshold_size) {
+                bit_vector_builder bvb_ints;
+                bvb_ints.resize(m_num_docs);
+                for (uint64_t i = 0; i != list_size; ++i) bvb_ints.set(colors[i]);
+                m_bvb.append(bvb_ints);
+            } else {
+                bool first = true;
+                uint32_t val = 0;
+                uint32_t prev_val = -1;
+                uint32_t written = 0;
+                for (uint64_t i = 0; i != list_size; ++i) {
+                    uint32_t x = colors[i];
+                    while (val < x) {
+                        if (first) {
+                            util::write_delta(m_bvb, val);
+                            first = false;
+                            ++written;
+                        } else {
                             assert(val >= prev_val + 1);
-                            util::write_delta(bvb, val - (prev_val + 1));
-                            prev_val = val;
-                        }
-                    } else if (list_size < m_very_dense_set_threshold_size) {
-                        bit_vector_builder bvb_ints;
-                        bvb_ints.resize(m_num_docs);
-                        for (uint64_t i = 0; i != list_size; ++i) bvb_ints.set(colors.data[i]);
-                        bvb.append(bvb_ints);
-                    } else {
-                        bool first = true;
-                        uint32_t val = 0;
-                        uint32_t prev_val = -1;
-                        uint32_t written = 0;
-                        for (uint64_t i = 0; i != list_size; ++i) {
-                            uint32_t x = colors.data[i];
-                            while (val < x) {
-                                if (first) {
-                                    util::write_delta(bvb, val);
-                                    first = false;
-                                    ++written;
-                                } else {
-                                    assert(val >= prev_val + 1);
-                                    util::write_delta(bvb, val - (prev_val + 1));
-                                    ++written;
-                                }
-                                prev_val = val;
-                                ++val;
-                            }
-                            assert(val == x);
-                            val++;  // skip x
-                        }
-                        while (val < num_docs) {
-                            assert(val >= prev_val + 1);
-                            util::write_delta(bvb, val - (prev_val + 1));
-                            prev_val = val;
-                            ++val;
+                            util::write_delta(m_bvb, val - (prev_val + 1));
                             ++written;
                         }
-                        assert(val == num_docs);
-                        /* complementary_list_size = num_docs - list_size */
-                        assert(num_docs - list_size <= m_num_docs);
-                        assert(written == num_docs - list_size);
+                        prev_val = val;
+                        ++val;
                     }
-                    offsets.push_back(bvb.num_bits());
-                    num_total_integers += list_size;
-                    num_lists += 1;
-                    if (num_lists % 500000 == 0) {
-                        std::cout << "processed " << num_lists << " lists" << std::endl;
-                    }
+                    assert(val == x);
+                    val++;  // skip x
                 }
-            } catch (std::exception const& e) {
-                std::cerr << e.what() << std::endl;
-                exit(1);
+                while (val < m_num_docs) {
+                    assert(val >= prev_val + 1);
+                    util::write_delta(m_bvb, val - (prev_val + 1));
+                    prev_val = val;
+                    ++val;
+                    ++written;
+                }
+                assert(val == m_num_docs);
+                /* complementary_list_size = m_num_docs - list_size */
+                assert(m_num_docs - list_size <= m_num_docs);
+                assert(written == m_num_docs - list_size);
             }
-        });
+            m_offsets.push_back(m_bvb.num_bits());
+            m_num_total_integers += list_size;
+            m_num_lists += 1;
+            if (m_num_lists % 500000 == 0) {
+                std::cout << "  processed " << m_num_lists << " lists" << std::endl;
+            }
+        }
 
-        std::cout << "processed " << num_lists << " lists" << std::endl;
-        std::cout << "num_total_integers " << num_total_integers << std::endl;
-        assert(num_lists == offsets.size() - 1);
+        void build(hybrid& h) {
+            h.m_num_docs = m_num_docs;
+            h.m_sparse_set_threshold_size = m_sparse_set_threshold_size;
+            h.m_very_dense_set_threshold_size = m_very_dense_set_threshold_size;
 
-        m_offsets.encode(offsets.begin(), offsets.size(), offsets.back());
-        m_colors.swap(bvb.bits());
+            std::cout << "processed " << m_num_lists << " lists" << std::endl;
+            std::cout << "m_num_total_integers " << m_num_total_integers << std::endl;
+            assert(m_num_lists == m_offsets.size() - 1);
 
-        std::cout << "  total bits for ints = " << m_colors.size() * 64 << std::endl;
-        std::cout << "  total bits per offsets = " << m_offsets.num_bits() << std::endl;
-        std::cout << "  total bits = " << m_offsets.num_bits() + m_colors.size() * 64 << std::endl;
-        std::cout << "  offsets: " << static_cast<double>(m_offsets.num_bits()) / num_total_integers
-                  << " bits/int" << std::endl;
-        std::cout << "  lists: " << static_cast<double>(m_colors.size() * 64) / num_total_integers
-                  << " bits/int" << std::endl;
-    }
+            h.m_offsets.encode(m_offsets.begin(), m_offsets.size(), m_offsets.back());
+            h.m_colors.swap(m_bvb.bits());
+
+            std::cout << "  total bits for ints = " << h.m_colors.size() * 64 << std::endl;
+            std::cout << "  total bits per offsets = " << h.m_offsets.num_bits() << std::endl;
+            std::cout << "  total bits = " << h.m_offsets.num_bits() + h.m_colors.size() * 64
+                      << std::endl;
+            std::cout << "  offsets: "
+                      << static_cast<double>(h.m_offsets.num_bits()) / m_num_total_integers
+                      << " bits/int" << std::endl;
+            std::cout << "  lists: "
+                      << static_cast<double>(h.m_colors.size() * 64) / m_num_total_integers
+                      << " bits/int" << std::endl;
+        }
+
+    private:
+        uint32_t m_num_docs;
+        uint32_t m_sparse_set_threshold_size;
+        uint32_t m_very_dense_set_threshold_size;
+        uint64_t m_num_lists;
+        uint64_t m_num_total_integers;
+
+        bit_vector_builder m_bvb;
+        std::vector<uint64_t> m_offsets;
+        std::vector<uint64_t> m_colors;
+    };
 
     struct forward_iterator {
         forward_iterator(hybrid const* ptr, uint64_t begin)

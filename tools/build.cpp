@@ -18,6 +18,8 @@ int build(int argc, char** argv) {
                "-g", false);
     parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
     parser.add("verbose", "Verbose output during construction.", "--verbose", false, true);
+    parser.add("check", "Check correctness after index construction (it might take some time).",
+               "--check", false, true);
 
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
@@ -33,6 +35,7 @@ int build(int argc, char** argv) {
         essentials::create_directory(build_config.tmp_dirname);
     }
     build_config.verbose = parser.get<bool>("verbose");
+    build_config.check = parser.get<bool>("check");
 
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();

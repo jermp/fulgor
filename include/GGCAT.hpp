@@ -70,6 +70,7 @@ struct GGCAT {
         std::function<void(ggcat::Slice<char> const /* unitig */,
                            ggcat::Slice<uint32_t> const /* colors */, bool /* same_color */)>
             callback) const {
+        if (m_k == 0) throw std::runtime_error("graph must be built first");
         m_instance->dump_unitigs(m_graph_file, m_k,
                                  1,  // use one thread, so we do not need synchronization code
                                  true, callback, true);

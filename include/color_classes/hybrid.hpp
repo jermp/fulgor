@@ -291,6 +291,13 @@ struct hybrid {
         uint64_t num_buckets = 10;
         assert(num_buckets > 0);
         uint64_t bucket_size = m_num_docs / num_buckets;
+        std::vector<uint32_t> list_size_upperbounds;
+        for (uint64_t i = 0, curr_list_size_upper_bound = bucket_size; i != num_buckets;
+             ++i, curr_list_size_upper_bound += bucket_size) {
+            if (i == num_buckets - 1) curr_list_size_upper_bound = m_num_docs;
+            list_size_upperbounds.push_back(curr_list_size_upper_bound);
+        }
+
         std::vector<uint64_t> num_bits_per_bucket;
         std::vector<uint64_t> num_lists_per_bucket;
         std::vector<uint64_t> num_ints_per_bucket;
@@ -298,36 +305,32 @@ struct hybrid {
         num_lists_per_bucket.resize(num_buckets, 0);
         num_ints_per_bucket.resize(num_buckets, 0);
 
-        /* Note: we assume lists are sorted by non-decreasing size. */
         const uint64_t num_lists = num_color_classes();
         uint64_t num_total_integers = 0;
-        uint64_t curr_list_size_upper_bound = bucket_size;
-        for (uint64_t color_class_id = 0, i = 0; color_class_id != m_offsets.size() - 1;
+        for (uint64_t color_class_id = 0; color_class_id != m_offsets.size() - 1;
              ++color_class_id) {
             uint64_t offset = m_offsets.access(color_class_id);
             bit_vector_iterator it(m_colors.data(), m_colors.size(), offset);
             uint32_t list_size = util::read_delta(it);
             uint64_t num_bits = m_offsets.access(color_class_id + 1) - offset;
-            if (list_size > curr_list_size_upper_bound) {
-                i += 1;
-                if (i == num_buckets - 1) {
-                    curr_list_size_upper_bound = m_num_docs;
-                } else {
-                    curr_list_size_upper_bound += bucket_size;
-                }
+            auto bucket_it = std::upper_bound(list_size_upperbounds.begin(),
+                                              list_size_upperbounds.end(), list_size);
+            assert(bucket_it != list_size_upperbounds.end());
+            if (bucket_it != list_size_upperbounds.begin() and *(bucket_it - 1) == list_size) {
+                --bucket_it;
             }
-            num_bits_per_bucket[i] += num_bits;
-            num_lists_per_bucket[i] += 1;
-            num_ints_per_bucket[i] += list_size;
+            uint64_t bucket_index = std::distance(list_size_upperbounds.begin(), bucket_it);
+            num_bits_per_bucket[bucket_index] += num_bits;
+            num_lists_per_bucket[bucket_index] += 1;
+            num_ints_per_bucket[bucket_index] += list_size;
             num_total_integers += list_size;
         }
 
         std::cout << "CCs SPACE BREAKDOWN:\n";
         uint64_t integers = 0;
         uint64_t bits = 0;
-        curr_list_size_upper_bound = 0;
         const uint64_t total_bits = num_bits();
-        for (uint64_t i = 0; i != num_buckets; ++i) {
+        for (uint64_t i = 0, curr_list_size_upper_bound = 0; i != num_buckets; ++i) {
             if (i == num_buckets - 1) {
                 curr_list_size_upper_bound = m_num_docs;
             } else {

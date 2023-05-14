@@ -7,10 +7,9 @@
 #include <sstream>
 #include <chrono>
 
-namespace fulgor {
+#include "GGCAT.hpp"
 
-/* This *must* currently be uint64_t as Cuttlefish output 8-byte uints in .cf_inv_col file. */
-typedef uint64_t seg_id_t;
+namespace fulgor {
 
 namespace constants {
 constexpr double invalid_threshold = -1.0;
@@ -22,20 +21,24 @@ struct build_configuration {
     build_configuration()
         : k(31)
         , m(20)
-        , num_refs(0)
         , ram_limit_in_GiB(constants::default_ram_limit_in_GiB)
         , tmp_dirname(constants::default_tmp_dirname)
         , verbose(false)
-        , canonical_parsing(true) {}
+        , canonical_parsing(true)
+        , check(false)
+        , ggcat(new GGCAT()) {}
 
-    uint32_t k;         // kmer length
-    uint32_t m;         // minimizer length
-    uint32_t num_refs;  // number of references to process
+    ~build_configuration() { delete ggcat; }
+
+    uint32_t k;  // kmer length
+    uint32_t m;  // minimizer length
     double ram_limit_in_GiB;
     std::string tmp_dirname;
     std::string file_base_name;
     bool verbose;
     bool canonical_parsing;
+    bool check;
+    GGCAT* ggcat;
 };
 
 namespace util {

@@ -1,3 +1,6 @@
 [submodule "external/sshash"]
 	path = external/sshash
 	url = https://github.com/jermp/sshash
+[submodule "external/ggcat"]
+	path = external/ggcat
+	url = https://github.com/jermp/ggcat

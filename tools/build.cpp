@@ -42,9 +42,11 @@ int build(int argc, char** argv) {
 
     auto filenames_list = parser.get<std::string>("filenames_list");
     uint64_t mem_gigas = parser.get<uint64_t>("RAM");
-    uint64_t num_threads = parser.get<uint64_t>("num_threads");
+    if (parser.parsed("num_threads")) {
+        build_config.num_threads = parser.get<uint64_t>("num_threads");
+    }
 
-    build_config.ggcat->build(filenames_list, mem_gigas, build_config.k, num_threads,
+    build_config.ggcat->build(filenames_list, mem_gigas, build_config.k, build_config.num_threads,
                               build_config.tmp_dirname, build_config.file_base_name);
 
     timer.stop();

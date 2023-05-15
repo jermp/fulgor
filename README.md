@@ -1,24 +1,55 @@
 Fulgor
 ======
 
-Fulgor is a *colored compacted de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash).
+Fulgor is a *colored compacted de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
+
+**A pre-print describing how the index works can be found [here](https://www.biorxiv.org/content/10.1101/2023.05.09.539895v1).**
 
 ### Table of contents
+* [Dependencies](#dependencies)
 * [Compiling the code](#compiling-the-code)
 * [Tools](#tools)
 * [Demo](#Demo)
 * [Indexing an example Salmonella pan-genome](#indexing-an-example-salmonella-pan-genome)
 
+Dependencies
+------------
+
+#### GGCAT
+
+The code uses the [GGCAT](https://github.com/algbio/GGCAT) Rust library,
+so make sure you have Rust installed. If not, Rust can be install as recommended [here](https://www.rust-lang.org/tools/install), with
+
+	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+It is also recommended to use the [Nightly](https://doc.rust-lang.org/book/appendix-07-nightly-rust.html#rustup-and-the-role-of-rust-nightly) release channel.
+
+	rustup toolchain install nightly
+
+#### zlib
+
+If you do not have `zlib` installed, you can do
+
+    sudo apt-get install zlib1g
+
+if you are on Linux/Ubuntu, or
+
+    brew install zlib
+
+if you are using MacOS.
 
 Compiling the code
 ------------------
+
+The code is tested on Linux with `gcc`.
+To build the code, [`CMake`](https://cmake.org/) is required.
 
     git clone --recursive https://github.com/jermp/fulgor.git
     mkdir build; cd build
     cmake ..
     make
 
-If you forgot `--recursive`, do
+If you forgot `--recursive` when cloning, do
 
     git submodule update --init --recursive
 

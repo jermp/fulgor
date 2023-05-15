@@ -18,7 +18,7 @@ Dependencies
 #### GGCAT
 
 The code uses the [GGCAT](https://github.com/algbio/GGCAT) Rust library,
-so make sure you have Rust installed. If not, Rust can be install as recommended [here](https://www.rust-lang.org/tools/install), with
+so make sure you have Rust installed. If not, Rust can be installed as recommended [here](https://www.rust-lang.org/tools/install), with
 
 	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 

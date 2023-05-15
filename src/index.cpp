@@ -89,6 +89,7 @@ void index<ColorClasses>::build(build_configuration const& build_config) {
                 if (got != unitig_id) {
                     std::cout << "got unitig_id " << got << " but expected " << unitig_id
                               << std::endl;
+                    return;
                 }
             }
             auto fwd_it = m_ccs.colors(color_id);

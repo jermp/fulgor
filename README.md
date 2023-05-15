@@ -12,6 +12,7 @@ Fulgor is a *colored compacted de Bruijn graph* index for large-scale matching a
 * [Demo](#Demo)
 * [Indexing an example Salmonella pan-genome](#indexing-an-example-salmonella-pan-genome)
 
+
 Dependencies
 ------------
 
@@ -38,10 +39,11 @@ if you are on Linux/Ubuntu, or
 
 if you are using MacOS.
 
+
 Compiling the code
 ------------------
 
-The code is tested on Linux with `gcc`.
+The code is tested on Linux with `gcc` and on MacOS with `clang`.
 To build the code, [`CMake`](https://cmake.org/) is required.
 
     git clone --recursive https://github.com/jermp/fulgor.git
@@ -68,6 +70,7 @@ For a testing environment, use the following instead:
     cd debug_build
     cmake .. -D CMAKE_BUILD_TYPE=Debug -D FULGOR_USE_SANITIZERS=On
     make -j
+
 
 Tools
 -----
@@ -100,9 +103,9 @@ From `fulgor/test_data`, do
 
 Then, from `fulgor/build`, run
 
-	./fulgor build -l ../test_data/salmonella_10_filenames.txt -o ../test_data/salmonella_10 -k 31 -m 19 -d tmp_dir -g 1 -t 1 --verbose
+	./fulgor build -l ../test_data/salmonella_10_filenames.txt -o ../test_data/salmonella_10 -k 31 -m 19 -d tmp_dir -g 1 -t 1 --verbose --check
 
-We now have an index serialized to the file `test_data/salmonella_10.hybrid.index`.
+to build an index that will be serialized to the file `test_data/salmonella_10.hybrid.index`.
 
 
 Indexing an example Salmonella pan-genome

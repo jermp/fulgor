@@ -21,6 +21,7 @@ struct build_configuration {
     build_configuration()
         : k(31)
         , m(20)
+        , num_threads(1)
         , ram_limit_in_GiB(constants::default_ram_limit_in_GiB)
         , tmp_dirname(constants::default_tmp_dirname)
         , verbose(false)
@@ -30,8 +31,9 @@ struct build_configuration {
 
     ~build_configuration() { delete ggcat; }
 
-    uint32_t k;  // kmer length
-    uint32_t m;  // minimizer length
+    uint32_t k;            // kmer length
+    uint32_t m;            // minimizer length
+    uint64_t num_threads;  // for building and checking correctness
     double ram_limit_in_GiB;
     std::string tmp_dirname;
     std::string file_base_name;

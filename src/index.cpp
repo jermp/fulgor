@@ -78,36 +78,37 @@ void index<ColorClasses>::build(build_configuration const& build_config) {
 
     if (build_config.check) {
         essentials::logger("step 4. check correctness...");
-        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const unitig,
-                                                     ggcat::Slice<uint32_t> const colors,
-                                                     bool /* same_color */) {
-            auto lookup_result = m_k2u.lookup_advanced(unitig.data);
-            uint32_t unitig_id = lookup_result.contig_id;
-            uint32_t color_id = u2c(unitig_id);
-            for (uint64_t i = 1; i != unitig.size - m_k2u.k() + 1; ++i) {
-                uint32_t got = m_k2u.lookup_advanced(unitig.data + i).contig_id;
-                if (got != unitig_id) {
-                    std::cout << "got unitig_id " << got << " but expected " << unitig_id
-                              << std::endl;
+        build_config.ggcat->loop_through_unitigs(
+            [&](ggcat::Slice<char> const unitig, ggcat::Slice<uint32_t> const colors,
+                bool /* same_color */) {
+                auto lookup_result = m_k2u.lookup_advanced(unitig.data);
+                uint32_t unitig_id = lookup_result.contig_id;
+                uint32_t color_id = u2c(unitig_id);
+                for (uint64_t i = 1; i != unitig.size - m_k2u.k() + 1; ++i) {
+                    uint32_t got = m_k2u.lookup_advanced(unitig.data + i).contig_id;
+                    if (got != unitig_id) {
+                        std::cout << "got unitig_id " << got << " but expected " << unitig_id
+                                  << std::endl;
+                        return;
+                    }
+                }
+                auto fwd_it = m_ccs.colors(color_id);
+                uint64_t size = fwd_it.size();
+                if (size != colors.size) {
+                    std::cout << "got colors list of size " << size << " but expected "
+                              << colors.size << std::endl;
                     return;
                 }
-            }
-            auto fwd_it = m_ccs.colors(color_id);
-            uint64_t size = fwd_it.size();
-            if (size != colors.size) {
-                std::cout << "got colors list of size " << size << " but expected " << colors.size
-                          << std::endl;
-                return;
-            }
-            for (uint64_t i = 0; i != size; ++i, ++fwd_it) {
-                uint32_t ref = *fwd_it;
-                if (ref != colors.data[i]) {
-                    std::cout << "got ref " << ref << " but expected " << colors.data[i]
-                              << std::endl;
-                    return;
+                for (uint64_t i = 0; i != size; ++i, ++fwd_it) {
+                    uint32_t ref = *fwd_it;
+                    if (ref != colors.data[i]) {
+                        std::cout << "got ref " << ref << " but expected " << colors.data[i]
+                                  << std::endl;
+                        return;
+                    }
                 }
-            }
-        });
+            },
+            build_config.num_threads);
         essentials::logger("DONE!");
     }
 }

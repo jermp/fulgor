@@ -69,11 +69,10 @@ struct GGCAT {
     void loop_through_unitigs(
         std::function<void(ggcat::Slice<char> const /* unitig */,
                            ggcat::Slice<uint32_t> const /* colors */, bool /* same_color */)>
-            callback) const {
+            callback,
+        uint64_t num_threads = 1) const {
         if (m_k == 0) throw std::runtime_error("graph must be built first");
-        m_instance->dump_unitigs(m_graph_file, m_k,
-                                 1,  // use one thread, so we do not need synchronization code
-                                 true, callback, true);
+        m_instance->dump_unitigs(m_graph_file, m_k, num_threads, true, callback, true);
     }
 
     uint64_t num_docs() const { return m_filenames.size(); }

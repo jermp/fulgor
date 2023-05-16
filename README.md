@@ -3,7 +3,7 @@ Fulgor
 
 Fulgor is a *colored compacted de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
 
-**A pre-print describing how the index works can be found [here](https://www.biorxiv.org/content/10.1101/2023.05.09.539895v1).**
+**A pre-print describing how the index works can be found [here](https://www.biorxiv.org/content/10.1101/2023.05.09.539895).**
 
 ### Table of contents
 * [Dependencies](#dependencies)
@@ -46,10 +46,9 @@ Compiling the code
 The code is tested on Linux with `gcc` and on MacOS with `clang`.
 To build the code, [`CMake`](https://cmake.org/) is required.
 
+First clone the repository with
+
     git clone --recursive https://github.com/jermp/fulgor.git
-    mkdir build; cd build
-    cmake ..
-    make
 
 If you forgot `--recursive` when cloning, do
 
@@ -57,7 +56,7 @@ If you forgot `--recursive` when cloning, do
 
 before compiling.
 
-To compile the code for a release environment (see file `CMakeLists.txt` for the used compilation flags), it is sufficient to do the following:
+To compile the code for a release environment (see file `CMakeLists.txt` for the used compilation flags), it is sufficient to do the following, within the parent `fulgor` directory:
 
     mkdir build
     cd build
@@ -122,7 +121,7 @@ create a list of all `.fasta` filenames with
 
 and, from `fulgor/build`, run
 
-	./fulgor build -l ~/salmonella_4546_filenames.txt -o ~/Salmonella_enterica/salmonella_4546 -k 31 -m 20 -d tmp_dir -g 8 -t 8 --verbose
+	./fulgor build -l ~/salmonella_4546_filenames.txt -o ~/Salmonella_enterica/salmonella_4546 -k 31 -m 20 -d tmp_dir -g 8 -t 8 --verbose --check
 
 which will create an index with the following stats:
 

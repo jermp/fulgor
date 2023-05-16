@@ -13,7 +13,7 @@ namespace fulgor {
 
 namespace constants {
 constexpr double invalid_threshold = -1.0;
-constexpr uint64_t default_ram_limit_in_GiB = 2;
+constexpr uint64_t default_ram_limit_in_GiB = 8;
 static const std::string default_tmp_dirname(".");
 }  // namespace constants
 
@@ -23,23 +23,35 @@ struct build_configuration {
         , m(20)
         , num_threads(1)
         , ram_limit_in_GiB(constants::default_ram_limit_in_GiB)
+        , num_docs(0)
         , tmp_dirname(constants::default_tmp_dirname)
         , verbose(false)
         , canonical_parsing(true)
-        , check(false)
-        , ggcat(new GGCAT()) {}
-
-    ~build_configuration() { delete ggcat; }
+        , check(false) {}
 
     uint32_t k;            // kmer length
     uint32_t m;            // minimizer length
     uint64_t num_threads;  // for building and checking correctness
-    double ram_limit_in_GiB;
+    uint64_t ram_limit_in_GiB;
+    uint64_t num_docs;
     std::string tmp_dirname;
     std::string file_base_name;
     bool verbose;
     bool canonical_parsing;
     bool check;
+};
+
+struct ccdbg_builder {
+    ccdbg_builder() : ggcat(new GGCAT()) {}
+    ~ccdbg_builder() { delete ggcat; }
+
+    void build_ccdbg(std::string const& filenames_list) {
+        ggcat->build(filenames_list, config.ram_limit_in_GiB, config.k, config.num_threads,
+                     config.tmp_dirname, config.file_base_name);
+        config.num_docs = ggcat->num_docs();
+    }
+
+    build_configuration config;
     GGCAT* ggcat;
 };
 

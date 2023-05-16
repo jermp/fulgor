@@ -9,7 +9,7 @@ struct hybrid {
 
     struct builder {
         builder(build_configuration const& build_config) {
-            m_num_docs = build_config.ggcat->num_docs();
+            m_num_docs = build_config.num_docs;
 
             /* if list contains < sparse_set_threshold_size ints, code it with gaps+delta */
             m_sparse_set_threshold_size = 0.25 * m_num_docs;

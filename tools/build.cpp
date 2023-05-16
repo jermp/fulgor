@@ -41,16 +41,19 @@ int build(int argc, char** argv) {
     timer.start();
 
     auto filenames_list = parser.get<std::string>("filenames_list");
-    uint64_t mem_gigas = parser.get<uint64_t>("RAM");
+    if (parser.get<uint64_t>("RAM")) {
+        build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
+    }
     if (parser.parsed("num_threads")) {
         build_config.num_threads = parser.get<uint64_t>("num_threads");
     }
 
-    build_config.ggcat->build(filenames_list, mem_gigas, build_config.k, build_config.num_threads,
-                              build_config.tmp_dirname, build_config.file_base_name);
+    ccdbg_builder cb;
+    cb.config = build_config;
+    cb.build_ccdbg(filenames_list);
 
     timer.stop();
-    std::cout << "** running GGCAT took " << timer.elapsed() << " seconds / "
+    std::cout << "** building the ccdBG took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
     essentials::logger("DONE");
 
@@ -58,7 +61,7 @@ int build(int argc, char** argv) {
 
     timer.start();
     index_type index;
-    index.build(build_config);
+    index.build_from(cb);
     index.print_stats();
     timer.stop();
     essentials::logger("DONE");

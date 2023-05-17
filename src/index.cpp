@@ -3,7 +3,7 @@
 namespace fulgor {
 
 template <typename ColorClasses>
-void index<ColorClasses>::build(build_configuration const& build_config) {
+void index<ColorClasses>::build_from(ccdbg_builder const& builder) {
     if (m_k2u.size() != 0) throw std::runtime_error("index already built");
 
     {
@@ -15,14 +15,14 @@ void index<ColorClasses>::build(build_configuration const& build_config) {
         pthash::bit_vector_builder bvb;  // for m_u2c
 
         /* write unitigs to fasta file for SSHash */
-        std::ofstream out((build_config.file_base_name + ".fa").c_str());
+        std::ofstream out((builder.config.file_base_name + ".fa").c_str());
         if (!out.is_open()) throw std::runtime_error("cannot open output file");
 
-        typename ColorClasses::builder colors_builder(build_config);
+        typename ColorClasses::builder colors_builder(builder.config);
 
-        build_config.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const unitig,
-                                                     ggcat::Slice<uint32_t> const colors,
-                                                     bool same_color) {
+        builder.ggcat->loop_through_unitigs([&](ggcat::Slice<char> const unitig,
+                                                ggcat::Slice<uint32_t> const colors,
+                                                bool same_color) {
             try {
                 if (!same_color) {
                     num_distinct_colors += 1;
@@ -61,24 +61,24 @@ void index<ColorClasses>::build(build_configuration const& build_config) {
 
     {
         essentials::logger("step 2. build m_k2u");
-        sshash::build_configuration sshash_build_config;
-        sshash_build_config.k = build_config.k;
-        sshash_build_config.m = build_config.m;
-        sshash_build_config.canonical_parsing = build_config.canonical_parsing;
-        sshash_build_config.verbose = build_config.verbose;
-        sshash_build_config.tmp_dirname = build_config.tmp_dirname;
-        sshash_build_config.print();
-        m_k2u.build(build_config.file_base_name + ".fa", sshash_build_config);
+        sshash::build_configuration sshash_config;
+        sshash_config.k = builder.config.k;
+        sshash_config.m = builder.config.m;
+        sshash_config.canonical_parsing = builder.config.canonical_parsing;
+        sshash_config.verbose = builder.config.verbose;
+        sshash_config.tmp_dirname = builder.config.tmp_dirname;
+        sshash_config.print();
+        m_k2u.build(builder.config.file_base_name + ".fa", sshash_config);
     }
 
     {
         essentials::logger("step 3. write filenames");
-        m_filenames.build(build_config.ggcat->filenames());
+        m_filenames.build(builder.ggcat->filenames());
     }
 
-    if (build_config.check) {
+    if (builder.config.check) {
         essentials::logger("step 4. check correctness...");
-        build_config.ggcat->loop_through_unitigs(
+        builder.ggcat->loop_through_unitigs(
             [&](ggcat::Slice<char> const unitig, ggcat::Slice<uint32_t> const colors,
                 bool /* same_color */) {
                 auto lookup_result = m_k2u.lookup_advanced(unitig.data);
@@ -108,7 +108,7 @@ void index<ColorClasses>::build(build_configuration const& build_config) {
                     }
                 }
             },
-            build_config.num_threads);
+            builder.config.num_threads);
         essentials::logger("DONE!");
     }
 }

@@ -11,7 +11,7 @@ template <typename ColorClasses>
 struct index {
     typedef ColorClasses color_classes_type;
 
-    void build(build_configuration const& build_config);
+    void build_from(ccdbg_builder const& cb);
 
     template <typename Visitor>
     void visit(Visitor& visitor) {

@@ -25,12 +25,21 @@ endif()
 
 if (UNIX)
 
-  MESSAGE(STATUS "Compiling with flags: -std=c++17 -O3 -ggdb -pthread -Wall -Wextra -Wno-missing-braces -Wno-unknown-attributes -Wno-unused-function")
-
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-missing-braces -Wno-unknown-attributes -Wno-unused-function")
+
+  # add the rt flag if requested by the user
+  if (LINK_LIBRT)
+    if (APPLE)
+      MESSAGE(STATUS "linking with rt shoul not be necessary on OSX; not adding rt")
+    else()
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lrt")
+    endif()
+  endif()
+
+  MESSAGE(STATUS "Compiling with flags: ${CMAKE_CXX_FLAGS}")
 
   # Flags for PTHash:
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread") # for multi-threading
@@ -86,3 +95,5 @@ target_link_libraries(fulgor
   ${GGCAT_CXX_INTEROP}
   ${CMAKE_DL_LIBS}
 )
+
+

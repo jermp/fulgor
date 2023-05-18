@@ -21,7 +21,6 @@ if (UNIX AND (CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64"))
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
   # Flags for PTHash:
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mbmi2 -msse4.2") # for hardware popcount and pdep
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lrt")
 endif()
 
 if (UNIX)

@@ -7,16 +7,21 @@ void index<ColorClasses>::build_from(ccdbg_builder const& builder) {
     if (m_k2u.size() != 0) throw std::runtime_error("index already built");
 
     {
-        essentials::logger("step 1. build m_u2c and m_ccs");
+        essentials::logger("step 1. build m_u2c, m_ccs, and m_k2u");
 
         uint64_t num_unitigs = 0;
         uint64_t num_distinct_colors = 0;
 
         pthash::bit_vector_builder bvb;  // for m_u2c
 
-        /* write unitigs to fasta file for SSHash */
-        std::ofstream out((builder.config.file_base_name + ".fa").c_str());
-        if (!out.is_open()) throw std::runtime_error("cannot open output file");
+        sshash::build_configuration sshash_config;
+        sshash_config.k = builder.config.k;
+        sshash_config.m = builder.config.m;
+        sshash_config.canonical_parsing = builder.config.canonical_parsing;
+        sshash_config.verbose = builder.config.verbose;
+        sshash_config.tmp_dirname = builder.config.tmp_dirname;
+        sshash_config.print();
+        sshash::builder k2u_builder(sshash_config);
 
         typename ColorClasses::builder colors_builder(builder.config);
 
@@ -33,10 +38,7 @@ void index<ColorClasses>::build_from(ccdbg_builder const& builder) {
                 }
                 bvb.push_back(0);
 
-                out << ">\n";
-                out.write(unitig.data, unitig.size);
-                out << '\n';
-
+                k2u_builder.add_sequence(unitig.data, unitig.size);
                 num_unitigs += 1;
 
             } catch (std::exception const& e) {
@@ -44,8 +46,6 @@ void index<ColorClasses>::build_from(ccdbg_builder const& builder) {
                 exit(1);
             }
         });
-
-        out.close();
 
         assert(num_unitigs < (uint64_t(1) << 32));
         std::cout << "num_unitigs " << num_unitigs << std::endl;
@@ -56,19 +56,9 @@ void index<ColorClasses>::build_from(ccdbg_builder const& builder) {
         std::cout << "m_u2c.num_ones() " << m_u2c.num_ones() << std::endl;
         std::cout << "m_u2c.num_zeros() " << m_u2c.num_zeros() << std::endl;
 
-        colors_builder.build(m_ccs);
-    }
+        m_k2u.build_from(k2u_builder, sshash_config);
 
-    {
-        essentials::logger("step 2. build m_k2u");
-        sshash::build_configuration sshash_config;
-        sshash_config.k = builder.config.k;
-        sshash_config.m = builder.config.m;
-        sshash_config.canonical_parsing = builder.config.canonical_parsing;
-        sshash_config.verbose = builder.config.verbose;
-        sshash_config.tmp_dirname = builder.config.tmp_dirname;
-        sshash_config.print();
-        m_k2u.build(builder.config.file_base_name + ".fa", sshash_config);
+        colors_builder.build(m_ccs);
     }
 
     {

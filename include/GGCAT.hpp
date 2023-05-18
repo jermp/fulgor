@@ -72,7 +72,7 @@ struct GGCAT {
             callback,
         uint64_t num_threads = 1) const {
         if (m_k == 0) throw std::runtime_error("graph must be built first");
-        m_instance->dump_unitigs(m_graph_file, m_k, num_threads, true, callback, true);
+        m_instance->dump_unitigs(m_graph_file, m_k, num_threads, num_threads == 1, callback, true);
     }
 
     uint64_t num_docs() const { return m_filenames.size(); }

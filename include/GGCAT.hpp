@@ -12,9 +12,8 @@ struct GGCAT {
 
     ~GGCAT() {
         try {
-            /* remove all tmp file */
+            /* remove GGCAT's files */
             std::remove((m_graph_file).c_str());                             // ccdbg filename
-            std::remove((m_output_filename + ".fa").c_str());                // unitigs
             std::remove((m_output_filename + ".ggcat.colors.dat").c_str());  // colors tmp filename
         } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
     }

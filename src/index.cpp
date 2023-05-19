@@ -69,6 +69,9 @@ void index<ColorClasses>::build_from(ccdbg_builder const& builder) {
         sshash_config.tmp_dirname = builder.config.tmp_dirname;
         sshash_config.print();
         m_k2u.build(builder.config.file_base_name + ".fa", sshash_config);
+        try {  // remove unitig file
+            std::remove((builder.config.file_base_name + ".fa").c_str());
+        } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
     }
 
     {

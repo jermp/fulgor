@@ -32,7 +32,7 @@ int print_filenames(int argc, char** argv) {
     util::print_cmd(argc, argv);
     auto index_filename = parser.get<std::string>("index_filename");
     index_type index;
-    essentials::logger("loading cc_index from disk...");
+    essentials::logger("loading index from disk...");
     essentials::load(index, index_filename.c_str());
     essentials::logger("DONE");
     auto nd = index.num_docs();

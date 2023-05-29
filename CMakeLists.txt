@@ -52,7 +52,7 @@ if (UNIX)
 endif()
 
 include_directories(include)
-
+include_directories(external/FQFeeder/include)
 
 ## GGCAT ####
 
@@ -95,5 +95,3 @@ target_link_libraries(fulgor
   ${GGCAT_CXX_INTEROP}
   ${CMAKE_DL_LIBS}
 )
-
-

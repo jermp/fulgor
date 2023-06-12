@@ -57,13 +57,6 @@ struct ccdbg_builder {
 
 namespace util {
 
-static std::string get_tmp_filename(std::string const& tmp_dirname, uint64_t run_identifier,
-                                    uint64_t file_id) {
-    std::stringstream filename;
-    filename << tmp_dirname << "/ii.tmp.run_" << run_identifier << "." << file_id << ".bin";
-    return filename.str();
-}
-
 static void print_cmd(int argc, char** argv) {
     for (int i = 0; i != argc; ++i) std::cout << argv[i] << ' ';
     std::cout << std::endl;

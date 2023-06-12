@@ -1,9 +1,9 @@
 [submodule "external/sshash"]
 	path = external/sshash
 	url = https://github.com/jermp/sshash
-[submodule "external/ggcat"]
-	path = external/ggcat
-	url = https://github.com/jermp/ggcat
 [submodule "external/FQFeeder"]
 	path = external/FQFeeder
 	url = https://github.com/rob-p/FQFeeder.git
+[submodule "external/ggcat"]
+	path = external/ggcat
+	url = https://github.com/algbio/ggcat

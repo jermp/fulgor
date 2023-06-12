@@ -124,7 +124,6 @@ struct hybrid {
 
         bit_vector_builder m_bvb;
         std::vector<uint64_t> m_offsets;
-        std::vector<uint64_t> m_colors;
     };
 
     struct forward_iterator {

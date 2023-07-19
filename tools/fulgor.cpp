@@ -1,7 +1,7 @@
 #include <iostream>
 
 #include "../include/index_types.hpp"
-#include "../src/common.cpp"
+#include "../src/index.cpp"
 #include "../external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
 
 #include "build.cpp"

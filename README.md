@@ -3,9 +3,7 @@ Fulgor
 
 Fulgor is a *colored compacted de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
 
-**A pre-print describing how the index works can be found [here](https://doi.org/10.1101/2023.05.09.539895).
-To appear in WABI 2023.
-**
+**A pre-print describing how the index works can be found [here](https://doi.org/10.1101/2023.05.09.539895). To appear in WABI 2023.**
 
 ### Table of contents
 * [Dependencies](#dependencies)
@@ -158,10 +156,10 @@ using 8 parallel threads and writing the mapping output to `/dev/null`.
 
 
 Partitioning
-----------
+------------
 
 For this simple demo we are going to use the filenames from `test_data/all_shuffled.txt`,
-which need to be translated into relative to your machine:
+which need to be translated into relative paths to your machine:
 
 	./fulgor build -l ../test_data/all_shuffled.txt -k 31 -m 19 -t 16 -o all_shuffled -d tmp_dir --verbose -g 8
 

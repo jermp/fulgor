@@ -3,7 +3,9 @@ Fulgor
 
 Fulgor is a *colored compacted de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
 
-**A pre-print describing how the index works can be found [here](https://www.biorxiv.org/content/10.1101/2023.05.09.539895).**
+**A pre-print describing how the index works can be found [here](https://doi.org/10.1101/2023.05.09.539895).
+To appear in WABI 2023.
+**
 
 ### Table of contents
 * [Dependencies](#dependencies)
@@ -11,7 +13,7 @@ Fulgor is a *colored compacted de Bruijn graph* index for large-scale matching a
 * [Tools](#tools)
 * [Demo](#Demo)
 * [Indexing an example Salmonella pan-genome](#indexing-an-example-salmonella-pan-genome)
-
+* [Partitioning](#partitioning)
 
 Dependencies
 ------------
@@ -82,10 +84,13 @@ Run `./fulgor` to see a list of available tools.
 	Usage: ./fulgor <tool> ...
 
 	Available tools:
-	  build           	 build a fulgor index
-	  pseudoalign     	 pseudoalign reads to references using a fulgor index
-	  stats           	 print index statistics
-	  print-filenames 	 print all reference filenames
+	  build             	 build a Fulgor index
+	  pseudoalign       	 pseudoalign reads to references using a Fulgor index
+	  stats             	 print index statistics
+	  print-filenames   	 print all reference filenames
+	  sketch            	 build reference sketches
+	  permute-filenames 	 permute filenames according to clusters
+	  partition         	 partition a single Fulgor index
 
 
 Demo
@@ -149,3 +154,27 @@ We can now pseudoalign the reads from [SRR801268](ftp://ftp.sra.ebi.ac.uk/vol1/f
 	num_mapped_reads 5797119/6584304 (88.0445%)
 
 using 8 parallel threads and writing the mapping output to `/dev/null`.
+
+
+
+Partitioning
+----------
+
+For this simple demo we are going to use the filenames from `test_data/all_shuffled.txt`,
+which need to be translated into relative to your machine:
+
+	./fulgor build -l ../test_data/all_shuffled.txt -k 31 -m 19 -t 16 -o all_shuffled -d tmp_dir --verbose -g 8
+
+	./fulgor sketch -i all_shuffled.hybrid.index -o sketches.bin -p 10
+
+	pip3 install -U scikit-learn
+
+	export OPENBLAS_NUM_THREADS=16
+
+	python3 ../scripts/cluster_sketches.py sketches.bin 16 > labels.txt
+
+	./fulgor permute-filenames -i all_shuffled.hybrid.index -c labels.txt -n 16 -o cluster_sizes.txt 2> permuted_filenames.txt
+
+	./fulgor build -l permuted_filenames.txt -k 31 -m 19 -t 16 -o all_permuted -d tmp_dir --verbose -g 8
+
+	./fulgor partition -i all_permuted.hybrid.index -p cluster_sizes.txt -d tmp_dir

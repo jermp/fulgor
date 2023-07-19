@@ -1,6 +1,15 @@
 [submodule "external/sshash"]
 	path = external/sshash
 	url = https://github.com/jermp/sshash
+[submodule "external/sketch"]
+	path = external/sketch
+	url = https://github.com/dnbaker/sketch
 [submodule "external/ggcat"]
 	path = external/ggcat
-	url = https://github.com/jermp/ggcat
+	url = https://github.com/algbio/ggcat
+[submodule "external/smhasher"]
+	path = external/smhasher
+	url = https://github.com/aappleby/smhasher
+[submodule "external/FQFeeder"]
+	path = external/FQFeeder
+	url = https://github.com/rob-p/FQFeeder

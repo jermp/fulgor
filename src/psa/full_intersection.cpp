@@ -9,59 +9,6 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors) 
 
     if (iterators.empty()) return;
 
-    bool all_very_dense = true;
-    for (auto const& i : iterators) {
-        if (i.type() != color_classes::hybrid::list_type::complementary_delta_gaps) {
-            all_very_dense = false;
-            break;
-        }
-    }
-
-    if (all_very_dense) {
-        // step 1: take the union of complementary sets
-        std::vector<uint32_t> tmp;
-
-        for (auto& i : iterators) i.reinit_for_complemented_set_iteration();
-
-        uint32_t candidate = (*std::min_element(iterators.begin(), iterators.end(),
-                                                [](auto const& x, auto const& y) {
-                                                    return x.comp_value() < y.comp_value();
-                                                }))
-                                 .comp_value();
-
-        const uint32_t num_docs = iterators[0].num_docs();
-        tmp.reserve(num_docs);
-        while (candidate < num_docs) {
-            uint32_t next_candidate = num_docs;
-            for (uint64_t i = 0; i != iterators.size(); ++i) {
-                if (iterators[i].comp_value() == candidate) iterators[i].next_comp();
-                /* compute next minimum */
-                if (iterators[i].comp_value() < next_candidate) {
-                    next_candidate = iterators[i].comp_value();
-                }
-            }
-            tmp.push_back(candidate);
-            assert(next_candidate > candidate);
-            candidate = next_candidate;
-        }
-
-        // step 2: compute the intersection by scanning tmp
-        candidate = 0;
-        for (uint32_t i = 0; i != tmp.size(); ++i) {
-            while (candidate < tmp[i]) {
-                colors.push_back(candidate);
-                candidate += 1;
-            }
-            candidate += 1;  // skip the candidate because it is equal to tmp[i]
-        }
-        while (candidate < num_docs) {
-            colors.push_back(candidate);
-            candidate += 1;
-        }
-
-        return;
-    }
-
     std::sort(iterators.begin(), iterators.end(),
               [](auto const& x, auto const& y) { return x.size() < y.size(); });
 

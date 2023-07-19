@@ -36,11 +36,7 @@ int build(int argc, char** argv) {
     }
     build_config.verbose = parser.get<bool>("verbose");
     build_config.check = parser.get<bool>("check");
-
-    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-    timer.start();
-
-    auto filenames_list = parser.get<std::string>("filenames_list");
+    build_config.filenames_list = parser.get<std::string>("filenames_list");
     if (parser.get<uint64_t>("RAM")) {
         build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
     }
@@ -48,21 +44,14 @@ int build(int argc, char** argv) {
         build_config.num_threads = parser.get<uint64_t>("num_threads");
     }
 
-    ccdbg_builder cb;
-    cb.config = build_config;
-    cb.build_ccdbg(filenames_list);
-
-    timer.stop();
-    std::cout << "** building the ccdBG took " << timer.elapsed() << " seconds / "
-              << timer.elapsed() / 60 << " minutes" << std::endl;
-    essentials::logger("DONE");
-
-    timer.reset();
-
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();
+
     index_type index;
-    index.build_from(cb);
+    typename index_type::builder builder(build_config);
+    builder.build(index);
     index.print_stats();
+
     timer.stop();
     essentials::logger("DONE");
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "

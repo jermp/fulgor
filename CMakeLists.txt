@@ -52,7 +52,9 @@ if (UNIX)
 endif()
 
 include_directories(include)
-
+include_directories(external/FQFeeder/include)
+include_directories(external/sketch/include)
+include_directories(external/sketch/include/blaze)
 
 ## GGCAT ####
 

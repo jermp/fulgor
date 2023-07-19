@@ -4,8 +4,8 @@
 
 #include "../external/CLI11.hpp"
 #include "../external/sshash/include/gz/zip_stream.hpp"
-#include "../external/fastx_parser/FastxParser.hpp"
-#include "../external/fastx_parser/FastxParser.cpp"
+#include "../external/FQFeeder/include/FastxParser.hpp"
+#include "../external/FQFeeder/src/FastxParser.cpp"
 
 #include "../piscem_psa/hit_searcher.cpp"
 #include "../kallisto_psa/psa.cpp"
@@ -40,7 +40,8 @@ std::string to_string(pseudoalignment_algorithm algo, double threshold) {
     return o;
 }
 
-int do_map(index_type const& index, fastx_parser::FastxParser<fastx_parser::ReadSeq>& rparser,
+template <typename FulgorIndex>
+int do_map(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::ReadSeq>& rparser,
            std::atomic<uint64_t>& num_reads, std::atomic<uint64_t>& num_mapped_reads,
            pseudoalignment_algorithm algo, const double threshold, std::ofstream& out_file,
            std::mutex& iomut, std::mutex& ofile_mut) {
@@ -51,12 +52,12 @@ int do_map(index_type const& index, fastx_parser::FastxParser<fastx_parser::Read
 
     if ((algo == pseudoalignment_algorithm::SKIPPING or
          algo == pseudoalignment_algorithm::SKIPPING_KALLISTO) and
-        (index.get_dict())->canonicalized()) {
+        (index.get_dict().canonicalized())) {
         std::vector<uint32_t> unitig_ids;                           // for use with skipping
         std::vector<std::pair<projected_hits, int>> kallisto_hits;  // for use with kallisto psa
 
-        piscem_psa::hit_searcher hs(&index);
-        sshash::streaming_query_canonical_parsing qc(index.get_dict());
+        piscem_psa::hit_searcher<FulgorIndex> hs(&index);
+        sshash::streaming_query_canonical_parsing qc(&index.get_dict());
 
         auto get_hits_piscem_psa = [&qc, &hs](const std::string& seq,
                                               std::vector<uint32_t>& unitig_ids) -> void {
@@ -179,37 +180,14 @@ int do_map(index_type const& index, fastx_parser::FastxParser<fastx_parser::Read
     return 0;
 }
 
-int pseudoalign(int argc, char** argv) {
-    std::string index_filename;
-    std::string query_filename;
-    std::string output_filename;
-    size_t num_threads{1};
-    double threshold{constants::invalid_threshold};
-    pseudoalignment_algorithm algo = pseudoalignment_algorithm::FULL_INTERSECTION;
-
-    CLI::App app{"Perform (color-only) pseudoalignment to a fulgor index."};
-    app.add_option("-i,--index", index_filename, "Fulgor index filename")
-        ->required()
-        ->check(CLI::ExistingFile);
-    app.add_option("-q,--query", query_filename,
-                   "Query filename inf FASTA/FASTQ format (optionally gzipped)")
-        ->required();
-    app.add_option("-o,--output", output_filename, "File where output should be written")
-        ->required();
-    app.add_option("-t,--threads", num_threads, "Number of threads")->default_val(1);
-    app.add_option("--threshold", threshold, "Threshold for threshold_union algorithm.")
-        ->check(CLI::Range(0.0, 1.0));
-    auto skip_opt = app.add_flag_callback(
-        "--skipping", [&algo]() { algo = pseudoalignment_algorithm::SKIPPING; },
-        "Enable the skipping heuristic in pseudoalignment");
-    app.add_flag_callback(
-           "--skipping-kallisto",
-           [&algo]() { algo = pseudoalignment_algorithm::SKIPPING_KALLISTO; },
-           "Enable the kallisto skipping heuristic in pseudoalignment")
-        ->excludes(skip_opt);
-    CLI11_PARSE(app, argc, argv);
-
-    util::print_cmd(argc, argv);
+template <typename FulgorIndex>
+int pseudoalign(std::string const& index_filename, std::string const& query_filename,
+                std::string const& output_filename, uint64_t num_threads, double threshold,
+                pseudoalignment_algorithm algo) {
+    FulgorIndex index;
+    essentials::logger("loading index from disk...");
+    essentials::load(index, index_filename.c_str());
+    essentials::logger("DONE");
 
     // if not a skipping variant and no threshold set, then set the algorithm
     if ((algo == pseudoalignment_algorithm::FULL_INTERSECTION) and
@@ -217,17 +195,11 @@ int pseudoalign(int argc, char** argv) {
         algo = pseudoalignment_algorithm::THRESHOLD_UNION;
     }
 
-    // inform user about query mode
     std::cerr << "query mode : " << to_string(algo, threshold) << "\n";
-
-    index_type index;
-    essentials::logger("loading index from disk...");
-    essentials::load(index, index_filename.c_str());
-    essentials::logger("DONE");
 
     if (((algo == pseudoalignment_algorithm::SKIPPING) or
          (algo == pseudoalignment_algorithm::SKIPPING_KALLISTO)) and
-        !((index.get_dict())->canonicalized())) {
+        !(index.get_dict().canonicalized())) {
         std::cout << "==> Warning: skipping is only supported for canonicalized indexes. <=="
                   << std::endl;
     }
@@ -266,7 +238,7 @@ int pseudoalign(int argc, char** argv) {
         return 1;
     }
 
-    for (size_t i = 1; i < num_threads; ++i) {
+    for (uint64_t i = 1; i != num_threads; ++i) {
         workers.push_back(std::thread([&index, &rparser, &num_reads, &num_mapped_reads, algo,
                                        threshold, &out_file, &iomut, &ofile_mut]() {
             do_map(index, rparser, num_reads, num_mapped_reads, algo, threshold, out_file, iomut,
@@ -289,4 +261,56 @@ int pseudoalign(int argc, char** argv) {
               << (num_mapped_reads * 100.0) / num_reads << "%)" << std::endl;
 
     return 0;
+}
+
+int pseudoalign(std::string const& index_filename, std::string const& query_filename,
+                std::string const& output_filename, uint64_t num_threads, double threshold,
+                pseudoalignment_algorithm algo, bool meta) {
+    if (meta) {
+        return pseudoalign<meta_index_type>(index_filename, query_filename, output_filename,
+                                            num_threads, threshold, algo);
+    }
+    return pseudoalign<index_type>(index_filename, query_filename, output_filename, num_threads,
+                                   threshold, algo);
+}
+
+int pseudoalign(int argc, char** argv) {
+    std::string index_filename;
+    std::string query_filename;
+    std::string output_filename;
+    uint64_t num_threads = 1;
+    double threshold = constants::invalid_threshold;
+    pseudoalignment_algorithm algo = pseudoalignment_algorithm::FULL_INTERSECTION;
+    bool meta = false;
+
+    CLI::App app{"Perform (color-only) pseudoalignment to a Fulgor index."};
+    app.add_option("-i,--index", index_filename, "Fulgor index filename")
+        ->required()
+        ->check(CLI::ExistingFile);
+
+    app.add_flag_callback(
+        "--meta", [&meta]() { meta = true; }, "Specify if the Fulgor index is meta-colored.");
+
+    app.add_option("-q,--query", query_filename,
+                   "Query filename inf FASTA/FASTQ format (optionally gzipped)")
+        ->required();
+    app.add_option("-o,--output", output_filename, "File where output should be written")
+        ->required();
+    app.add_option("-t,--threads", num_threads, "Number of threads")->default_val(1);
+    app.add_option("--threshold", threshold, "Threshold for threshold_union algorithm.")
+        ->check(CLI::Range(0.0, 1.0));
+    auto skip_opt = app.add_flag_callback(
+        "--skipping", [&algo]() { algo = pseudoalignment_algorithm::SKIPPING; },
+        "Enable the skipping heuristic in pseudoalignment");
+    app.add_flag_callback(
+           "--skipping-kallisto",
+           [&algo]() { algo = pseudoalignment_algorithm::SKIPPING_KALLISTO; },
+           "Enable the kallisto skipping heuristic in pseudoalignment")
+        ->excludes(skip_opt);
+    CLI11_PARSE(app, argc, argv);
+
+    util::print_cmd(argc, argv);
+
+    return pseudoalign(index_filename, query_filename, output_filename, num_threads, threshold,
+                       algo, meta);
 }

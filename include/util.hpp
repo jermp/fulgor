@@ -7,7 +7,8 @@
 #include <sstream>
 #include <chrono>
 
-#include "GGCAT.hpp"
+#include "../external/smhasher/src/City.h"
+#include "../external/smhasher/src/City.cpp"
 
 namespace fulgor {
 
@@ -31,38 +32,23 @@ struct build_configuration {
 
     uint32_t k;            // kmer length
     uint32_t m;            // minimizer length
-    uint64_t num_threads;  // for building and checking correctness
-    uint64_t ram_limit_in_GiB;
+    uint32_t num_threads;  // for building and checking correctness
+    uint32_t ram_limit_in_GiB;
     uint64_t num_docs;
+
     std::string tmp_dirname;
     std::string file_base_name;
+    std::string filenames_list;
+
+    std::string index_filename_to_partition;
+    std::string partitions_filename;
+
     bool verbose;
     bool canonical_parsing;
     bool check;
 };
 
-struct ccdbg_builder {
-    ccdbg_builder() : ggcat(new GGCAT()) {}
-    ~ccdbg_builder() { delete ggcat; }
-
-    void build_ccdbg(std::string const& filenames_list) {
-        ggcat->build(filenames_list, config.ram_limit_in_GiB, config.k, config.num_threads,
-                     config.tmp_dirname, config.file_base_name);
-        config.num_docs = ggcat->num_docs();
-    }
-
-    build_configuration config;
-    GGCAT* ggcat;
-};
-
 namespace util {
-
-static std::string get_tmp_filename(std::string const& tmp_dirname, uint64_t run_identifier,
-                                    uint64_t file_id) {
-    std::stringstream filename;
-    filename << tmp_dirname << "/ii.tmp.run_" << run_identifier << "." << file_id << ".bin";
-    return filename.str();
-}
 
 static void print_cmd(int argc, char** argv) {
     for (int i = 0; i != argc; ++i) std::cout << argv[i] << ' ';
@@ -106,6 +92,14 @@ static uint64_t gamma_bitsize(uint64_t x) {
 static uint64_t delta_bitsize(uint64_t x) {
     uint64_t b = binary_bitsize(x + 1);
     return gamma_bitsize(b - 1) + b - 1;
+}
+
+__uint128_t hash128(char const* bytes, uint64_t num_bytes, const uint64_t seed = 1234567890) {
+    auto ret = CityHash128WithSeed(bytes, num_bytes, {seed, seed});
+    __uint128_t out;
+    *(reinterpret_cast<uint64_t*>(&out) + 0) = ret.first;
+    *(reinterpret_cast<uint64_t*>(&out) + 1) = ret.second;
+    return out;
 }
 
 }  // namespace util

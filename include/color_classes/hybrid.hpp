@@ -8,8 +8,11 @@ struct hybrid {
     enum list_type { delta_gaps = 0, bitmap = 1, complementary_delta_gaps = 2 };
 
     struct builder {
-        builder(build_configuration const& build_config) {
-            m_num_docs = build_config.num_docs;
+        builder() {}
+        builder(uint64_t num_docs) { init(num_docs); }
+
+        void init(uint64_t num_docs) {
+            m_num_docs = num_docs;
 
             /* if list contains < sparse_set_threshold_size ints, code it with gaps+delta */
             m_sparse_set_threshold_size = 0.25 * m_num_docs;
@@ -124,10 +127,11 @@ struct hybrid {
 
         bit_vector_builder m_bvb;
         std::vector<uint64_t> m_offsets;
-        std::vector<uint64_t> m_colors;
     };
 
     struct forward_iterator {
+        forward_iterator() {}
+
         forward_iterator(hybrid const* ptr, uint64_t begin)
             : m_ptr(ptr)
             , m_begin(begin)

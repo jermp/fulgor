@@ -115,6 +115,40 @@ void index<ColorClasses>::pseudoalign_full_intersection(std::string const& seque
 }
 
 template <typename ColorClasses>
+void index<ColorClasses>::pseudoalign_full_intersection_color_ids(std::string const& sequence,
+                                                                  std::vector<uint32_t>& colors) const {
+    if (sequence.length() < m_k2u.k()) return;
+    colors.clear();
+    std::vector<uint32_t> unitig_ids;
+    stream_through(m_k2u, sequence, unitig_ids);
+    intersect_unitigs_to_ids(unitig_ids, colors);
+}
+
+template <typename ColorClasses>
+void index<ColorClasses>::intersect_unitigs_to_ids(std::vector<uint32_t>& unitig_ids,
+                                            std::vector<uint32_t>& colors) const {
+    std::vector<uint32_t> color_class_ids;
+    std::vector<typename ColorClasses::iterator_type> iterators;
+
+    /* deduplicate unitig_ids */
+    std::sort(unitig_ids.begin(), unitig_ids.end());
+    auto end = std::unique(unitig_ids.begin(), unitig_ids.end());
+    color_class_ids.reserve(end - unitig_ids.begin());
+    for (auto it = unitig_ids.begin(); it != end; ++it) {
+        uint32_t unitig_id = *it;
+        uint32_t color_class_id = u2c(unitig_id);
+        color_class_ids.push_back(color_class_id);
+    }
+
+    /* deduplicate color_class_ids */
+    std::sort(color_class_ids.begin(), color_class_ids.end());
+    end = std::unique(color_class_ids.begin(), color_class_ids.end());
+    
+    color_class_ids.erase(end, color_class_ids.end());
+    colors = color_class_ids;
+}
+
+template <typename ColorClasses>
 void index<ColorClasses>::intersect_unitigs(std::vector<uint32_t>& unitig_ids,
                                             std::vector<uint32_t>& colors) const {
     std::vector<uint32_t> color_class_ids;
@@ -133,6 +167,8 @@ void index<ColorClasses>::intersect_unitigs(std::vector<uint32_t>& unitig_ids,
     /* deduplicate color_class_ids */
     std::sort(color_class_ids.begin(), color_class_ids.end());
     end = std::unique(color_class_ids.begin(), color_class_ids.end());
+    
+    color_class_ids.erase(end, color_class_ids.end());
     iterators.reserve(end - color_class_ids.begin());
     for (auto it = color_class_ids.begin(); it != end; ++it) {
         uint64_t color_class_id = *it;
@@ -141,6 +177,19 @@ void index<ColorClasses>::intersect_unitigs(std::vector<uint32_t>& unitig_ids,
     }
 
     intersect(iterators, colors);
+}
+
+template <typename ColorClasses>
+void index<ColorClasses>::intersect_color_ids(const std::vector<uint32_t>& color_ids, 
+                                              std::vector<uint32_t>& colors) const {
+    std::vector<typename ColorClasses::iterator_type> iterators;
+    iterators.reserve(color_ids.size());
+    for (auto it = color_ids.begin(); it != color_ids.end(); ++it) {
+        uint64_t color_class_id = *it;
+        auto fwd_it = m_ccs.colors(color_class_id);
+        iterators.push_back(fwd_it);
+    }
+    intersect(iterators, colors); 
 }
 
 }  // namespace fulgor

@@ -8,6 +8,7 @@
 
 #include "build.cpp"
 #include "pseudoalign.cpp"
+#include "intersect_colors.cpp"
 
 using namespace fulgor;
 
@@ -64,6 +65,8 @@ int main(int argc, char** argv) {
         return stats(argc - 1, argv + 1);
     } else if (tool == "print-filenames") {
         return print_filenames(argc - 1, argv + 1);
+    } else if (tool == "intersect-colors") {
+        return intersect_colors(argc - 1, argv + 1);
     }
     std::cout << "Unsupported tool '" << tool << "'.\n" << std::endl;
     return help(argv[0]);

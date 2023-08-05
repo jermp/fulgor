@@ -33,7 +33,17 @@ struct index {
     void pseudoalign_threshold_union(std::string const& sequence, std::vector<uint32_t>& results,
                                      const double threshold) const;
 
+    // instead of mapping a read to the actual references, just return 
+    // the list of color ids that must be intersected to obtain that
+    // list of references.
+    void pseudoalign_full_intersection_color_ids(std::string const& sequence,
+                                                 std::vector<uint32_t>& results) const;
+
+    void intersect_unitigs_to_ids(std::vector<uint32_t>& unitig_ids, std::vector<uint32_t>& colors) const;
+
     void intersect_unitigs(std::vector<uint32_t>& unitig_ids, std::vector<uint32_t>& colors) const;
+
+    void intersect_color_ids(const std::vector<uint32_t>& color_ids, std::vector<uint32_t>& colors) const;
 
     uint64_t num_bits() const {
         return m_k2u.num_bits() + m_u2c.bytes() * 8 + m_ccs.num_bits() + m_filenames.num_bits();

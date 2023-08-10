@@ -8,7 +8,157 @@
 #include "../external/FQFeeder/include/FastxParser.hpp"
 #include "../external/FQFeeder/include/blockingconcurrentqueue.h"
 
+#include "../external/unordered_dense/include/ankerl/unordered_dense.h"
+
 using namespace fulgor;
+
+struct color_info {
+  std::vector<uint32_t>::iterator begin;
+  std::vector<uint32_t>::iterator end;
+  std::vector<uint32_t>::iterator curr;
+  size_t size() const { return std::distance(begin, end); }
+  bool is_exhausted() const { return curr >= end; }
+};
+
+struct custom_vec_hash {
+    using is_avalanching = void;
+
+    [[nodiscard]] auto operator()(std::vector<uint32_t> const& f) const noexcept -> uint64_t {
+        return ankerl::unordered_dense::detail::wyhash::hash(f.data(), sizeof(uint32_t) * f.size());
+    }
+};
+
+using frequent_map_t = ankerl::unordered_dense::map<std::vector<uint32_t>, std::vector<uint32_t>, custom_vec_hash>;
+
+void next_geq(color_info& info, uint32_t tgt, uint32_t num_docs) {
+  info.curr = std::lower_bound(info.curr, info.end, tgt);
+}
+
+void intersect_uncompressed(std::vector<color_info>& iterators, uint32_t num_docs, std::vector<uint32_t>& colors) {
+    assert(colors.empty());
+
+    if (iterators.empty()) return;
+
+    std::sort(iterators.begin(), iterators.end(),
+              [](auto const& x, auto const& y) { return x.size() < y.size(); });
+
+    if (iterators[0].is_exhausted()) {
+      //std::cerr << "shouldn't happen";
+      return;
+    }
+
+    uint32_t candidate = *(iterators[0].curr);
+    uint64_t i = 1;
+    while (candidate < num_docs) {
+        for (; i != iterators.size(); ++i) {
+            next_geq(iterators[i], candidate, num_docs);
+            uint32_t val = iterators[i].is_exhausted() ? num_docs : *(iterators[i].curr);
+            if (val != candidate) {
+                candidate = val;
+                i = 0;
+                break;
+            }
+        }
+        if (i == iterators.size()) {
+            colors.push_back(candidate);
+            iterators[0].curr++;
+            candidate = iterators[0].is_exhausted() ? num_docs : *(iterators[0].curr);
+            i = 1;
+        }
+    }
+}
+
+void analyze_batch(std::vector<std::vector<uint32_t>>* batch, 
+                   index_type& index,
+                   frequent_map_t& frequent_map) {
+
+  ankerl::unordered_dense::map<std::vector<uint32_t>, uint32_t, custom_vec_hash> count_map;
+  std::vector<uint32_t> key;
+  size_t k = 3;
+  uint32_t max_elem = 0;
+  for (auto& cids : *batch) {
+    if (cids.size() < k) { continue; }
+    for (size_t i = 0; i < cids.size() - k; i++) {
+      key.assign(cids.begin() + i, cids.begin() + i + k);
+      auto& val = count_map[key];
+      val += 1;
+      //max_elem = std::max(val, max_elem);
+    }
+  }
+
+  std::vector<uint32_t> colors;
+  uint32_t thresh = 2;//std::max(static_cast<uint32_t>(2), static_cast<uint32_t>(0.1 * max_elem) + 1);
+  for (auto const& [key, val] : count_map) {
+    auto kv = frequent_map.find(key);
+    if (kv != frequent_map.end() and (val >= thresh)) {
+      index.intersect_color_ids(key, colors);
+      frequent_map[key] = colors;
+      colors.clear();
+    }
+  }
+   
+}
+
+// extract colors that are in the freuqent_map from 
+// the colors vector
+std::vector<color_info> extract_frequent_colors(
+  std::vector<uint32_t>& cids, 
+  frequent_map_t& frequent_map) {
+
+    size_t k = 3;
+    if (cids.size() < k) { return {}; }
+
+    std::vector<uint32_t> cids_out;
+    cids_out.reserve(cids.size());
+
+    std::vector<color_info> res;
+    std::vector<uint32_t> key;
+    for (size_t i = 0; i < cids.size(); i++) {
+      bool not_found = true;
+      if (i < cids.size() - k) {
+        key.assign(cids.begin() + i, cids.begin() + i + k);
+        auto kv = frequent_map.find(key);
+        if (kv != frequent_map.end()) {
+          not_found = false;
+          res.push_back( {kv->second.begin(), kv->second.end(), kv->second.begin()} );
+          i += k;
+        }
+      } 
+      if (not_found) {
+        cids_out.push_back(cids[i]);
+      }
+    }
+    std::swap(cids, cids_out);
+    return res;
+}
+
+struct pref_suf_bounds {
+  uint32_t prefix_len{0};
+  uint32_t suffix_len{0};
+};
+
+pref_suf_bounds find_max_prefix_suffix(std::vector<uint32_t>& prev_cid, std::vector<uint32_t>& new_cid) {
+  if (prev_cid.empty() or new_cid.empty()) {
+    return {0, 0};
+  }
+  uint32_t pctr{0};
+  uint32_t sctr{0};
+  {
+    auto pit = prev_cid.begin();
+    auto cit = new_cid.begin();
+    // count the length of the LCP
+    for (; (*pit == *cit) and (pit < prev_cid.end()) and (cit < new_cid.end()); ++pit, ++cit, ++pctr) { }
+  }
+
+  {
+    auto pit = prev_cid.rbegin();
+    auto cit = new_cid.rbegin();
+    // count the length of the LCS
+    for (; (*pit == *cit) and (pit < prev_cid.rend()) and (cit < new_cid.rend()); ++pit, ++cit, ++sctr) { }
+  }
+
+  return {pctr, sctr};
+}
 
 void process_lines(
   index_type& index,
@@ -22,15 +172,123 @@ void process_lines(
   int32_t buff_size{0};
   constexpr int32_t buff_thresh{100};
 
-
+  frequent_map_t frequent_map;
+  std::vector<uint32_t> pkey;
+  std::vector<uint32_t> skey;
   std::vector<uint32_t> colors;
+  std::vector<uint32_t> colors_tmp;
 
   std::vector<std::vector<uint32_t>>* sbatch;
+
+  size_t total_cid_len = 0;
+  size_t total_ps_len = 0;
+
+  size_t batch_ctr = 0;
   while (!done or in_flight > 0) {
     if (q.try_dequeue(sbatch)) {
       in_flight -= 1;
+      frequent_map.clear();
+      /*
+      if (batch_ctr >= 5) {
+        frequent_map.clear();
+        batch_ctr = 0;
+      }
+      */
+      batch_ctr++;
+      //analyze_batch(sbatch, index, frequent_map);
+
+      std::vector<uint32_t> prev_cids{};
       for (auto& cids : *sbatch) {
-        index.intersect_color_ids(cids, colors);
+        pkey.clear();
+        skey.clear();
+        
+        auto ps_info = find_max_prefix_suffix(prev_cids, cids);
+        if (ps_info.prefix_len > 0) {
+          pkey.assign(cids.begin(), cids.begin() + ps_info.prefix_len);
+        }
+        if (ps_info.suffix_len > 0) {
+          skey.assign(cids.rbegin(), cids.rbegin() + ps_info.suffix_len);
+        }
+ 
+        std::vector<color_info> uncompressed_res;
+        auto pkey_bak = pkey;
+        auto skey_bak = skey;
+
+        auto match_key = [&](auto& key, auto& key_bak) -> auto {
+          if (key.empty()) { return frequent_map.end(); }
+          auto pref_it = frequent_map.find(key);
+          while (!key.empty()) {
+            if (pref_it == frequent_map.end()) {
+              key.pop_back();
+              pref_it = frequent_map.find(key);
+            } else {
+              uncompressed_res.push_back(
+                {pref_it->second.begin(), pref_it->second.end(), pref_it->second.begin()}
+              );
+              break;
+            }
+          }
+
+          // if we didn't match the whole prefix, then 
+          // compute the result for this prefix and 
+          // put it in our hash
+          if ( (key.size() >= 4) or (key.size() == key_bak.size()) ) {
+            std::swap(key, key_bak);
+          } else {
+            colors_tmp.clear();
+            std::vector<uint32_t> rem(key_bak.begin() + key.size(), key_bak.end());
+            index.intersect_color_ids(rem, colors_tmp);
+            uncompressed_res.push_back(
+              {colors_tmp.begin(), colors_tmp.end(), colors_tmp.begin()}
+            );
+            colors.clear();
+            intersect_uncompressed(uncompressed_res, index.num_docs(), colors);
+            frequent_map[key_bak] = colors;
+            colors.clear();
+          }
+          uncompressed_res.clear();
+          return frequent_map.find(key_bak);
+        };
+
+        auto pit = match_key(pkey, pkey_bak);
+        auto sit = match_key(skey, skey_bak);
+
+        if (pit != frequent_map.end()) {
+          uncompressed_res.push_back({pit->second.begin(), pit->second.end(), pit->second.begin()});
+        }
+        if (sit != frequent_map.end()) {
+          uncompressed_res.push_back({sit->second.begin(), sit->second.end(), sit->second.begin()});
+        }
+
+        total_cid_len += cids.size();
+        total_ps_len += pkey_bak.size() + skey_bak.size();
+        prev_cids = cids;
+        std::vector<uint32_t>(cids.begin() + pkey_bak.size(), cids.end() - skey_bak.size()).swap(cids);
+        if (!cids.empty()) {
+          colors_tmp.clear();
+          index.intersect_color_ids(cids, colors_tmp);
+          uncompressed_res.push_back({colors_tmp.begin(), colors_tmp.end(), colors_tmp.begin()});
+        }
+        colors.clear();
+        intersect_uncompressed(uncompressed_res, index.num_docs(), colors);
+        /*
+        // extract colors that are in the freuqent_map from 
+        // the colors vector
+        std::vector<color_info> frequent_res = extract_frequent_colors(cids, frequent_map);
+
+        // intersect what remains
+        colors_tmp.clear();
+        if (!cids.empty()) { 
+          index.intersect_color_ids(cids, colors_tmp);
+        }
+        // add the color vector we just computed
+        if (!colors_tmp.empty()) {
+          frequent_res.push_back( {colors_tmp.begin(), colors_tmp.end(), colors_tmp.begin()} );
+        }
+        // intersect_uncompressed
+        intersect_uncompressed(frequent_res, index.num_docs(), colors);
+        */
+
         if (!colors.empty()) {
           //num_mapped_reads += 1;
           ss << "read_name" << "\t" << colors.size();
@@ -63,6 +321,8 @@ void process_lines(
     ofile_mut.unlock();
     buff_size = 0;
   }
+
+  std::cerr << "total cid len: " << total_cid_len << ", total_ps_len: " << total_ps_len << " ratio " << static_cast<double>(total_ps_len)/total_cid_len << "\n";
 
 }
 
@@ -97,7 +357,7 @@ void do_intersection(index_type& index, const std::string& query_filename, std::
       } else {
         std::cerr << "should not happen\n";
       }
-      if (batch->size() >= 100) {
+      if (batch->size() >= 1000) {
         q.enqueue(batch);
         batch = new std::vector<std::vector<uint32_t>>();
         in_flight += 1;
@@ -193,7 +453,6 @@ void sort_file(const std::string& tmp_outname) {
 
   std::vector<uint32_t> vals;
   uint32_t read_num = 0;
-  uint32_t c = 0;
   while (ifile.read( reinterpret_cast<char*>(&read_num), sizeof(read_num) )) {
     uint32_t num_colors = 0;
     ifile.read( reinterpret_cast<char*>(&num_colors), sizeof(num_colors) );

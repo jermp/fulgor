@@ -79,42 +79,32 @@ int permute_filenames(int argc, char** argv) {
     essentials::logger("DONE");
     uint64_t num_clusters = parser.get<uint64_t>("num_clusters");
 
-    struct data {
-        data(uint32_t s, std::string_view sv) : set_size(s), filename(sv) {}
-        uint32_t set_size;
-        std::string_view filename;
-    };
-
-    std::vector<std::vector<data>> filenames(num_clusters, std::vector<data>());
+    std::vector<std::vector<std::string_view>> clusters(num_clusters,
+                                                        std::vector<std::string_view>());
     auto cluster_labels = parser.get<std::string>("cluster_labels");
     std::ifstream in(cluster_labels);  // we assume there are exactly [num_docs] labels
     for (uint64_t i = 0; i != index.num_docs(); ++i) {
-        uint32_t set_size;
-        uint32_t label;
-        in >> set_size;
+        uint32_t label = 0;
         in >> label;
         assert(label < num_clusters);
-        filenames[label].push_back({set_size, index.filename(i)});
+        clusters[label].push_back(index.filename(i));
     }
     in.close();
 
-    /* sort by non-increasing cluster size */
-    std::sort(filenames.begin(), filenames.end(), [](auto const& cluster1, auto const& cluster2) {
-        return cluster1.size() > cluster2.size();
-    });
+    /* sort references lexicographically within each cluster */
+    for (auto& c : clusters) {
+        std::sort(c.begin(), c.end(), [](auto const& fn1, auto const& fn2) { return fn1 < fn2; });
+    }
 
-    // for (auto& cluster : filenames) {
-    //     /* sort by non-increasing set_size */
-    //     std::sort(cluster.begin(), cluster.end(), [](auto const& data1, auto const& data2) {
-    //         return data1.set_size > data2.set_size;
-    //     });
-    // }
+    /* sort by non-increasing cluster size */
+    std::sort(clusters.begin(), clusters.end(),
+              [](auto const& c1, auto const& c2) { return c1.size() > c2.size(); });
 
     auto output_filename = parser.get<std::string>("output_filename");
     std::ofstream out(output_filename);
     uint64_t begin = 0;
-    for (auto const& cluster : filenames) {
-        for (auto const& fn : cluster) std::cerr << fn.filename << '\n';
+    for (auto const& cluster : clusters) {
+        for (auto const& fn : cluster) std::cerr << fn << '\n';
         uint64_t end = begin + cluster.size();  // one-past the end
         out << begin << " ";
         begin = end;

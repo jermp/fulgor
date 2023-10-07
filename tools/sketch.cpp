@@ -2,17 +2,11 @@
 
 using namespace fulgor;
 
-struct sketch_data {
-    sketch_data(uint64_t p) : set_size(0), sketch(p) {}
-    uint32_t set_size;
-    sketch::hll_t sketch;
-};
-
 int sketch_references(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("index_filename", "The fulgor index filename.", "-i", true);
     parser.add("output_filename", "Output filename for the sketches.", "-o", true);
-    parser.add("p", "Use 2^p bytes for each HLL sketc.", "-p", true);
+    parser.add("p", "Use 2^p bytes for each HLL sketch.", "-p", true);
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
 
@@ -24,7 +18,7 @@ int sketch_references(int argc, char** argv) {
 
     uint64_t num_docs = index.num_docs();
     uint64_t p = parser.get<uint64_t>("p");  // use 2^p bytes per HLL sketch
-    std::vector<sketch_data> sketches(num_docs, sketch_data(p));
+    std::vector<sketch::hll_t> sketches(num_docs, sketch::hll_t(p));
     typename sketch::hll_t::HashType hasher;
 
     essentials::logger("building sketches...");
@@ -52,8 +46,7 @@ int sketch_references(int argc, char** argv) {
         for (uint64_t i = 0; i != size; ++i, ++it) {
             uint32_t ref_id = *it;
             assert(ref_id < num_docs);
-            sketches[ref_id].set_size += hashes.size();
-            for (auto hash : hashes) sketches[ref_id].sketch.add(hash);
+            for (auto hash : hashes) sketches[ref_id].add(hash);
         }
         pop_count += 1;
         prev_pos = curr_pos + 1;
@@ -73,10 +66,9 @@ int sketch_references(int argc, char** argv) {
     out.write(reinterpret_cast<char const*>(&num_bytes), 4);
     out.write(reinterpret_cast<char const*>(&num_docs), 4);
     for (auto const& x : sketches) {
-        assert(x.sketch.m() == num_bytes);
-        assert(x.sketch.m() == x.sketch.core().size());
-        uint8_t const* data = x.sketch.data();
-        out.write(reinterpret_cast<char const*>(&x.set_size), sizeof(x.set_size));
+        assert(x.m() == num_bytes);
+        assert(x.m() == x.core().size());
+        uint8_t const* data = x.data();
         out.write(reinterpret_cast<char const*>(data), num_bytes);
     }
     out.close();

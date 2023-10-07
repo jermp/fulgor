@@ -171,7 +171,8 @@ int help(char* arg0) {
               << "  pseudoalign       \t pseudoalign reads to references using a Fulgor index\n"
               << "  stats             \t print index statistics\n"
               << "  print-filenames   \t print all reference filenames\n"
-              << "  sketch            \t build reference sketches\n"
+              << "  sketch-references \t build reference sketches\n"
+              << "  sketch-colors     \t build color sketches\n"
               << "  permute-filenames \t permute filenames according to clusters\n"
               << "  partition         \t partition a single Fulgor index" << std::endl;
     return 1;
@@ -188,8 +189,10 @@ int main(int argc, char** argv) {
         return stats(argc - 1, argv + 1);
     } else if (tool == "print-filenames") {
         return print_filenames(argc - 1, argv + 1);
-    } else if (tool == "sketch") {
+    } else if (tool == "sketch-references") {
         return sketch_references(argc - 1, argv + 1);
+    } else if (tool == "sketch-colors") {
+        return sketch_colors(argc - 1, argv + 1);
     } else if (tool == "permute-filenames") {
         return permute_filenames(argc - 1, argv + 1);
     } else if (tool == "partition") {

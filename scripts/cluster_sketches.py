@@ -8,8 +8,8 @@ num_clusters = int(sys.argv[2])
 
 sketches = []
 with open(sketches_filename, 'rb') as f:
-    num_bytes_per_sketch = struct.unpack('I', f.read(4))[0]
-    num_sketches = struct.unpack('I', f.read(4))[0]
+    num_bytes_per_sketch = struct.unpack('Q', f.read(8))[0]
+    num_sketches = struct.unpack('Q', f.read(8))[0]
     for i in range(num_sketches):
         sketch = np.empty(num_bytes_per_sketch, dtype=np.int8)
         for j in range(num_bytes_per_sketch):

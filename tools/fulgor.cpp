@@ -7,6 +7,7 @@
 #include "build.cpp"
 #include "pseudoalign.cpp"
 #include "sketch.cpp"
+#include "print_lists_in_cluster.cpp"
 
 using namespace fulgor;
 
@@ -174,7 +175,8 @@ int help(char* arg0) {
               << "  sketch-references \t build reference sketches\n"
               << "  sketch-colors     \t build color sketches\n"
               << "  permute-filenames \t permute filenames according to clusters\n"
-              << "  partition         \t partition a single Fulgor index" << std::endl;
+              << "  partition         \t partition a single Fulgor index\n"
+              << "  print-lists       \t print lists in cluster" << std::endl;
     return 1;
 }
 
@@ -197,6 +199,8 @@ int main(int argc, char** argv) {
         return permute_filenames(argc - 1, argv + 1);
     } else if (tool == "partition") {
         return partition(argc - 1, argv + 1);
+    } else if (tool == "print-lists") {
+        return print_lists_in_cluster(argc - 1, argv + 1);
     }
     std::cout << "Unsupported tool '" << tool << "'.\n" << std::endl;
     return help(argv[0]);

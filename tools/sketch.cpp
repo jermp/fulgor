@@ -4,7 +4,7 @@ using namespace fulgor;
 
 int sketch_references(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
-    parser.add("index_filename", "The fulgor index filename.", "-i", true);
+    parser.add("index_filename", "The Fulgor index filename.", "-i", true);
     parser.add("output_filename", "Output filename for the sketches.", "-o", true);
     parser.add("p", "Use 2^p bytes for each HLL sketch.", "-p", true);
     if (!parser.parse()) return 1;
@@ -79,7 +79,7 @@ int sketch_references(int argc, char** argv) {
 
 int sketch_colors(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
-    parser.add("index_filename", "The fulgor index filename.", "-i", true);
+    parser.add("index_filename", "The Fulgor index filename.", "-i", true);
     parser.add("output_filename", "Output filename for the sketches.", "-o", true);
     parser.add("p", "Use 2^p bytes for each HLL sketch.", "-p", true);
     if (!parser.parse()) return 1;
@@ -102,6 +102,8 @@ int sketch_colors(int argc, char** argv) {
     timer.start();
 
     auto const& ccs = index.color_classes();
+
+#pragma omp parallel for
     for (uint64_t color_id = 0; color_id != num_color_classes; ++color_id) {
         auto& sketch = sketches[color_id];
         auto it = ccs.colors(color_id);
@@ -113,6 +115,7 @@ int sketch_colors(int argc, char** argv) {
             sketch.add(hash);
         }
     }
+    std::cout << "processed " << num_color_classes << " colors" << std::endl;
 
     timer.stop();
     std::cout << "computing all sketches took: " << timer.elapsed() / 1000000 << " [sec] ("

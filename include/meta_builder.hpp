@@ -65,7 +65,7 @@ struct index<ColorClasses>::meta_builder {
                 auto hash = util::hash128(reinterpret_cast<char const*>(buffer.data()),
                                           buffer.size() * sizeof(uint32_t));
                 if (auto it = m_hashes[partition_id].find(hash);
-                    it == m_hashes[partition_id].cend()) {  // write to file
+                    it == m_hashes[partition_id].cend()) {
                     uint32_t id = m_hashes[partition_id].size();
                     m_hashes[partition_id].insert({hash, id});
                     colors_builder.process_colors(partition_id, buffer.data(), buffer.size());

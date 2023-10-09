@@ -1,6 +1,7 @@
 #pragma once
 
 #include "index.hpp"
+#include "build_util.hpp"
 
 namespace fulgor {
 
@@ -26,6 +27,27 @@ struct index<ColorClasses>::meta_builder {
         essentials::logger("step 1. loading index to be partitioned...");
         essentials::load(m_index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");
+
+        {
+            essentials::logger("step 2.1. build sketches");
+            timer.start();
+            constexpr uint64_t p = 10;  // use 2^p bytes per HLL sketch
+            build_reference_sketches(m_index, p, m_build_config.tmp_dirname + "/sketches.bin");
+            timer.stop();
+            std::cout << "** building sketches took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
+
+        {
+            essentials::logger("step 2.2. clustering sketches");
+            timer.start();
+            // TODO
+            timer.stop();
+            std::cout << "** clustering sketches took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
 
         {
             essentials::logger("step 2.1. build colors");
@@ -132,19 +154,28 @@ struct index<ColorClasses>::meta_builder {
         }
 
         {
-            essentials::logger("step 3. copy m_u2c, m_k2u, m_filenames");
+            essentials::logger("step 3. copy m_u2c, m_k2u");
             timer.start();
             idx.m_u2c = m_index.get_u2c();
             idx.m_k2u = m_index.get_dict();
-            idx.m_filenames = m_index.get_filenames();
             timer.stop();
-            std::cout << "** copying m_u2c, m_k2u, m_filenames took " << timer.elapsed()
-                      << " seconds / " << timer.elapsed() / 60 << " minutes" << std::endl;
+            std::cout << "** copying m_u2c and m_k2u took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
+
+        {
+            essentials::logger("step 4. permuting m_filenames");
+            timer.start();
+            // TODO
+            timer.stop();
+            std::cout << "** permuting m_filenames took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
 
         if (m_build_config.check) {
-            essentials::logger("step 4. check correctness...");
+            essentials::logger("step 5. check correctness...");
             for (uint64_t color_class_id = 0; color_class_id != m_index.num_color_classes();
                  ++color_class_id) {
                 auto fwd_it_exp = m_index.colors(color_class_id);

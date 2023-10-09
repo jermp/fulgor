@@ -64,57 +64,59 @@ int print_filenames(int argc, char** argv) {
     return 0;
 }
 
-int permute_filenames(int argc, char** argv) {
-    cmd_line_parser::parser parser(argc, argv);
-    parser.add("index_filename", "The Fulgor index filename.", "-i", true);
-    parser.add("cluster_labels", "Cluster labels file.", "-c", true);
-    parser.add("num_clusters", "Number of clusters (should match those in the cluster labels file)",
-               "-n", true);
-    parser.add("output_filename", "Cluster size filename", "-o", true);
-    if (!parser.parse()) return 1;
-    util::print_cmd(argc, argv);
-    auto index_filename = parser.get<std::string>("index_filename");
-    index_type index;
-    essentials::logger("loading index from disk...");
-    essentials::load(index, index_filename.c_str());
-    essentials::logger("DONE");
-    uint64_t num_clusters = parser.get<uint64_t>("num_clusters");
+// int permute_filenames(int argc, char** argv) {
+//     cmd_line_parser::parser parser(argc, argv);
+//     parser.add("index_filename", "The Fulgor index filename.", "-i", true);
+//     parser.add("cluster_labels", "Cluster labels file.", "-c", true);
+//     parser.add("num_clusters", "Number of clusters (should match those in the cluster labels
+//     file)",
+//                "-n", true);
+//     parser.add("output_filename", "Cluster size filename", "-o", true);
+//     if (!parser.parse()) return 1;
+//     util::print_cmd(argc, argv);
+//     auto index_filename = parser.get<std::string>("index_filename");
+//     index_type index;
+//     essentials::logger("loading index from disk...");
+//     essentials::load(index, index_filename.c_str());
+//     essentials::logger("DONE");
+//     uint64_t num_clusters = parser.get<uint64_t>("num_clusters");
 
-    std::vector<std::vector<std::string_view>> clusters(num_clusters,
-                                                        std::vector<std::string_view>());
-    auto cluster_labels = parser.get<std::string>("cluster_labels");
-    std::ifstream in(cluster_labels);  // we assume there are exactly [num_docs] labels
-    for (uint64_t i = 0; i != index.num_docs(); ++i) {
-        uint32_t label = 0;
-        in >> label;
-        assert(label < num_clusters);
-        clusters[label].push_back(index.filename(i));
-    }
-    in.close();
+//     std::vector<std::vector<std::string_view>> clusters(num_clusters,
+//                                                         std::vector<std::string_view>());
+//     auto cluster_labels = parser.get<std::string>("cluster_labels");
+//     std::ifstream in(cluster_labels);  // we assume there are exactly [num_docs] labels
+//     for (uint64_t i = 0; i != index.num_docs(); ++i) {
+//         uint32_t label = 0;
+//         in >> label;
+//         assert(label < num_clusters);
+//         clusters[label].push_back(index.filename(i));
+//     }
+//     in.close();
 
-    /* sort references lexicographically within each cluster */
-    for (auto& c : clusters) {
-        std::sort(c.begin(), c.end(), [](auto const& fn1, auto const& fn2) { return fn1 < fn2; });
-    }
+//     /* sort references lexicographically within each cluster */
+//     for (auto& c : clusters) {
+//         std::sort(c.begin(), c.end(), [](auto const& fn1, auto const& fn2) { return fn1 < fn2;
+//         });
+//     }
 
-    /* sort by non-increasing cluster size */
-    std::sort(clusters.begin(), clusters.end(),
-              [](auto const& c1, auto const& c2) { return c1.size() > c2.size(); });
+//     /* sort by non-increasing cluster size */
+//     std::sort(clusters.begin(), clusters.end(),
+//               [](auto const& c1, auto const& c2) { return c1.size() > c2.size(); });
 
-    auto output_filename = parser.get<std::string>("output_filename");
-    std::ofstream out(output_filename);
-    uint64_t begin = 0;
-    for (auto const& cluster : clusters) {
-        for (auto const& fn : cluster) std::cerr << fn << '\n';
-        uint64_t end = begin + cluster.size();  // one-past the end
-        out << begin << " ";
-        begin = end;
-    }
-    out << begin << "\n";
-    out.close();
+//     auto output_filename = parser.get<std::string>("output_filename");
+//     std::ofstream out(output_filename);
+//     uint64_t begin = 0;
+//     for (auto const& cluster : clusters) {
+//         for (auto const& fn : cluster) std::cerr << fn << '\n';
+//         uint64_t end = begin + cluster.size();  // one-past the end
+//         out << begin << " ";
+//         begin = end;
+//     }
+//     out << begin << "\n";
+//     out.close();
 
-    return 0;
-}
+//     return 0;
+// }
 
 int partition(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
@@ -170,9 +172,9 @@ int help(char* arg0) {
               << "  pseudoalign       \t pseudoalign reads to references using a Fulgor index\n"
               << "  stats             \t print index statistics\n"
               << "  print-filenames   \t print all reference filenames\n"
-              << "  sketch-references \t build reference sketches\n"
+              // << "  sketch-references \t build reference sketches\n"
               << "  sketch-colors     \t build color sketches\n"
-              << "  permute-filenames \t permute filenames according to clusters\n"
+              // << "  permute-filenames \t permute filenames according to clusters\n"
               << "  partition         \t partition a single Fulgor index\n"
               << "  print-lists       \t print lists in cluster" << std::endl;
     return 1;
@@ -189,12 +191,12 @@ int main(int argc, char** argv) {
         return stats(argc - 1, argv + 1);
     } else if (tool == "print-filenames") {
         return print_filenames(argc - 1, argv + 1);
-    } else if (tool == "sketch-references") {
-        return sketch_references(argc - 1, argv + 1);
+        // } else if (tool == "sketch-references") {
+        //     return sketch_references(argc - 1, argv + 1);
     } else if (tool == "sketch-colors") {
         return sketch_colors(argc - 1, argv + 1);
-    } else if (tool == "permute-filenames") {
-        return permute_filenames(argc - 1, argv + 1);
+        // } else if (tool == "permute-filenames") {
+        //     return permute_filenames(argc - 1, argv + 1);
     } else if (tool == "partition") {
         return partition(argc - 1, argv + 1);
     } else if (tool == "print-lists") {

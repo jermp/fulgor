@@ -119,7 +119,6 @@ int permute_filenames(int argc, char** argv) {
 int partition(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("index_filename", "The Fulgor index filename to partition.", "-i", true);
-    parser.add("partitions_filename", "Partition file.", "-p", true);
     parser.add(
         "tmp_dirname",
         "Temporary directory used for construction in external memory. Default is directory '" +
@@ -133,7 +132,6 @@ int partition(int argc, char** argv) {
 
     build_configuration build_config;
     build_config.index_filename_to_partition = parser.get<std::string>("index_filename");
-    build_config.partitions_filename = parser.get<std::string>("partitions_filename");
 
     if (parser.parsed("tmp_dirname")) {
         build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");

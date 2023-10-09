@@ -163,16 +163,4 @@ which need to be translated into relative paths to your machine:
 
 	./fulgor build -l ../test_data/all_shuffled.txt -k 31 -m 19 -t 16 -o all_shuffled -d tmp_dir --verbose -g 8
 
-	./fulgor sketch -i all_shuffled.hybrid.index -o sketches.bin -p 10
-
-	pip3 install -U scikit-learn
-
-	export OPENBLAS_NUM_THREADS=16
-
-	python3 ../scripts/cluster_sketches.py sketches.bin 16 > labels.txt
-
-	./fulgor permute-filenames -i all_shuffled.hybrid.index -c labels.txt -n 16 -o cluster_sizes.txt 2> permuted_filenames.txt
-
-	./fulgor build -l permuted_filenames.txt -k 31 -m 19 -t 16 -o all_permuted -d tmp_dir --verbose -g 8
-
-	./fulgor partition -i all_permuted.hybrid.index -p cluster_sizes.txt -d tmp_dir
+	./fulgor partition -i all_shuffled.hybrid.index -d tmp_dir --check

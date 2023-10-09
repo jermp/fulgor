@@ -60,6 +60,7 @@ include_directories(include)
 include_directories(external/FQFeeder/include)
 include_directories(external/sketch/include)
 include_directories(external/sketch/include/blaze)
+include_directories(external/kmeans/include)
 
 ## GGCAT ####
 

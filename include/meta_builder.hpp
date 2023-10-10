@@ -64,6 +64,8 @@ struct index<ColorClasses>::meta_builder {
             }
             in.close();
 
+            std::remove((m_build_config.tmp_dirname + "/sketches.bin").c_str());
+
             kmeans::clustering_parameters params;
 
             // /* kmeans_lloyd */

@@ -65,19 +65,31 @@ struct index<ColorClasses>::meta_builder {
             in.close();
 
             kmeans::clustering_parameters params;
-            constexpr uint64_t k = 16;
+
+            // /* kmeans_lloyd */
+            // constexpr uint64_t k = 16;
+            // constexpr float min_delta = 0.0001;
+            // constexpr float max_iteration = 10;
+            // params.set_k(k);
+            // params.set_min_delta(min_delta);
+            // params.set_max_iteration(max_iteration);
+            // auto clustering_data = kmeans::kmeans_lloyd(points, params);
+
+            /* kmeans_divisive */
             constexpr float min_delta = 0.0001;
             constexpr float max_iteration = 10;
-            params.set_k(k);
+            constexpr uint64_t min_cluster_size = 50;
             params.set_min_delta(min_delta);
             params.set_max_iteration(max_iteration);
-            auto clustering_data = kmeans::kmeans_lloyd(points, params);
+            params.set_min_cluster_size(min_cluster_size);
+            auto clustering_data = kmeans::kmeans_divisive(points, params);
+
             timer.stop();
             std::cout << "** clustering sketches took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
 
-            num_partitions = k;
+            num_partitions = clustering_data.num_clusters;
             std::cout << "num_partitions = " << num_partitions << std::endl;
 
             m_partition_size.resize(num_partitions + 1, 0);

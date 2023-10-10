@@ -34,7 +34,7 @@ struct hybrid {
             m_num_total_integers = 0;
         }
 
-        void process(uint32_t* const colors, uint64_t list_size) {
+        void process(uint32_t const* colors, uint64_t list_size) {
             /* encode list_size */
             util::write_delta(m_bvb, list_size);
             if (list_size < m_sparse_set_threshold_size) {

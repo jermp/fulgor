@@ -43,12 +43,12 @@ struct meta {
             m_colors_builders[partition_id].init(num_docs_in_partition);
         }
 
-        void process_colors(uint64_t partition_id, uint32_t* const colors, uint64_t list_size) {
+        void process_colors(uint64_t partition_id, uint32_t const* colors, uint64_t list_size) {
             assert(partition_id < m_colors_builders.size());
             m_colors_builders[partition_id].process(colors, list_size);
         }
 
-        void process_metacolors(uint32_t* const metacolors, uint64_t list_size) {
+        void process_metacolors(uint32_t const* metacolors, uint64_t list_size) {
             assert(list_size < (1ULL << m_meta_colors_builder.width()));
             m_meta_colors_builder.push_back(list_size);
             for (uint64_t i = 0; i != list_size; ++i) {
@@ -207,9 +207,25 @@ struct meta {
                   << ((m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits()) * 100.0) /
                          num_bits()
                   << "%\n";
+        std::cout << "     colors: "
+                  << ((m_meta_colors.bytes() * 8) * 100.0) /
+                         (m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits())
+                  << "%\n";
+        std::cout << "     offsets: "
+                  << (m_meta_colors_offsets.num_bits() * 100.0) /
+                         (m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits())
+                  << "%\n";
         std::cout << "  other: "
                   << ((essentials::vec_bytes(m_partition_endpoints) * 8) * 100.0) / num_bits()
                   << "%\n";
+
+        // /* print meta-colors */
+        // for (uint64_t i = 0, j = 0; i != num_color_classes(); ++i) {
+        //     uint64_t size = m_meta_colors[j++];
+        //     std::cout << "meta_color-" << i << ": ";
+        //     for (uint64_t k = 0; k != size; ++k, ++j) { std::cout << m_meta_colors[j] << ' '; }
+        //     std::cout << std::endl;
+        // }
     }
 
     template <typename Visitor>

@@ -165,19 +165,18 @@ struct hybrid {
 
         /* this is needed to annul the next_comp_val() done in the constructor
            if we want to iterate through the complemented set */
-        void reinit_for_complemented_set_iteration() {
-            assert(m_type == list_type::complementary_delta_gaps);
-            m_pos_in_comp_list = 0;
-            m_prev_val = -1;
-            m_curr_val = 0;
-            m_it = bit_vector_iterator((m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_begin);
-            util::read_delta(m_it);  // skip m_size
-            if (m_comp_list_size > 0) {
-                m_comp_val = util::read_delta(m_it);
-            } else {
-                m_comp_val = m_num_docs;
-            }
-        }
+        // void reinit_for_complemented_set_iteration() {
+        //     assert(m_type == list_type::complementary_delta_gaps);
+        //     m_pos_in_comp_list = 0;
+        //     m_prev_val = -1;
+        //     m_curr_val = 0;
+        //     m_it = bit_vector_iterator((m_ptr->m_colors).data(), (m_ptr->m_colors).size(),
+        //     m_begin); util::read_delta(m_it); /* skip m_size */ if (m_comp_list_size > 0) {
+        //         m_comp_val = util::read_delta(m_it);
+        //     } else {
+        //         m_comp_val = m_num_docs;
+        //     }
+        // }
 
         uint64_t value() const { return m_curr_val; }
         uint64_t comp_value() const { return m_comp_val; }
@@ -226,11 +225,11 @@ struct hybrid {
 
         /* update the state of the iterator to the element
            which is greater-than or equal-to lower_bound */
-        void next_geq(uint64_t lower_bound) {
+        void next_geq(const uint64_t lower_bound) {
             assert(lower_bound <= m_num_docs);
             if (m_type == list_type::complementary_delta_gaps) {
                 next_geq_comp_val(lower_bound);
-                m_curr_val = lower_bound;
+                m_curr_val = lower_bound + (m_comp_val == lower_bound);
             } else {
                 while (value() < lower_bound) next();
             }
@@ -268,13 +267,14 @@ struct hybrid {
             }
         }
 
-        void next_geq_comp_val(uint64_t lower_bound) {
+        void next_geq_comp_val(const uint64_t lower_bound) {
             while (m_comp_val < lower_bound) {
                 ++m_pos_in_comp_list;
                 if (m_pos_in_comp_list >= m_comp_list_size) break;
                 m_prev_val = m_comp_val;
                 m_comp_val = util::read_delta(m_it) + (m_prev_val + 1);
             }
+            assert(m_comp_val >= lower_bound);
         }
     };
 

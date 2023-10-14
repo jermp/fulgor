@@ -84,23 +84,52 @@ struct meta {
 
     struct forward_iterator {
         forward_iterator(meta<ColorClasses> const* ptr, uint64_t begin)
-            : m_ptr(ptr)
-            , m_begin(begin)
-            , m_meta_color_list_size((m_ptr->m_meta_colors)[m_begin])
-            , m_pos_in_meta_color_list(0)
-            , m_partition_id(0)
-            , m_partition_lower_bound(0) {
+            : m_ptr(ptr), m_begin(begin), m_meta_color_list_size((m_ptr->m_meta_colors)[m_begin]) {
+            init();
             assert(m_meta_color_list_size > 0);
+
+            // print metacolor list
+            // auto const& partition_endpoints = m_ptr->m_partition_endpoints;
+            // for (uint64_t i = 0; i != meta_color_list_size(); ++i) {
+            //     uint32_t curr = (m_ptr->m_meta_colors)[m_begin + 1 + i];
+            //     partition_endpoint p{0, curr};
+            //     auto it =
+            //         std::lower_bound(partition_endpoints.begin(), partition_endpoints.end(), p,
+            //                          [](partition_endpoint const& x, partition_endpoint const& y)
+            //                          {
+            //                              return x.num_lists_before < y.num_lists_before;
+            //                          });
+            //     if (curr != (*it).num_lists_before) --it;
+            //     std::cout << std::distance(partition_endpoints.begin(), it) << ":" << curr << "
+            //     ";
+            // }
+            // std::cout << std::endl;
+
+            // next_partition_id();
+
             change_partition();
             update_curr_val();
+        }
+
+        void init() {
+            m_pos_in_meta_color_list = 0;
+            m_partition_id = 0;
+            m_partition_lower_bound = 0;
         }
 
         uint64_t value() const { return m_curr_val; }
         uint64_t operator*() const { return value(); }
 
+        bool has_next() const { return m_pos_in_curr_partition != m_curr_partition_size - 1; }
+        void next_in_partition() {
+            m_pos_in_curr_partition += 1;
+            m_curr_partition_it.next();
+            update_curr_val();
+        }
+
         void next() {
             if (m_pos_in_curr_partition == m_curr_partition_size - 1) {
-                if (m_pos_in_meta_color_list == m_meta_color_list_size - 1) {  // saturate
+                if (m_pos_in_meta_color_list == meta_color_list_size() - 1) {  // saturate
                     m_curr_val = num_docs();
                     return;
                 }
@@ -116,7 +145,7 @@ struct meta {
 
         /* update the state of the iterator to the element
            which is greater-than or equal-to lower_bound */
-        void next_geq(uint64_t lower_bound) {
+        void next_geq(const uint64_t lower_bound) {
             assert(lower_bound <= num_docs());
             while (value() < lower_bound) next();
             assert(value() >= lower_bound);
@@ -125,7 +154,7 @@ struct meta {
         /* Warning: this might be slow. */
         uint32_t size() const {
             uint64_t n = 0;
-            for (uint32_t i = 0, partition_id = 0; i != m_meta_color_list_size; ++i) {
+            for (uint32_t i = 0, partition_id = 0; i != meta_color_list_size(); ++i) {
                 uint32_t meta_color = (m_ptr->m_meta_colors)[m_begin + 1 + i];
                 partition_id = update_partition_id(meta_color, partition_id);
                 uint32_t num_lists_before =
@@ -135,7 +164,50 @@ struct meta {
             return n;
         }
 
+        uint32_t meta_color() const { return m_curr_meta_color; }
+
+        void next_partition_id() {
+            if (m_pos_in_meta_color_list == meta_color_list_size() - 1) {  // saturate
+                m_partition_id = num_partitions();
+                return;
+            }
+            m_curr_meta_color = (m_ptr->m_meta_colors)[m_begin + 1 + m_pos_in_meta_color_list];
+            m_partition_id = update_partition_id(m_curr_meta_color, m_partition_id);
+            m_pos_in_meta_color_list += 1;
+        }
+
+        void next_geq_partition_id(const uint32_t lower_bound) {
+            assert(lower_bound <= num_partitions());
+            while (partition_id() < lower_bound) next_partition_id();
+            assert(partition_id() >= lower_bound);
+        }
+
+        void update_partition() {
+            /* update partition lower/upper bound */
+            auto const& endpoints = m_ptr->m_partition_endpoints;
+            m_partition_lower_bound = endpoints[m_partition_id].docid_lower_bound;
+            m_partition_upper_bound = endpoints[m_partition_id + 1].docid_lower_bound;
+
+            uint32_t num_lists_before = endpoints[m_partition_id].num_lists_before;
+            m_curr_partition_it =
+                (m_ptr->m_colors)[m_partition_id].colors(m_curr_meta_color - num_lists_before);
+            m_curr_partition_size = m_curr_partition_it.size();
+            assert(m_curr_partition_size > 0);
+            m_pos_in_curr_partition = 0;
+        }
+
+        void change_partition() {
+            m_curr_meta_color = (m_ptr->m_meta_colors)[m_begin + 1 + m_pos_in_meta_color_list];
+            m_partition_id = update_partition_id(m_curr_meta_color, m_partition_id);
+            update_partition();
+        }
+
+        uint32_t partition_id() const { return m_partition_id; }
+        uint32_t meta_color_list_size() const { return m_meta_color_list_size; }
         uint32_t num_docs() const { return m_ptr->num_docs(); }
+        uint32_t num_partitions() const { return m_ptr->num_partitions(); }
+        uint32_t partition_lower_bound() const { return m_partition_lower_bound; }
+        uint32_t partition_upper_bound() const { return m_partition_upper_bound; }
 
     private:
         meta<ColorClasses> const* m_ptr;
@@ -144,7 +216,8 @@ struct meta {
         uint32_t m_curr_meta_color, m_curr_val;
         uint32_t m_meta_color_list_size, m_pos_in_meta_color_list;
         uint32_t m_curr_partition_size, m_pos_in_curr_partition;
-        uint32_t m_partition_id, m_partition_lower_bound;
+        uint32_t m_partition_id;
+        uint32_t m_partition_lower_bound, m_partition_upper_bound;
 
         void update_curr_val() {
             m_curr_val = m_curr_partition_it.value() + m_partition_lower_bound;
@@ -158,22 +231,6 @@ struct meta {
             }
             assert(partition_id < m_ptr->num_partitions());
             return partition_id;
-        }
-
-        void change_partition() {
-            m_curr_meta_color = (m_ptr->m_meta_colors)[m_begin + 1 + m_pos_in_meta_color_list];
-            m_partition_id = update_partition_id(m_curr_meta_color, m_partition_id);
-
-            /* update partition lower bound */
-            auto const& endpoints = m_ptr->m_partition_endpoints;
-            m_partition_lower_bound = endpoints[m_partition_id].docid_lower_bound;
-
-            uint32_t num_lists_before = endpoints[m_partition_id].num_lists_before;
-            m_curr_partition_it =
-                (m_ptr->m_colors)[m_partition_id].colors(m_curr_meta_color - num_lists_before);
-            m_curr_partition_size = m_curr_partition_it.size();
-            assert(m_curr_partition_size > 0);
-            m_pos_in_curr_partition = 0;
         }
     };
 
@@ -219,12 +276,27 @@ struct meta {
                   << ((essentials::vec_bytes(m_partition_endpoints) * 8) * 100.0) / num_bits()
                   << "%\n";
 
-        // /* print meta-colors */
+        /* print meta-colors */
+        // uint64_t num_meta_colors = 0;
         // for (uint64_t i = 0, j = 0; i != num_color_classes(); ++i) {
         //     uint64_t size = m_meta_colors[j++];
+        //     num_meta_colors += size;
         //     std::cout << "meta_color-" << i << ": ";
-        //     for (uint64_t k = 0; k != size; ++k, ++j) { std::cout << m_meta_colors[j] << ' '; }
-        //     std::cout << std::endl;
+        //     for (uint64_t k = 0; k != size; ++k, ++j) {
+        //         uint32_t curr = m_meta_colors[j];
+        //         partition_endpoint p{0, curr};
+        //         auto it =
+        //             std::lower_bound(m_partition_endpoints.begin(), m_partition_endpoints.end(),
+        //             p,
+        //                              [](partition_endpoint const& x, partition_endpoint const& y)
+        //                              {
+        //                                  return x.num_lists_before < y.num_lists_before;
+        //                              });
+        //         if (curr != (*it).num_lists_before) --it;
+        //         std::cout << std::distance(m_partition_endpoints.begin(), it) << ":" << curr << "
+        //         ";
+        //     }
+        //     std::cout << '\n' << std::endl;
         // }
     }
 

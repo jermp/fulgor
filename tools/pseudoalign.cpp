@@ -263,17 +263,6 @@ int pseudoalign(std::string const& index_filename, std::string const& query_file
     return 0;
 }
 
-int pseudoalign(std::string const& index_filename, std::string const& query_filename,
-                std::string const& output_filename, uint64_t num_threads, double threshold,
-                pseudoalignment_algorithm algo, bool meta) {
-    if (meta) {
-        return pseudoalign<meta_index_type>(index_filename, query_filename, output_filename,
-                                            num_threads, threshold, algo);
-    }
-    return pseudoalign<index_type>(index_filename, query_filename, output_filename, num_threads,
-                                   threshold, algo);
-}
-
 int pseudoalign(int argc, char** argv) {
     std::string index_filename;
     std::string query_filename;
@@ -284,33 +273,39 @@ int pseudoalign(int argc, char** argv) {
     bool meta = false;
 
     CLI::App app{"Perform (color-only) pseudoalignment to a Fulgor index."};
-    app.add_option("-i,--index", index_filename, "Fulgor index filename")
+    app.add_option("-i,--index", index_filename, "The Fulgor index filename,")
         ->required()
         ->check(CLI::ExistingFile);
-
-    app.add_flag_callback(
-        "--meta", [&meta]() { meta = true; }, "Specify if the Fulgor index is meta-colored.");
-
     app.add_option("-q,--query", query_filename,
-                   "Query filename inf FASTA/FASTQ format (optionally gzipped)")
+                   "Query filename in FASTA/FASTQ format (optionally gzipped).")
         ->required();
-    app.add_option("-o,--output", output_filename, "File where output should be written")
+    app.add_option("-o,--output", output_filename, "File where output will be written.")
         ->required();
-    app.add_option("-t,--threads", num_threads, "Number of threads")->default_val(1);
+    app.add_option("-t,--threads", num_threads, "Number of threads.")->default_val(1);
     app.add_option("--threshold", threshold, "Threshold for threshold_union algorithm.")
         ->check(CLI::Range(0.0, 1.0));
     auto skip_opt = app.add_flag_callback(
         "--skipping", [&algo]() { algo = pseudoalignment_algorithm::SKIPPING; },
-        "Enable the skipping heuristic in pseudoalignment");
+        "Enable the skipping heuristic in pseudoalignment.");
     app.add_flag_callback(
            "--skipping-kallisto",
            [&algo]() { algo = pseudoalignment_algorithm::SKIPPING_KALLISTO; },
-           "Enable the kallisto skipping heuristic in pseudoalignment")
+           "Enable the kallisto skipping heuristic in pseudoalignment.")
         ->excludes(skip_opt);
     CLI11_PARSE(app, argc, argv);
 
     util::print_cmd(argc, argv);
 
-    return pseudoalign(index_filename, query_filename, output_filename, num_threads, threshold,
-                       algo, meta);
+    if (sshash::util::ends_with(index_filename,
+                                constants::meta_colored_fulgor_filename_extension)) {
+        return pseudoalign<meta_index_type>(index_filename, query_filename, output_filename,
+                                            num_threads, threshold, algo);
+    } else if (sshash::util::ends_with(index_filename, constants::fulgor_filename_extension)) {
+        return pseudoalign<index_type>(index_filename, query_filename, output_filename, num_threads,
+                                       threshold, algo);
+    }
+
+    std::cerr << "Wrong filename supplied." << std::endl;
+
+    return 1;
 }

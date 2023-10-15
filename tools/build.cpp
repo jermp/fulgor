@@ -58,7 +58,62 @@ int build(int argc, char** argv) {
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
     std::string output_filename =
-        build_config.file_base_name + "." + index_type::color_classes_type::type() + ".index";
+        build_config.file_base_name + "." + constants::fulgor_filename_extension;
+    essentials::logger("saving index to disk...");
+    essentials::save(index, output_filename.c_str());
+    essentials::logger("DONE");
+
+    return 0;
+}
+
+int partition(int argc, char** argv) {
+    cmd_line_parser::parser parser(argc, argv);
+    parser.add("index_filename", "The Fulgor index filename to partition.", "-i", true);
+    parser.add(
+        "tmp_dirname",
+        "Temporary directory used for construction in external memory. Default is directory '" +
+            constants::default_tmp_dirname + "'.",
+        "-d", false);
+    parser.add("check", "Check correctness after index construction (it might take some time).",
+               "--check", false, true);
+
+    if (!parser.parse()) return 1;
+    util::print_cmd(argc, argv);
+
+    build_configuration build_config;
+    build_config.index_filename_to_partition = parser.get<std::string>("index_filename");
+    if (!sshash::util::ends_with(build_config.index_filename_to_partition,
+                                 "." + constants::fulgor_filename_extension)) {
+        std::cerr << "Error: the file to partition must have extension \"."
+                  << constants::fulgor_filename_extension
+                  << "\". Have you first built a Fulgor index with the tool \"build\"?"
+                  << std::endl;
+        return 1;
+    }
+
+    if (parser.parsed("tmp_dirname")) {
+        build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");
+        essentials::create_directory(build_config.tmp_dirname);
+    }
+    build_config.check = parser.get<bool>("check");
+
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+    timer.start();
+
+    meta_index_type index;
+    typename meta_index_type::meta_builder builder(build_config);
+    builder.build(index);
+    index.print_stats();
+
+    timer.stop();
+    essentials::logger("DONE");
+    std::cout << "** building the index took " << timer.elapsed() << " seconds / "
+              << timer.elapsed() / 60 << " minutes" << std::endl;
+
+    std::string output_filename = build_config.index_filename_to_partition.substr(
+                                      0, build_config.index_filename_to_partition.length() -
+                                             constants::fulgor_filename_extension.length() - 1) +
+                                  "." + constants::meta_colored_fulgor_filename_extension;
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");

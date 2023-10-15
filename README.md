@@ -1,16 +1,23 @@
 Fulgor
 ======
 
-Fulgor is a *colored compacted de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
+Fulgor is a *(meta-) colored compacted de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
 
-**A pre-print describing how the index works can be found [here](https://doi.org/10.1101/2023.05.09.539895). To appear in WABI 2023.**
+The Fulgor index is described in the following paper.
+
+[**Fulgor: A Fast and Compact k-mer Index for Large-Scale Matching and Color Queries**](https://drops.dagstuhl.de/opus/volltexte/2023/18644/)
+(WABI, 2023)
+
+And the meta-colored version in this pre-print: [**Meta-colored compacted de Bruijn graphs: overview and challenges**](https://www.biorxiv.org/content/10.1101/2023.07.21.550101v1) (bioRxiv, 2023).
+
+Please, cite these papers if you use Fulgor.
 
 ### Table of contents
 * [Dependencies](#dependencies)
 * [Compiling the code](#compiling-the-code)
 * [Tools](#tools)
 * [Demo](#Demo)
-* [Indexing an example Salmonella pan-genome](#indexing-an-example-salmonella-pan-genome)
+* [Indexing an example Salmonella pangenome](#indexing-an-example-salmonella-pan-genome)
 * [Partitioning](#partitioning)
 
 Dependencies
@@ -77,18 +84,16 @@ Tools
 There is one executable called `fulgor` after the compilation, which can be used to run a tool.
 Run `./fulgor` to see a list of available tools.
 
-	== Fulgor: a colored compacted de Bruijn graph index ==========================
+	== Fulgor: a (meta-) colored compacted de Bruijn graph index =============================
 
 	Usage: ./fulgor <tool> ...
 
 	Available tools:
 	  build             	 build a Fulgor index
-	  pseudoalign       	 pseudoalign reads to references using a Fulgor index
+	  pseudoalign       	 pseudoalign reads to references
 	  stats             	 print index statistics
 	  print-filenames   	 print all reference filenames
-	  sketch            	 build reference sketches
-	  permute-filenames 	 permute filenames according to clusters
-	  partition         	 partition a single Fulgor index
+	  partition         	 partition a Fulgor index and build a meta-colored Fulgor index
 
 
 Demo
@@ -107,11 +112,11 @@ Then, from `fulgor/build`, run
 
 	./fulgor build -l ../test_data/salmonella_10_filenames.txt -o ../test_data/salmonella_10 -k 31 -m 19 -d tmp_dir -g 1 -t 1 --verbose --check
 
-to build an index that will be serialized to the file `test_data/salmonella_10.hybrid.index`.
+to build an index that will be serialized to the file `test_data/salmonella_10.fur`.
 
 
-Indexing an example Salmonella pan-genome
------------------------------------------
+Indexing an example Salmonella pangenome
+----------------------------------------
 
 In this example, we will build a Fulgor index, with k = 31, for the 4,546 Salmonella genomes that can be downloaded from [here](https://zenodo.org/record/1323684).
 
@@ -145,7 +150,7 @@ which will create an index with the following stats:
 
 We can now pseudoalign the reads from [SRR801268](ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR801/SRR801268/SRR801268_1.fastq.gz) with:
 
-	./fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.hybrid.index -q ~/SRR801268_1.fastq.gz -t 8 -o /dev/null
+	./fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.fur -q ~/SRR801268_1.fastq.gz -t 8 -o /dev/null
 
 	mapped 6584304 reads
 	elapsed = 130133 millisec / 130.133 sec / 2.16888 min / 19.7641 musec/read
@@ -155,12 +160,12 @@ using 8 parallel threads and writing the mapping output to `/dev/null`.
 
 
 
-Partitioning
-------------
+Partitioning a Fulgor index to obtain a meta-colored Fulgor index
+-----------------------------------------------------------------
 
-For this simple demo we are going to use the filenames from `test_data/all_shuffled.txt`,
+For this example we are going to use the filenames from `test_data/all_shuffled.txt`,
 which need to be translated into relative paths to your machine:
 
 	./fulgor build -l ../test_data/all_shuffled.txt -k 31 -m 19 -t 16 -o all_shuffled -d tmp_dir --verbose -g 8
 
-	./fulgor partition -i all_shuffled.hybrid.index -d tmp_dir --check
+	./fulgor partition -i all_shuffled.fur -d tmp_dir --check

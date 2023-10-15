@@ -9,11 +9,96 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors) 
 
     if (iterators.empty()) return;
 
+    bool all_very_dense = true;
+    for (auto const& it : iterators) {
+        if (it.type() != color_classes::hybrid::list_type::complementary_delta_gaps) {
+            all_very_dense = false;
+            break;
+        }
+    }
+
+    if (all_very_dense) {
+        /* step 1: take the union of complementary sets */
+        std::vector<uint32_t> tmp;
+        for (auto& it : iterators) it.reinit_for_complemented_set_iteration();
+
+        uint32_t candidate = (*std::min_element(iterators.begin(), iterators.end(),
+                                                [](auto const& x, auto const& y) {
+                                                    return x.comp_value() < y.comp_value();
+                                                }))
+                                 .comp_value();
+
+        const uint32_t num_docs = iterators[0].num_docs();
+        tmp.reserve(num_docs);
+        while (candidate < num_docs) {
+            uint32_t next_candidate = num_docs;
+            for (uint64_t i = 0; i != iterators.size(); ++i) {
+                if (iterators[i].comp_value() == candidate) iterators[i].next_comp();
+                /* compute next minimum */
+                if (iterators[i].comp_value() < next_candidate) {
+                    next_candidate = iterators[i].comp_value();
+                }
+            }
+            tmp.push_back(candidate);
+            assert(next_candidate > candidate);
+            candidate = next_candidate;
+        }
+
+        /* step 2: compute the intersection by scanning tmp */
+        candidate = 0;
+        for (uint32_t i = 0; i != tmp.size(); ++i) {
+            while (candidate < tmp[i]) {
+                colors.push_back(candidate);
+                candidate += 1;
+            }
+            candidate += 1;  // skip the candidate because it is equal to tmp[i]
+        }
+        while (candidate < num_docs) {
+            colors.push_back(candidate);
+            candidate += 1;
+        }
+
+        return;
+    }
+
+    /* traditional intersection code based on next_geq() and next() */
+
+    std::sort(iterators.begin(), iterators.end(),
+              [](auto const& x, auto const& y) { return x.size() < y.size(); });
+
+    const uint32_t num_docs = iterators[0].num_docs();
+    uint32_t candidate = iterators[0].value();
+    uint64_t i = 1;
+    while (candidate < num_docs) {
+        for (; i != iterators.size(); ++i) {
+            iterators[i].next_geq(candidate);
+            uint32_t val = iterators[i].value();
+            if (val != candidate) {
+                candidate = val;
+                i = 0;
+                break;
+            }
+        }
+        if (i == iterators.size()) {
+            colors.push_back(candidate);
+            iterators[0].next();
+            candidate = iterators[0].value();
+            i = 1;
+        }
+    }
+}
+
+template <typename Iterator>
+void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors) {
+    assert(colors.empty());
+
+    if (iterators.empty()) return;
+
     std::sort(iterators.begin(), iterators.end(), [](auto const& x, auto const& y) {
         return x.meta_color_list_size() < y.meta_color_list_size();
     });
 
-    /* first determine partitions in common */
+    /* step 1: determine partitions in common */
     std::vector<uint32_t> partition_ids;
     const uint32_t num_partitions = iterators[0].num_partitions();
     partition_ids.reserve(num_partitions);  // at most
@@ -38,7 +123,7 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors) 
         }
     }
 
-    /* then intersect partial colors in the same partitions only */
+    /* step 2: intersect partial colors in the same partitions only */
     for (auto& it : iterators) {
         it.init();
         it.change_partition();
@@ -86,30 +171,6 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors) 
             }
         }
     }
-
-    /* traditional intersection */
-    // std::sort(iterators.begin(), iterators.end(),
-    //           [](auto const& x, auto const& y) { return x.size() < y.size(); });
-    // const uint32_t num_docs = iterators[0].num_docs();
-    // uint32_t candidate = iterators[0].value();
-    // uint64_t i = 1;
-    // while (candidate < num_docs) {
-    //     for (; i != iterators.size(); ++i) {
-    //         iterators[i].next_geq(candidate);
-    //         uint32_t val = iterators[i].value();
-    //         if (val != candidate) {
-    //             candidate = val;
-    //             i = 0;
-    //             break;
-    //         }
-    //     }
-    //     if (i == iterators.size()) {
-    //         colors.push_back(candidate);
-    //         iterators[0].next();
-    //         candidate = iterators[0].value();
-    //         i = 1;
-    //     }
-    // }
 }
 
 void stream_through(sshash::dictionary const& k2u, std::string const& sequence,
@@ -165,7 +226,11 @@ void index<ColorClasses>::intersect_unitigs(std::vector<uint32_t>& unitig_ids,
         iterators.push_back(fwd_it);
     }
 
-    intersect(iterators, colors);
+    if constexpr (ColorClasses::meta_colored) {
+        meta_intersect(iterators, colors);
+    } else {
+        intersect(iterators, colors);
+    }
 }
 
 }  // namespace fulgor

@@ -266,12 +266,12 @@ int pseudoalign(std::string const& index_filename, std::string const& query_file
 int pseudoalign(std::string const& index_filename, std::string const& query_filename,
                 std::string const& output_filename, uint64_t num_threads, double threshold,
                 pseudoalignment_algorithm algo, bool meta) {
-    // if (meta) {
-    return pseudoalign<meta_index_type>(index_filename, query_filename, output_filename,
-                                        num_threads, threshold, algo);
-    // }
-    // return pseudoalign<index_type>(index_filename, query_filename, output_filename, num_threads,
-    //                                threshold, algo);
+    if (meta) {
+        return pseudoalign<meta_index_type>(index_filename, query_filename, output_filename,
+                                            num_threads, threshold, algo);
+    }
+    return pseudoalign<index_type>(index_filename, query_filename, output_filename, num_threads,
+                                   threshold, algo);
 }
 
 int pseudoalign(int argc, char** argv) {

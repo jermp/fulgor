@@ -16,6 +16,8 @@ namespace constants {
 constexpr double invalid_threshold = -1.0;
 constexpr uint64_t default_ram_limit_in_GiB = 8;
 static const std::string default_tmp_dirname(".");
+static const std::string fulgor_filename_extension("fur");
+static const std::string meta_colored_fulgor_filename_extension("mfur");
 }  // namespace constants
 
 struct build_configuration {
@@ -81,17 +83,6 @@ inline uint8_t lsb(uint64_t x, unsigned long& ret) {
     }
     return false;
 }
-
-// static uint64_t binary_bitsize(uint64_t x) { return util::msbll(x) + 1; }
-// static uint64_t unary_bitsize(uint64_t x) { return x; }
-// static uint64_t gamma_bitsize(uint64_t x) {
-//     uint64_t b = binary_bitsize(x + 1);
-//     return unary_bitsize(b) + b - 1;
-// }
-// static uint64_t delta_bitsize(uint64_t x) {
-//     uint64_t b = binary_bitsize(x + 1);
-//     return gamma_bitsize(b - 1) + b - 1;
-// }
 
 __uint128_t hash128(char const* bytes, uint64_t num_bytes, const uint64_t seed = 1234567890) {
     auto ret = CityHash128WithSeed(bytes, num_bytes, {seed, seed});

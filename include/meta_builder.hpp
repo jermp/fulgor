@@ -68,15 +68,6 @@ struct index<ColorClasses>::meta_builder {
 
             kmeans::clustering_parameters params;
 
-            // /* kmeans_lloyd */
-            // constexpr uint64_t k = 16;
-            // constexpr float min_delta = 0.0001;
-            // constexpr float max_iteration = 10;
-            // params.set_k(k);
-            // params.set_min_delta(min_delta);
-            // params.set_max_iteration(max_iteration);
-            // auto clustering_data = kmeans::kmeans_lloyd(points, params);
-
             /* kmeans_divisive */
             constexpr float min_delta = 0.0001;
             constexpr float max_iteration = 10;

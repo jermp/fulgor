@@ -4,7 +4,7 @@ namespace fulgor {
 
 template <typename ColorClasses>
 struct meta {
-    static std::string type() { return "meta-" + ColorClasses::type(); }
+    static const bool meta_colored = true;
 
     struct partition_endpoint {
         template <typename Visitor>

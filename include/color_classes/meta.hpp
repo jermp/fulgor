@@ -105,10 +105,8 @@ struct meta {
             // }
             // std::cout << std::endl;
 
-            // next_partition_id();
-
-            change_partition();
-            update_curr_val();
+            read_partition_id();
+            update_partition();
         }
 
         void init() {
@@ -120,7 +118,7 @@ struct meta {
         uint64_t value() const { return m_curr_val; }
         uint64_t operator*() const { return value(); }
 
-        bool has_next() const { return m_pos_in_curr_partition != m_curr_partition_size - 1; }
+        bool has_next() const { return m_pos_in_curr_partition != m_curr_partition_size; }
         void next_in_partition() {
             m_pos_in_curr_partition += 1;
             m_curr_partition_it.next();
@@ -136,10 +134,8 @@ struct meta {
                 m_pos_in_meta_color_list += 1;
                 change_partition();
             } else {
-                m_pos_in_curr_partition += 1;
-                m_curr_partition_it.next();
+                next_in_partition();
             }
-            update_curr_val();
         }
         void operator++() { next(); }
 
@@ -166,14 +162,18 @@ struct meta {
 
         uint32_t meta_color() const { return m_curr_meta_color; }
 
+        void read_partition_id() {
+            m_curr_meta_color = (m_ptr->m_meta_colors)[m_begin + 1 + m_pos_in_meta_color_list];
+            m_partition_id = update_partition_id(m_curr_meta_color, m_partition_id);
+        }
+
         void next_partition_id() {
-            if (m_pos_in_meta_color_list == meta_color_list_size() - 1) {  // saturate
+            m_pos_in_meta_color_list += 1;
+            if (m_pos_in_meta_color_list == meta_color_list_size()) {  // saturate
                 m_partition_id = num_partitions();
                 return;
             }
-            m_curr_meta_color = (m_ptr->m_meta_colors)[m_begin + 1 + m_pos_in_meta_color_list];
-            m_partition_id = update_partition_id(m_curr_meta_color, m_partition_id);
-            m_pos_in_meta_color_list += 1;
+            read_partition_id();
         }
 
         void next_geq_partition_id(const uint32_t lower_bound) {
@@ -194,11 +194,12 @@ struct meta {
             m_curr_partition_size = m_curr_partition_it.size();
             assert(m_curr_partition_size > 0);
             m_pos_in_curr_partition = 0;
+
+            update_curr_val();
         }
 
         void change_partition() {
-            m_curr_meta_color = (m_ptr->m_meta_colors)[m_begin + 1 + m_pos_in_meta_color_list];
-            m_partition_id = update_partition_id(m_curr_meta_color, m_partition_id);
+            read_partition_id();
             update_partition();
         }
 

@@ -225,7 +225,7 @@ struct hybrid {
             assert(lower_bound <= m_num_docs);
             if (m_type == list_type::complementary_delta_gaps) {
                 next_geq_comp_val(lower_bound);
-                m_curr_val = lower_bound;
+                m_curr_val = lower_bound + (m_comp_val == lower_bound);
             } else {
                 while (value() < lower_bound) next();
             }

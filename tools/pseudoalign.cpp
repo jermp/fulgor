@@ -270,7 +270,6 @@ int pseudoalign(int argc, char** argv) {
     uint64_t num_threads = 1;
     double threshold = constants::invalid_threshold;
     pseudoalignment_algorithm algo = pseudoalignment_algorithm::FULL_INTERSECTION;
-    bool meta = false;
 
     CLI::App app{"Perform (color-only) pseudoalignment to a Fulgor index."};
     app.add_option("-i,--index", index_filename, "The Fulgor index filename,")

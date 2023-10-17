@@ -89,8 +89,10 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors) 
 }
 
 template <typename Iterator>
-void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors) {
+void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
+                    std::vector<uint32_t>& partition_ids) {
     assert(colors.empty());
+    assert(partition_ids.empty());
 
     if (iterators.empty()) return;
 
@@ -99,7 +101,6 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
     });
 
     /* step 1: determine partitions in common */
-    std::vector<uint32_t> partition_ids;
     const uint32_t num_partitions = iterators[0].num_partitions();
     partition_ids.reserve(num_partitions);  // at most
 
@@ -203,31 +204,34 @@ void index<ColorClasses>::pseudoalign_full_intersection(std::string const& seque
 template <typename ColorClasses>
 void index<ColorClasses>::intersect_unitigs(std::vector<uint32_t>& unitig_ids,
                                             std::vector<uint32_t>& colors) const {
-    std::vector<uint32_t> color_class_ids;
+    /* here we use it to hold the color class ids;
+       in meta_intersect we use it to hold the partition ids */
+    std::vector<uint32_t> tmp;
     std::vector<typename ColorClasses::iterator_type> iterators;
 
     /* deduplicate unitig_ids */
     std::sort(unitig_ids.begin(), unitig_ids.end());
     auto end = std::unique(unitig_ids.begin(), unitig_ids.end());
-    color_class_ids.reserve(end - unitig_ids.begin());
+    tmp.reserve(end - unitig_ids.begin());
     for (auto it = unitig_ids.begin(); it != end; ++it) {
         uint32_t unitig_id = *it;
         uint32_t color_class_id = u2c(unitig_id);
-        color_class_ids.push_back(color_class_id);
+        tmp.push_back(color_class_id);
     }
 
-    /* deduplicate color_class_ids */
-    std::sort(color_class_ids.begin(), color_class_ids.end());
-    end = std::unique(color_class_ids.begin(), color_class_ids.end());
-    iterators.reserve(end - color_class_ids.begin());
-    for (auto it = color_class_ids.begin(); it != end; ++it) {
+    /* deduplicate color class ids */
+    std::sort(tmp.begin(), tmp.end());
+    end = std::unique(tmp.begin(), tmp.end());
+    iterators.reserve(end - tmp.begin());
+    for (auto it = tmp.begin(); it != end; ++it) {
         uint64_t color_class_id = *it;
         auto fwd_it = m_ccs.colors(color_class_id);
         iterators.push_back(fwd_it);
     }
 
+    tmp.clear();  // don't need color class ids anymore
     if constexpr (ColorClasses::meta_colored) {
-        meta_intersect(iterators, colors);
+        meta_intersect(iterators, colors, tmp);
     } else {
         intersect(iterators, colors);
     }

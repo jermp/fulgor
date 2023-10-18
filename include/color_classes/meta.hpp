@@ -238,6 +238,7 @@ struct meta {
 
     void print_stats() const {
         std::cout << "Color statistics:\n";
+        std::cout << "Number of partitions: " << num_partitions() << '\n';
         uint64_t colors_bits = 0;
         for (auto const& c : m_colors) {
             // c.print_stats();

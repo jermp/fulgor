@@ -321,4 +321,5 @@ private:
         return {m_partition_size[partition_id], m_partition_size[partition_id + 1]};
     }
 };
+
 }  // namespace fulgor

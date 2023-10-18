@@ -237,27 +237,30 @@ struct meta {
     }
 
     void print_stats() const {
+        std::cout << "Color statistics:\n";
         uint64_t colors_bits = 0;
         for (auto const& c : m_colors) {
             // c.print_stats();
             colors_bits += c.num_bits();
         }
-        std::cout << "  partial colors: " << (colors_bits * 100.0) / num_bits() << "%\n";
+        std::cout << "  partial colors: " << colors_bits / 8 << " bytes ("
+                  << (colors_bits * 100.0) / num_bits() << "%)\n";
         std::cout << "  meta colors: "
+                  << m_meta_colors.bytes() + m_meta_colors_offsets.num_bits() / 8 << " bytes ("
                   << ((m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits()) * 100.0) /
                          num_bits()
-                  << "%\n";
-        std::cout << "     colors: "
-                  << ((m_meta_colors.bytes() * 8) * 100.0) /
-                         (m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits())
-                  << "%\n";
-        std::cout << "     offsets: "
-                  << (m_meta_colors_offsets.num_bits() * 100.0) /
-                         (m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits())
-                  << "%\n";
-        std::cout << "  other: "
+                  << "%)\n";
+        std::cout << "  other: " << essentials::vec_bytes(m_partition_endpoints) << " bytes ("
                   << ((essentials::vec_bytes(m_partition_endpoints) * 8) * 100.0) / num_bits()
-                  << "%\n";
+                  << "%)\n";
+        // std::cout << "  colors: "
+        //           << ((m_meta_colors.bytes() * 8) * 100.0) /
+        //                  (m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits())
+        //           << "%\n";
+        // std::cout << "  offsets: "
+        //           << (m_meta_colors_offsets.num_bits() * 100.0) /
+        //                  (m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits())
+        //           << "%\n";
     }
 
     template <typename Visitor>

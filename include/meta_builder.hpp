@@ -42,7 +42,9 @@ struct index<ColorClasses>::meta_builder {
             essentials::logger("step 2.1. build sketches");
             timer.start();
             constexpr uint64_t p = 10;  // use 2^p bytes per HLL sketch
-            build_reference_sketches(index, p, m_build_config.tmp_dirname + "/sketches.bin");
+            uint64_t num_threads = 8;
+            build_reference_sketches(index, p, num_threads,
+                                     m_build_config.tmp_dirname + "/sketches.bin");
             timer.stop();
             std::cout << "** building sketches took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;

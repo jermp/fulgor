@@ -39,12 +39,10 @@ struct index<ColorClasses>::meta_builder {
         const uint64_t num_color_classes = index.num_color_classes();
 
         {
-            essentials::logger("step 2.1. build sketches");
+            essentials::logger("step 2. build sketches");
             timer.start();
             constexpr uint64_t p = 10;  // use 2^p bytes per HLL sketch
-            uint64_t num_threads = 8;
-            build_reference_sketches(index, p, num_threads,
-                                     m_build_config.tmp_dirname + "/sketches.bin");
+            build_reference_sketches(index, p, m_build_config.tmp_dirname + "/sketches.bin");
             timer.stop();
             std::cout << "** building sketches took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
@@ -52,7 +50,7 @@ struct index<ColorClasses>::meta_builder {
         }
 
         {
-            essentials::logger("step 2.2. clustering sketches");
+            essentials::logger("step 3. clustering sketches");
             timer.start();
 
             std::ifstream in(m_build_config.tmp_dirname + "/sketches.bin", std::ios::binary);
@@ -118,7 +116,7 @@ struct index<ColorClasses>::meta_builder {
         }
 
         {
-            essentials::logger("step 2 build partial/meta colors");
+            essentials::logger("step 4. building partial/meta colors");
             timer.start();
 
             std::ofstream metacolors_out(m_build_config.tmp_dirname + "/metacolors.bin",
@@ -271,13 +269,13 @@ struct index<ColorClasses>::meta_builder {
             colors_builder.build(idx.m_ccs);
 
             timer.stop();
-            std::cout << "** building and compressing partial/meta colors took " << timer.elapsed()
-                      << " seconds / " << timer.elapsed() / 60 << " minutes" << std::endl;
+            std::cout << "** building partial/meta colors took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
 
         {
-            essentials::logger("step 3. copy m_u2c, m_k2u");
+            essentials::logger("step 5. copy m_u2c, m_k2u");
             timer.start();
             idx.m_u2c = index.get_u2c();
             idx.m_k2u = index.get_dict();
@@ -288,7 +286,7 @@ struct index<ColorClasses>::meta_builder {
         }
 
         {
-            essentials::logger("step 4. permuting m_filenames");
+            essentials::logger("step 6. permuting m_filenames");
             timer.start();
             std::vector<std::string> filenames;
             filenames.resize(num_docs);
@@ -303,7 +301,7 @@ struct index<ColorClasses>::meta_builder {
         }
 
         if (m_build_config.check) {
-            essentials::logger("step 5. check correctness...");
+            essentials::logger("step 7. check correctness...");
             for (uint64_t color_class_id = 0; color_class_id != num_color_classes;
                  ++color_class_id) {
                 auto it_exp = index.colors(color_class_id);

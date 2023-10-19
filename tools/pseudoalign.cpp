@@ -5,7 +5,6 @@
 #include "../external/CLI11.hpp"
 #include "../external/sshash/include/gz/zip_stream.hpp"
 #include "../external/FQFeeder/include/FastxParser.hpp"
-#include "../external/FQFeeder/src/FastxParser.cpp"
 
 #include "../piscem_psa/hit_searcher.cpp"
 #include "../kallisto_psa/psa.cpp"

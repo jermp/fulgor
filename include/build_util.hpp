@@ -3,7 +3,7 @@
 #include "sketch/hll.h"
 #include "kmeans.hpp"
 #include "../external/FQFeeder/include/FastxParser.hpp"
-// #include "../external/FQFeeder/src/FastxParser.cpp"
+#include "../external/FQFeeder/src/FastxParser.cpp"
 #include "../external/sshash/include/query/streaming_query_canonical_parsing.hpp"
 
 namespace fulgor {

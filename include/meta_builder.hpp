@@ -80,7 +80,7 @@ struct index<ColorClasses>::meta_builder {
             params.set_max_iteration(max_iteration);
             params.set_min_cluster_size(min_cluster_size);
             params.set_random_seed(seed);
-            auto clustering_data = kmeans::kmeans_divisive(points, params);
+            auto clustering_data = kmeans::kmeans_divisive(points.begin(), points.end(), params);
 
             timer.stop();
             std::cout << "** clustering sketches took " << timer.elapsed() << " seconds / "
@@ -91,7 +91,7 @@ struct index<ColorClasses>::meta_builder {
             std::cout << "num_partitions = " << num_partitions << std::endl;
 
             m_partition_size.resize(num_partitions + 1, 0);
-            for (auto c : clustering_data.clusters) { m_partition_size[c] += 1; }
+            for (auto c : clustering_data.clusters) m_partition_size[c] += 1;
 
             /* take prefix sums */
             uint64_t val = 0;

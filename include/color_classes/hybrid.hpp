@@ -1,11 +1,9 @@
 #pragma once
 
-namespace fulgor::color_classes {
+namespace fulgor {
 
 struct hybrid {
     static const bool meta_colored = false;
-
-    enum list_type { delta_gaps = 0, bitmap = 1, complementary_delta_gaps = 2 };
 
     struct builder {
         builder() {}
@@ -390,4 +388,4 @@ private:
     std::vector<uint64_t> m_colors;
 };
 
-}  // namespace fulgor::color_classes
+}  // namespace fulgor

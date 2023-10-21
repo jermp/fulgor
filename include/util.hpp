@@ -12,6 +12,8 @@
 
 namespace fulgor {
 
+enum list_type { delta_gaps = 0, bitmap = 1, complementary_delta_gaps = 2 };
+
 namespace constants {
 constexpr double invalid_threshold = -1.0;
 constexpr uint64_t default_ram_limit_in_GiB = 8;

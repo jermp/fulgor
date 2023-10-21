@@ -238,12 +238,47 @@ struct meta {
 
     void print_stats() const {
         std::cout << "Color statistics:\n";
-        std::cout << "Number of partitions: " << num_partitions() << '\n';
+        std::cout << "  Number of partitions: " << num_partitions() << '\n';
         uint64_t colors_bits = 0;
+
+        uint64_t num_partial_colors_very_dense = 0;
+        uint64_t num_partial_colors_dense = 0;
+        uint64_t num_partial_colors_sparse = 0;
+        uint64_t num_total_partial_colors = 0;
+
         for (auto const& c : m_colors) {
             // c.print_stats();
+
+            uint64_t n = c.num_color_classes();
+            num_total_partial_colors += n;
+            for (uint64_t i = 0; i != n; ++i) {
+                auto it = c.colors(i);
+                if (it.type() == list_type::complementary_delta_gaps) {
+                    ++num_partial_colors_very_dense;
+                } else if (it.type() == list_type::bitmap) {
+                    ++num_partial_colors_dense;
+                } else {
+                    assert(it.type() == list_type::delta_gaps);
+                    ++num_partial_colors_sparse;
+                }
+            }
+
             colors_bits += c.num_bits();
         }
+
+        std::cout << "  num_partial_colors_very_dense = " << num_partial_colors_very_dense << " / "
+                  << num_total_partial_colors << " ("
+                  << (num_partial_colors_very_dense * 100.0) / num_total_partial_colors << "%)"
+                  << std::endl;
+        std::cout << "  num_partial_colors_dense = " << num_partial_colors_dense << " / "
+                  << num_total_partial_colors << " ("
+                  << (num_partial_colors_dense * 100.0) / num_total_partial_colors << "%)"
+                  << std::endl;
+        std::cout << "  num_partial_colors_sparse = " << num_partial_colors_sparse << " / "
+                  << num_total_partial_colors << " ("
+                  << (num_partial_colors_sparse * 100.0) / num_total_partial_colors << "%)"
+                  << std::endl;
+
         std::cout << "  partial colors: " << colors_bits / 8 << " bytes ("
                   << (colors_bits * 100.0) / num_bits() << "%)\n";
         std::cout << "  meta colors: "

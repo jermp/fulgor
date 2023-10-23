@@ -18,7 +18,6 @@ Please, cite these papers if you use Fulgor.
 * [Tools](#tools)
 * [Demo](#Demo)
 * [Indexing an example Salmonella pangenome](#indexing-an-example-salmonella-pan-genome)
-* [Partitioning](#partitioning)
 
 Dependencies
 ------------
@@ -55,13 +54,17 @@ To build the code, [`CMake`](https://cmake.org/) is required.
 
 First clone the repository with
 
-    git clone --recursive https://github.com/jermp/fulgor.git
+    git clone https://github.com/jermp/fulgor.git
 
-If you forgot `--recursive` when cloning, do
+and checkout the `mac-dbg` branch with
+
+	git checkout mac-dbg
+
+Then do
 
     git submodule update --init --recursive
 
-before compiling.
+to pull all necessary submodules before compilation.
 
 To compile the code for a release environment (see file `CMakeLists.txt` for the used compilation flags), it is sufficient to do the following, within the parent `fulgor` directory:
 
@@ -131,24 +134,16 @@ and, from `fulgor/build`, run
 
 	./fulgor build -l ~/salmonella_4546_filenames.txt -o ~/Salmonella_enterica/salmonella_4546 -k 31 -m 20 -d tmp_dir -g 8 -t 8 --verbose --check
 
-which will create an index with the following stats:
+which will create an index named `~/Salmonella_enterica/salmonella_4546.fur` of 0.266 GB.
 
-	total index size: 0.266428 GB
-	SPACE BREAKDOWN:
-	  K2U: 65891238 bytes / 0.0658912 GB (24.7314%)
-	  CCs: 199938374 bytes / 0.199938 GB (75.0442%)
-	  Other: 597956 bytes / 0.000597956 GB (0.224435%)
-	    U2C: 294568 bytes / 0.000294568 GB (0.110562%)
-	    filenames: 303388 bytes / 0.000303388 GB (0.113873%)
-	Color id range 0..4545
-	Number of distinct color classes: 972178
-	Number of ints in distinct color classes: 2139057102 (0.747763 bits/int)
-	k: 31
-	m: 20 (minimizer length used in K2U)
-	Number of kmers in dBG: 43788757 (12.038 bits/kmer)
-	Number of unitigs in dBG: 1884865
+We can now pseudoalign the reads from SRR801268, as follows.
 
-We can now pseudoalign the reads from [SRR801268](ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR801/SRR801268/SRR801268_1.fastq.gz) with:
+First, download the reads in `~/` with (assuming you have `wget` installed):
+
+	cd
+	wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR801/SRR801268/SRR801268_1.fastq.gz
+
+and then process them with:
 
 	./fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.fur -q ~/SRR801268_1.fastq.gz -t 8 -o /dev/null
 
@@ -158,14 +153,9 @@ We can now pseudoalign the reads from [SRR801268](ftp://ftp.sra.ebi.ac.uk/vol1/f
 
 using 8 parallel threads and writing the mapping output to `/dev/null`.
 
+To partition the index to obtain a meta-colored Fulgor index, then do:
 
+	./fulgor partition -i ~/Salmonella_enterica/salmonella_4546.fur -d tmp_dir --check
 
-Partitioning a Fulgor index to obtain a meta-colored Fulgor index
------------------------------------------------------------------
-
-For this example we are going to use the filenames from `test_data/all_shuffled.txt`,
-which need to be translated into relative paths to your machine:
-
-	./fulgor build -l ../test_data/all_shuffled.txt -k 31 -m 19 -t 16 -o all_shuffled -d tmp_dir --verbose -g 8
-
-	./fulgor partition -i all_shuffled.fur -d tmp_dir --check
+The meta-colored index will be serialized to the file `~/Salmonella_enterica/salmonella_4546.mfur`
+and will take 0.104 GB (2.55X smaller than the `.fur` index).

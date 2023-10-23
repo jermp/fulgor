@@ -92,12 +92,12 @@ Run `./fulgor` to see a list of available tools.
 	Usage: ./fulgor <tool> ...
 
 	Available tools:
-	  build             	 build a Fulgor index
-	  pseudoalign       	 pseudoalign reads to references
-	  stats             	 print index statistics
-	  print-filenames   	 print all reference filenames
-	  partition         	 partition a Fulgor index and build a meta-colored Fulgor index
-
+	  build              build a Fulgor index
+	  pseudoalign        pseudoalign reads to references
+	  stats              print index statistics
+	  print-filenames    print all reference filenames
+	  partition          partition a Fulgor index and build a meta-colored Fulgor index
+	  permute            permute the reference names of a Fulgor index
 
 Demo
 ----

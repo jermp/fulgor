@@ -73,12 +73,12 @@ int help(char* arg0) {
     std::cout
         << "Usage: " << arg0 << " <tool> ...\n\n"
         << "Available tools:\n"
-        << "  build             \t build a Fulgor index\n"
-        << "  pseudoalign       \t pseudoalign reads to references\n"
-        << "  stats             \t print index statistics\n"
-        << "  print-filenames   \t print all reference filenames\n"
-        << "  partition         \t partition a Fulgor index and build a meta-colored Fulgor index"
-        << std::endl;
+        << "  build              build a Fulgor index\n"
+        << "  pseudoalign        pseudoalign reads to references\n"
+        << "  stats              print index statistics\n"
+        << "  print-filenames    print all reference filenames\n"
+        << "  partition          partition a Fulgor index and build a meta-colored Fulgor index\n"
+        << "  permute            permute the reference names of a Fulgor index" << std::endl;
     return 1;
 }
 
@@ -95,6 +95,8 @@ int main(int argc, char** argv) {
         return print_filenames(argc - 1, argv + 1);
     } else if (tool == "partition") {
         return partition(argc - 1, argv + 1);
+    } else if (tool == "permute") {
+        return permute(argc - 1, argv + 1);
     }
     std::cout << "Unsupported tool '" << tool << "'.\n" << std::endl;
     return help(argv[0]);

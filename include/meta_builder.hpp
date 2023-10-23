@@ -5,38 +5,16 @@
 
 namespace fulgor {
 
-template <typename ColorClasses>
-struct index<ColorClasses>::meta_builder {
-    meta_builder() {}
+struct partition_endpoint {
+    uint64_t begin, end;
+};
 
-    struct partition_endpoint {
-        uint64_t begin, end;
-    };
+struct permuter {
+    permuter(build_configuration const& build_config)
+        : m_build_config(build_config), m_num_partitions(0), m_max_partition_size(0) {}
 
-    meta_builder(build_configuration const& build_config) : m_build_config(build_config) {}
-
-    void build(index& idx) {
-        if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
-
-        uint64_t num_partitions = 0;
-        uint64_t max_partition_size = 0;
-        uint64_t num_integers_in_metacolors = 0;
-        uint64_t num_partial_colors = 0;
-
-        std::vector<uint32_t> permutation;
-        std::vector<uint32_t> permuted_list;
-
-        index_type index;  // the index to be partitioned
-        std::vector<std::unordered_map<__uint128_t, uint32_t>> hashes;  // (hash, id)
-
+    void permute(index_type const& index) {
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-
-        essentials::logger("step 1. loading index to be partitioned...");
-        essentials::load(index, m_build_config.index_filename_to_partition.c_str());
-        essentials::logger("DONE");
-
-        const uint64_t num_docs = index.num_docs();
-        const uint64_t num_color_classes = index.num_color_classes();
 
         {
             essentials::logger("step 2. build sketches");
@@ -87,33 +65,87 @@ struct index<ColorClasses>::meta_builder {
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
 
-            num_partitions = clustering_data.num_clusters;
-            std::cout << "num_partitions = " << num_partitions << std::endl;
+            m_num_partitions = clustering_data.num_clusters;
 
-            m_partition_size.resize(num_partitions + 1, 0);
+            m_partition_size.resize(m_num_partitions + 1, 0);
             for (auto c : clustering_data.clusters) m_partition_size[c] += 1;
 
             /* take prefix sums */
             uint64_t val = 0;
             for (auto& size : m_partition_size) {
-                if (size > max_partition_size) max_partition_size = size;
+                if (size > m_max_partition_size) m_max_partition_size = size;
                 uint64_t tmp = size;
                 size = val;
                 val += tmp;
             }
 
-            hashes.resize(num_partitions);
+            const uint64_t num_docs = index.num_docs();
 
             /* build permutation */
             auto counts = m_partition_size;  // copy
-            permutation.resize(num_docs);
+            m_permutation.resize(num_docs);
             assert(clustering_data.clusters.size() == num_docs);
             for (uint64_t i = 0; i != num_docs; ++i) {
                 uint32_t cluster_id = clustering_data.clusters[i];
-                permutation[i] = counts[cluster_id];
+                m_permutation[i] = counts[cluster_id];
                 counts[cluster_id] += 1;
             }
+
+            /* permute filenames */
+            m_filenames.resize(num_docs);
+            for (uint64_t i = 0; i != num_docs; ++i) {
+                m_filenames[m_permutation[i]] = index.filename(i);
+            }
         }
+    }
+
+    partition_endpoint partition_endpoints(uint64_t partition_id) const {
+        assert(partition_id + 1 < m_partition_size.size());
+        return {m_partition_size[partition_id], m_partition_size[partition_id + 1]};
+    }
+
+    uint64_t num_partitions() const { return m_num_partitions; }
+    uint64_t max_partition_size() const { return m_max_partition_size; }
+    std::vector<uint32_t> permutation() const { return m_permutation; }
+    std::vector<uint32_t> partition_size() const { return m_partition_size; }
+    std::vector<std::string> filenames() const { return m_filenames; }
+
+private:
+    build_configuration m_build_config;
+    uint64_t m_num_partitions;
+    uint64_t m_max_partition_size;
+    std::vector<uint32_t> m_permutation;
+    std::vector<uint32_t> m_partition_size;
+    std::vector<std::string> m_filenames;
+};
+
+template <typename ColorClasses>
+struct index<ColorClasses>::meta_builder {
+    meta_builder() {}
+
+    meta_builder(build_configuration const& build_config) : m_build_config(build_config) {}
+
+    void build(index& idx) {
+        if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
+
+        index_type index;
+        essentials::logger("step 1. loading index to be partitioned...");
+        essentials::load(index, m_build_config.index_filename_to_partition.c_str());
+        essentials::logger("DONE");
+
+        const uint64_t num_docs = index.num_docs();
+        const uint64_t num_color_classes = index.num_color_classes();
+
+        essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+
+        permuter p(m_build_config);
+        p.permute(index);
+        auto const& permutation = p.permutation();
+
+        const uint64_t num_partitions = p.num_partitions();
+        const uint64_t max_partition_size = p.max_partition_size();
+        std::cout << "num_partitions = " << num_partitions << std::endl;
+        std::cout << "max_partition_size = " << max_partition_size << std::endl;
 
         {
             essentials::logger("step 4. building partial/meta colors");
@@ -123,21 +155,28 @@ struct index<ColorClasses>::meta_builder {
                                          std::ios::binary);
             if (!metacolors_out.is_open()) throw std::runtime_error("error in opening file");
 
+            uint64_t num_integers_in_metacolors = 0;
+            uint64_t num_partial_colors = 0;
+
             std::vector<uint32_t> partial_color;
-            permuted_list.reserve(num_docs);
+            std::vector<uint32_t> permuted_list;
             partial_color.reserve(max_partition_size);
+            permuted_list.reserve(num_docs);
 
             typename ColorClasses::builder colors_builder;
 
             colors_builder.init_colors_builder(num_docs, num_partitions);
             for (uint64_t partition_id = 0; partition_id != num_partitions; ++partition_id) {
-                auto endpoints = partition_endpoints(partition_id);
+                auto endpoints = p.partition_endpoints(partition_id);
                 uint64_t num_docs_in_partition = endpoints.end - endpoints.begin;
                 colors_builder.init_color_partition(partition_id, num_docs_in_partition);
             }
 
             uint64_t partition_id = 0;
             uint32_t meta_color_list_size = 0;
+
+            std::vector<std::unordered_map<__uint128_t, uint32_t>> hashes;  // (hash, id)
+            hashes.resize(num_partitions);
 
             auto hash_and_compress = [&]() {
                 assert(!partial_color.empty());
@@ -182,7 +221,7 @@ struct index<ColorClasses>::meta_builder {
                 /* partition list */
                 meta_color_list_size = 0;
                 partition_id = 0;
-                partition_endpoint curr_partition = partition_endpoints(0);
+                partition_endpoint curr_partition = p.partition_endpoints(0);
                 assert(partial_color.empty());
 
                 /* reserve space to hold the size of the meta color list */
@@ -194,7 +233,7 @@ struct index<ColorClasses>::meta_builder {
                     while (ref_id >= curr_partition.end) {
                         if (!partial_color.empty()) hash_and_compress();
                         partition_id += 1;
-                        curr_partition = partition_endpoints(partition_id);
+                        curr_partition = p.partition_endpoints(partition_id);
                     }
                     assert(ref_id >= curr_partition.begin);
                     partial_color.push_back(ref_id - curr_partition.begin);
@@ -234,7 +273,7 @@ struct index<ColorClasses>::meta_builder {
             std::cout << "total num. partial colors = " << num_partial_colors << std::endl;
 
             colors_builder.init_meta_colors_builder(num_integers_in_metacolors + num_color_classes,
-                                                    num_partial_colors, m_partition_size,
+                                                    num_partial_colors, p.partition_size(),
                                                     num_lists_in_partition);
 
             std::vector<uint32_t> metacolors;
@@ -275,33 +314,32 @@ struct index<ColorClasses>::meta_builder {
         }
 
         {
-            essentials::logger("step 5. copy m_u2c, m_k2u");
+            essentials::logger("step 5. copy u2c and k2u");
             timer.start();
             idx.m_u2c = index.get_u2c();
             idx.m_k2u = index.get_dict();
             timer.stop();
-            std::cout << "** copying m_u2c and m_k2u took " << timer.elapsed() << " seconds / "
+            std::cout << "** copying u2c and k2u took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
 
         {
-            essentials::logger("step 6. permuting m_filenames");
+            essentials::logger("step 6. building filenames");
             timer.start();
-            std::vector<std::string> filenames;
-            filenames.resize(num_docs);
-            for (uint64_t i = 0; i != num_docs; ++i) {
-                filenames[permutation[i]] = index.filename(i);
-            }
-            idx.m_filenames.build(filenames);
+            idx.m_filenames.build(p.filenames());
             timer.stop();
-            std::cout << "** permuting m_filenames took " << timer.elapsed() << " seconds / "
+            std::cout << "** building filenames took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
 
         if (m_build_config.check) {
             essentials::logger("step 7. check correctness...");
+
+            std::vector<uint32_t> permuted_list;
+            permuted_list.reserve(num_docs);
+
             for (uint64_t color_class_id = 0; color_class_id != num_color_classes;
                  ++color_class_id) {
                 auto it_exp = index.colors(color_class_id);
@@ -336,12 +374,6 @@ struct index<ColorClasses>::meta_builder {
 
 private:
     build_configuration m_build_config;
-    std::vector<uint32_t> m_partition_size;
-
-    partition_endpoint partition_endpoints(uint64_t partition_id) const {
-        assert(partition_id + 1 < m_partition_size.size());
-        return {m_partition_size[partition_id], m_partition_size[partition_id + 1]};
-    }
 };
 
 }  // namespace fulgor

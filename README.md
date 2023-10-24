@@ -149,7 +149,7 @@ and then process them with:
 
 	mapped 6584304 reads
 	elapsed = 130133 millisec / 130.133 sec / 2.16888 min / 19.7641 musec/read
-	num_mapped_reads 5797119/6584304 (88.0445%)
+	num_mapped_reads 5796453/6584304 (88.0344%)
 
 using 8 parallel threads and writing the mapping output to `/dev/null`.
 

@@ -8,7 +8,7 @@ The Fulgor index is described in the following paper.
 [**Fulgor: A Fast and Compact k-mer Index for Large-Scale Matching and Color Queries**](https://drops.dagstuhl.de/opus/volltexte/2023/18644/)
 (WABI, 2023)
 
-And the meta-colored version in this pre-print: [**Meta-colored compacted de Bruijn graphs: overview and challenges**](https://www.biorxiv.org/content/10.1101/2023.07.21.550101v1) (bioRxiv, 2023).
+And the meta-colored version of Fulgor is described in this pre-print: [**Meta-colored compacted de Bruijn graphs: overview and challenges**](https://www.biorxiv.org/content/10.1101/2023.07.21.550101v1) (bioRxiv, 2023).
 
 Please, cite these papers if you use Fulgor.
 
@@ -16,8 +16,8 @@ Please, cite these papers if you use Fulgor.
 * [Dependencies](#dependencies)
 * [Compiling the code](#compiling-the-code)
 * [Tools](#tools)
-* [Demo](#Demo)
-* [Indexing an example Salmonella pangenome](#indexing-an-example-salmonella-pan-genome)
+* [Quick start](#quick-start)
+* [Indexing an example Salmonella pangenome](#indexing-an-example-salmonella-pangenome)
 
 Dependencies
 ------------
@@ -99,8 +99,8 @@ Run `./fulgor` to see a list of available tools.
 	  partition          partition a Fulgor index and build a meta-colored Fulgor index
 	  permute            permute the reference names of a Fulgor index
 
-Demo
-----
+Quick start
+-----------
 
 This short demo shows how to index the 10-genome collection
 in the folder `test_data/salmonella_10` with Fulgor.

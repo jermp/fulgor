@@ -87,8 +87,7 @@ struct meta {
             : m_ptr(ptr), m_begin(begin), m_meta_color_list_size((m_ptr->m_meta_colors)[m_begin]) {
             init();
             assert(m_meta_color_list_size > 0);
-            read_partition_id();
-            update_partition();
+            change_partition();
         }
 
         void init() {

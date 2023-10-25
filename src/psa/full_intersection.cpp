@@ -4,8 +4,10 @@
 namespace fulgor {
 
 template <typename Iterator>
-void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors) {
+void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
+               std::vector<uint32_t>& complement_set) {
     assert(colors.empty());
+    assert(complement_set.empty());
 
     if (iterators.empty()) return;
 
@@ -19,7 +21,6 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors) 
 
     if (all_very_dense) {
         /* step 1: take the union of complementary sets */
-        std::vector<uint32_t> tmp;
         for (auto& it : iterators) it.reinit_for_complemented_set_iteration();
 
         uint32_t candidate = (*std::min_element(iterators.begin(), iterators.end(),
@@ -29,7 +30,7 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors) 
                                  .comp_value();
 
         const uint32_t num_docs = iterators[0].num_docs();
-        tmp.reserve(num_docs);
+        complement_set.reserve(num_docs);
         while (candidate < num_docs) {
             uint32_t next_candidate = num_docs;
             for (uint64_t i = 0; i != iterators.size(); ++i) {
@@ -39,19 +40,19 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors) 
                     next_candidate = iterators[i].comp_value();
                 }
             }
-            tmp.push_back(candidate);
+            complement_set.push_back(candidate);
             assert(next_candidate > candidate);
             candidate = next_candidate;
         }
 
-        /* step 2: compute the intersection by scanning tmp */
+        /* step 2: compute the intersection by scanning complement_set */
         candidate = 0;
-        for (uint32_t i = 0; i != tmp.size(); ++i) {
-            while (candidate < tmp[i]) {
+        for (uint32_t i = 0; i != complement_set.size(); ++i) {
+            while (candidate < complement_set[i]) {
                 colors.push_back(candidate);
                 candidate += 1;
             }
-            candidate += 1;  // skip the candidate because it is equal to tmp[i]
+            candidate += 1;  // skip the candidate because it is equal to complement_set[i]
         }
         while (candidate < num_docs) {
             colors.push_back(candidate);
@@ -233,7 +234,7 @@ void index<ColorClasses>::intersect_unitigs(std::vector<uint32_t>& unitig_ids,
     if constexpr (ColorClasses::meta_colored) {
         meta_intersect(iterators, colors, tmp);
     } else {
-        intersect(iterators, colors);
+        intersect(iterators, colors, tmp);
     }
 }
 

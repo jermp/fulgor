@@ -13,7 +13,7 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
 
     bool all_very_dense = true;
     for (auto const& it : iterators) {
-        if (it.type() != list_type::complementary_delta_gaps) {
+        if (it.type() != list_type::complement_delta_gaps) {
             all_very_dense = false;
             break;
         }
@@ -236,6 +236,8 @@ void index<ColorClasses>::intersect_unitigs(std::vector<uint32_t>& unitig_ids,
     } else {
         intersect(iterators, colors, tmp);
     }
+
+    assert(util::check_intersection(iterators, colors));
 }
 
 }  // namespace fulgor

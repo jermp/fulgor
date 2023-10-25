@@ -85,6 +85,10 @@ struct meta {
     struct forward_iterator {
         forward_iterator(meta<ColorClasses> const* ptr, uint64_t begin)
             : m_ptr(ptr), m_begin(begin), m_meta_color_list_size((m_ptr->m_meta_colors)[m_begin]) {
+            rewind();
+        }
+
+        void rewind() {
             init();
             assert(m_meta_color_list_size > 0);
             change_partition();
@@ -252,7 +256,7 @@ struct meta {
             num_total_partial_colors += n;
             for (uint64_t i = 0; i != n; ++i) {
                 auto it = c.colors(i);
-                if (it.type() == list_type::complementary_delta_gaps) {
+                if (it.type() == list_type::complement_delta_gaps) {
                     ++num_partial_colors_very_dense;
                 } else if (it.type() == list_type::bitmap) {
                     ++num_partial_colors_dense;

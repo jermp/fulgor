@@ -6,13 +6,14 @@
 #include <vector>
 #include <sstream>
 #include <chrono>
+#include <algorithm>  // for std::set_intersection
 
 #include "../external/smhasher/src/City.h"
 #include "../external/smhasher/src/City.cpp"
 
 namespace fulgor {
 
-enum list_type { delta_gaps = 0, bitmap = 1, complementary_delta_gaps = 2 };
+enum list_type { delta_gaps = 0, bitmap = 1, complement_delta_gaps = 2 };
 
 namespace constants {
 constexpr double invalid_threshold = -1.0;
@@ -60,6 +61,56 @@ static void print_cmd(int argc, char** argv) {
 
 /* return the number of 64-bit words for num_bits */
 static uint64_t num_64bit_words_for(uint64_t num_bits) { return (num_bits + 64 - 1) / 64; }
+
+template <typename ForwardIterator>
+bool check_intersection(std::vector<ForwardIterator>& iterators, std::vector<uint32_t> const& got) {
+    if (iterators.empty()) return true;
+
+    for (auto& it : iterators) it.rewind();
+
+    const uint32_t num_docs = iterators[0].num_docs();
+    std::vector<std::vector<uint32_t>> sets(iterators.size());
+    for (uint64_t i = 0; i != iterators.size(); ++i) {
+        auto& it = iterators[i];
+        uint32_t val = it.value();
+        while (val < num_docs) {
+            sets[i].push_back(val);
+            it.next();
+            val = it.value();
+        }
+    }
+
+    std::vector<uint32_t> expected;
+
+    if (iterators.size() > 1) {
+        std::vector<uint32_t> l = sets[0];
+        for (uint64_t i = 1; i != sets.size(); ++i) {
+            auto r = sets[i];
+            expected.clear();
+            std::set_intersection(l.begin(), l.end(), r.begin(), r.end(),
+                                  std::back_inserter(expected));
+            if (i != sets.size() - 1) l.swap(expected);
+        }
+    } else {
+        expected.swap(sets[0]);
+    }
+
+    if (expected.size() != got.size()) {
+        std::cerr << "expected intersection size " << expected.size() << " but got " << got.size()
+                  << std::endl;
+        return false;
+    }
+
+    for (uint64_t i = 0; i != got.size(); ++i) {
+        if (expected[i] != got[i]) {
+            std::cerr << "error at " << i << "/" << got.size() << ": expected " << expected[i]
+                      << " but got " << got[i] << std::endl;
+            return false;
+        }
+    }
+
+    return true;
+}
 
 /*
     Good reference for built-in functions:

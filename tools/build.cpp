@@ -74,6 +74,7 @@ int partition(int argc, char** argv) {
         "Temporary directory used for construction in external memory. Default is directory '" +
             constants::default_tmp_dirname + "'.",
         "-d", false);
+    parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
     parser.add("check", "Check correctness after index construction (it might take some time).",
                "--check", false, true);
 
@@ -94,6 +95,9 @@ int partition(int argc, char** argv) {
     if (parser.parsed("tmp_dirname")) {
         build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");
         essentials::create_directory(build_config.tmp_dirname);
+    }
+    if (parser.parsed("num_threads")) {
+        build_config.num_threads = parser.get<uint64_t>("num_threads");
     }
     build_config.check = parser.get<bool>("check");
 

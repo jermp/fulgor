@@ -20,7 +20,8 @@ struct permuter {
             essentials::logger("step 2. build sketches");
             timer.start();
             constexpr uint64_t p = 10;  // use 2^p bytes per HLL sketch
-            build_reference_sketches(index, p, m_build_config.tmp_dirname + "/sketches.bin");
+            build_reference_sketches(index, p, m_build_config.num_threads,
+                                     m_build_config.tmp_dirname + "/sketches.bin");
             timer.stop();
             std::cout << "** building sketches took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;

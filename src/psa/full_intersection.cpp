@@ -181,10 +181,11 @@ void index<ColorClasses>::intersect_unitigs(std::vector<uint32_t>& unitig_ids,
 
 template <typename ColorClasses>
 void index<ColorClasses>::intersect_color_ids(const std::vector<uint32_t>& color_ids, 
+                                              const size_t skip,
                                               std::vector<uint32_t>& colors) const {
     std::vector<typename ColorClasses::iterator_type> iterators;
     iterators.reserve(color_ids.size());
-    for (auto it = color_ids.begin(); it != color_ids.end(); ++it) {
+    for (auto it = color_ids.begin() + skip; it != color_ids.end(); ++it) {
         uint64_t color_class_id = *it;
         auto fwd_it = m_ccs.colors(color_class_id);
         iterators.push_back(fwd_it);

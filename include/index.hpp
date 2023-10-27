@@ -43,7 +43,7 @@ struct index {
 
     void intersect_unitigs(std::vector<uint32_t>& unitig_ids, std::vector<uint32_t>& colors) const;
 
-    void intersect_color_ids(const std::vector<uint32_t>& color_ids, std::vector<uint32_t>& colors) const;
+    void intersect_color_ids(const std::vector<uint32_t>& color_ids, const size_t skip, std::vector<uint32_t>& colors) const;
 
     uint64_t num_bits() const {
         return m_k2u.num_bits() + m_u2c.bytes() * 8 + m_ccs.num_bits() + m_filenames.num_bits();

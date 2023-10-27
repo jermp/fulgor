@@ -49,6 +49,7 @@ int help(char* arg0) {
               << "Available tools:\n"
               << "  build           \t build a fulgor index\n"
               << "  pseudoalign     \t pseudoalign reads to references using a fulgor index\n"
+              << "  intersect-colors\t perform exact pseudoalignment using the 2-step algorithm\n"
               << "  stats           \t print index statistics\n"
               << "  print-filenames \t print all reference filenames" << std::endl;
     return 1;

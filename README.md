@@ -56,11 +56,7 @@ First clone the repository with
 
     git clone https://github.com/jermp/fulgor.git
 
-and checkout the `mac-dbg` branch with
-
-	git checkout mac-dbg
-
-Then do
+and then do
 
     git submodule update --init --recursive
 

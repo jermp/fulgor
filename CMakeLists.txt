@@ -25,7 +25,7 @@ if (UNIX AND (CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64"))
   MESSAGE(STATUS "Compiling with flags: -march=native -mbmi2 -msse4.2")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
   # Flags for PTHash:
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mbmi2 -msse4.2") # for hardware popcount and pdep
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mbmi2 -msse4.2 -mpopcnt") # for hardware popcount and pdep
 endif()
 
 if (UNIX)
@@ -103,5 +103,3 @@ target_link_libraries(fulgor
   ${GGCAT_CXX_INTEROP}
   ${CMAKE_DL_LIBS}
 )
-
-

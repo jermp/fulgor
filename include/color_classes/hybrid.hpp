@@ -1,15 +1,16 @@
 #pragma once
 
-namespace fulgor::color_classes {
+namespace fulgor {
 
 struct hybrid {
-    static std::string type() { return "hybrid"; }
-
-    enum list_type { delta_gaps = 0, bitmap = 1, complementary_delta_gaps = 2 };
+    static const bool meta_colored = false;
 
     struct builder {
-        builder(build_configuration const& build_config) {
-            m_num_docs = build_config.num_docs;
+        builder() {}
+        builder(uint64_t num_docs) { init(num_docs); }
+
+        void init(uint64_t num_docs) {
+            m_num_docs = num_docs;
 
             /* if list contains < sparse_set_threshold_size ints, code it with gaps+delta */
             m_sparse_set_threshold_size = 0.25 * m_num_docs;
@@ -31,7 +32,7 @@ struct hybrid {
             m_num_total_integers = 0;
         }
 
-        void process(uint32_t* const colors, uint64_t list_size) {
+        void process(uint32_t const* colors, uint64_t list_size) {
             /* encode list_size */
             util::write_delta(m_bvb, list_size);
             if (list_size < m_sparse_set_threshold_size) {
@@ -127,31 +128,39 @@ struct hybrid {
     };
 
     struct forward_iterator {
+        forward_iterator() {}
+
         forward_iterator(hybrid const* ptr, uint64_t begin)
             : m_ptr(ptr)
-            , m_begin(begin)
-            , m_num_docs(ptr->m_num_docs)
-            , m_pos_in_list(0)
-            , m_pos_in_comp_list(0)
-            , m_comp_list_size(0)
-            , m_comp_val(-1)
-            , m_prev_val(-1)
-            , m_curr_val(0) {
-            m_it = bit_vector_iterator((ptr->m_colors).data(), (ptr->m_colors).size(), begin);
+            , m_bitmap_begin(begin)
+            , m_colors_begin(begin)
+            , m_num_docs(ptr->m_num_docs) {
+            rewind();
+        }
+
+        void rewind() {
+            m_pos_in_list = 0;
+            m_pos_in_comp_list = 0;
+            m_comp_list_size = 0;
+            m_comp_val = -1;
+            m_prev_val = -1;
+            m_curr_val = 0;
+            m_it = bit_vector_iterator((m_ptr->m_colors).data(), (m_ptr->m_colors).size(),
+                                       m_colors_begin);
             m_size = util::read_delta(m_it);
             /* set m_type and read the first value */
-            if (m_size < ptr->m_sparse_set_threshold_size) {
+            if (m_size < m_ptr->m_sparse_set_threshold_size) {
                 m_type = list_type::delta_gaps;
                 m_curr_val = util::read_delta(m_it);
-            } else if (m_size < ptr->m_very_dense_set_threshold_size) {
+            } else if (m_size < m_ptr->m_very_dense_set_threshold_size) {
                 m_type = list_type::bitmap;
-                m_begin = m_it.position();  // after m_size
-                m_it.at_and_clear_low_bits(m_begin);
+                m_bitmap_begin = m_it.position();  // after m_size
+                m_it.at_and_clear_low_bits(m_bitmap_begin);
                 uint64_t pos = m_it.next();
-                assert(pos >= m_begin);
-                m_curr_val = pos - m_begin;
+                assert(pos >= m_bitmap_begin);
+                m_curr_val = pos - m_bitmap_begin;
             } else {
-                m_type = list_type::complementary_delta_gaps;
+                m_type = list_type::complement_delta_gaps;
                 m_comp_list_size = m_num_docs - m_size;
                 if (m_comp_list_size > 0) m_comp_val = util::read_delta(m_it);
                 next_comp_val();
@@ -161,12 +170,13 @@ struct hybrid {
         /* this is needed to annul the next_comp_val() done in the constructor
            if we want to iterate through the complemented set */
         void reinit_for_complemented_set_iteration() {
-            assert(m_type == list_type::complementary_delta_gaps);
+            assert(m_type == list_type::complement_delta_gaps);
             m_pos_in_comp_list = 0;
             m_prev_val = -1;
             m_curr_val = 0;
-            m_it = bit_vector_iterator((m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_begin);
-            util::read_delta(m_it);  // skip m_size
+            m_it = bit_vector_iterator((m_ptr->m_colors).data(), (m_ptr->m_colors).size(),
+                                       m_colors_begin);
+            util::read_delta(m_it); /* skip m_size */
             if (m_comp_list_size > 0) {
                 m_comp_val = util::read_delta(m_it);
             } else {
@@ -179,7 +189,7 @@ struct hybrid {
         uint64_t operator*() const { return value(); }
 
         void next() {
-            if (m_type == list_type::complementary_delta_gaps) {
+            if (m_type == list_type::complement_delta_gaps) {
                 ++m_curr_val;
                 if (m_curr_val >= m_num_docs) {  // saturate
                     m_curr_val = m_num_docs;
@@ -202,8 +212,8 @@ struct hybrid {
                     return;
                 }
                 uint64_t pos = m_it.next();
-                assert(pos >= m_begin);
-                m_curr_val = pos - m_begin;
+                assert(pos >= m_bitmap_begin);
+                m_curr_val = pos - m_bitmap_begin;
             }
         }
 
@@ -221,9 +231,10 @@ struct hybrid {
 
         /* update the state of the iterator to the element
            which is greater-than or equal-to lower_bound */
-        void next_geq(uint64_t lower_bound) {
-            assert(lower_bound <= m_num_docs);
-            if (m_type == list_type::complementary_delta_gaps) {
+        void next_geq(const uint64_t lower_bound) {
+            assert(lower_bound <= num_docs());
+            if (m_type == list_type::complement_delta_gaps) {
+                if (value() > lower_bound) return;
                 next_geq_comp_val(lower_bound);
                 m_curr_val = lower_bound + (m_comp_val == lower_bound);
             } else {
@@ -238,7 +249,8 @@ struct hybrid {
 
     private:
         hybrid const* m_ptr;
-        uint64_t m_begin;
+        uint64_t m_bitmap_begin;
+        uint64_t m_colors_begin;
         uint32_t m_num_docs;
         int m_type;
 
@@ -263,7 +275,7 @@ struct hybrid {
             }
         }
 
-        void next_geq_comp_val(uint64_t lower_bound) {
+        void next_geq_comp_val(const uint64_t lower_bound) {
             while (m_comp_val < lower_bound) {
                 ++m_pos_in_comp_list;
                 if (m_pos_in_comp_list >= m_comp_list_size) break;
@@ -385,4 +397,4 @@ private:
     std::vector<uint64_t> m_colors;
 };
 
-}  // namespace fulgor::color_classes
+}  // namespace fulgor

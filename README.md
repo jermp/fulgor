@@ -1,22 +1,23 @@
 Fulgor
 ======
 
-Fulgor is a *colored compacted de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
+Fulgor is a *(meta-) colored compacted de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
 
-The index is described in the following paper.
+The Fulgor index is described in the following paper.
 
 [**Fulgor: A Fast and Compact k-mer Index for Large-Scale Matching and Color Queries**](https://drops.dagstuhl.de/opus/volltexte/2023/18644/)
-(WABI 2023)
+(WABI, 2023)
 
-Please, cite this paper if you use Fulgor.
+And the meta-colored version of Fulgor is described in this pre-print: [**Meta-colored compacted de Bruijn graphs: overview and challenges**](https://www.biorxiv.org/content/10.1101/2023.07.21.550101v1) (bioRxiv, 2023).
+
+Please, cite these papers if you use Fulgor.
 
 ### Table of contents
 * [Dependencies](#dependencies)
 * [Compiling the code](#compiling-the-code)
 * [Tools](#tools)
-* [Demo](#Demo)
-* [Indexing an example Salmonella pan-genome](#indexing-an-example-salmonella-pan-genome)
-
+* [Quick start](#quick-start)
+* [Indexing an example Salmonella pangenome](#indexing-an-example-salmonella-pangenome)
 
 Dependencies
 ------------
@@ -53,13 +54,17 @@ To build the code, [`CMake`](https://cmake.org/) is required.
 
 First clone the repository with
 
-    git clone --recursive https://github.com/jermp/fulgor.git
+    git clone https://github.com/jermp/fulgor.git
 
-If you forgot `--recursive` when cloning, do
+and checkout the `mac-dbg` branch with
+
+	git checkout mac-dbg
+
+Then do
 
     git submodule update --init --recursive
 
-before compiling.
+to pull all necessary submodules before compilation.
 
 To compile the code for a release environment (see file `CMakeLists.txt` for the used compilation flags), it is sufficient to do the following, within the parent `fulgor` directory:
 
@@ -82,19 +87,20 @@ Tools
 There is one executable called `fulgor` after the compilation, which can be used to run a tool.
 Run `./fulgor` to see a list of available tools.
 
-	== Fulgor: a colored compacted de Bruijn graph index ==========================
+	== Fulgor: a (meta-) colored compacted de Bruijn graph index =============================
 
 	Usage: ./fulgor <tool> ...
 
 	Available tools:
-	  build           	 build a fulgor index
-	  pseudoalign     	 pseudoalign reads to references using a fulgor index
-	  stats           	 print index statistics
-	  print-filenames 	 print all reference filenames
+	  build              build a Fulgor index
+	  pseudoalign        pseudoalign reads to references
+	  stats              print index statistics
+	  print-filenames    print all reference filenames
+	  partition          partition a Fulgor index and build a meta-colored Fulgor index
+	  permute            permute the reference names of a Fulgor index
 
-
-Demo
-----
+Quick start
+-----------
 
 This short demo shows how to index the 10-genome collection
 in the folder `test_data/salmonella_10` with Fulgor.
@@ -109,11 +115,11 @@ Then, from `fulgor/build`, run
 
 	./fulgor build -l ../test_data/salmonella_10_filenames.txt -o ../test_data/salmonella_10 -k 31 -m 19 -d tmp_dir -g 1 -t 1 --verbose --check
 
-to build an index that will be serialized to the file `test_data/salmonella_10.hybrid.index`.
+to build an index that will be serialized to the file `test_data/salmonella_10.fur`.
 
 
-Indexing an example Salmonella pan-genome
------------------------------------------
+Indexing an example Salmonella pangenome
+----------------------------------------
 
 In this example, we will build a Fulgor index, with k = 31, for the 4,546 Salmonella genomes that can be downloaded from [here](https://zenodo.org/record/1323684).
 
@@ -128,29 +134,28 @@ and, from `fulgor/build`, run
 
 	./fulgor build -l ~/salmonella_4546_filenames.txt -o ~/Salmonella_enterica/salmonella_4546 -k 31 -m 20 -d tmp_dir -g 8 -t 8 --verbose --check
 
-which will create an index with the following stats:
+which will create an index named `~/Salmonella_enterica/salmonella_4546.fur` of 0.266 GB.
 
-	total index size: 0.266428 GB
-	SPACE BREAKDOWN:
-	  K2U: 65891238 bytes / 0.0658912 GB (24.7314%)
-	  CCs: 199938374 bytes / 0.199938 GB (75.0442%)
-	  Other: 597956 bytes / 0.000597956 GB (0.224435%)
-	    U2C: 294568 bytes / 0.000294568 GB (0.110562%)
-	    filenames: 303388 bytes / 0.000303388 GB (0.113873%)
-	Color id range 0..4545
-	Number of distinct color classes: 972178
-	Number of ints in distinct color classes: 2139057102 (0.747763 bits/int)
-	k: 31
-	m: 20 (minimizer length used in K2U)
-	Number of kmers in dBG: 43788757 (12.038 bits/kmer)
-	Number of unitigs in dBG: 1884865
+We can now pseudoalign the reads from SRR801268, as follows.
 
-We can now pseudoalign the reads from [SRR801268](ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR801/SRR801268/SRR801268_1.fastq.gz) with:
+First, download the reads in `~/` with (assuming you have `wget` installed):
 
-	./fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.hybrid.index -q ~/SRR801268_1.fastq.gz -t 8 -o /dev/null
+	cd
+	wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR801/SRR801268/SRR801268_1.fastq.gz
+
+and then process them with:
+
+	./fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.fur -q ~/SRR801268_1.fastq.gz -t 8 -o /dev/null
 
 	mapped 6584304 reads
 	elapsed = 130133 millisec / 130.133 sec / 2.16888 min / 19.7641 musec/read
-	num_mapped_reads 5797119/6584304 (88.0445%)
+	num_mapped_reads 5796427/6584304 (88.034%)
 
 using 8 parallel threads and writing the mapping output to `/dev/null`.
+
+To partition the index to obtain a meta-colored Fulgor index, then do:
+
+	./fulgor partition -i ~/Salmonella_enterica/salmonella_4546.fur -d tmp_dir --check
+
+The meta-colored index will be serialized to the file `~/Salmonella_enterica/salmonella_4546.mfur`
+and will take 0.104 GB (2.55X smaller than the `.fur` index).

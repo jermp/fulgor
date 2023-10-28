@@ -6,15 +6,21 @@
 #include <vector>
 #include <sstream>
 #include <chrono>
+#include <algorithm>  // for std::set_intersection
 
-#include "GGCAT.hpp"
+#include "../external/smhasher/src/City.h"
+#include "../external/smhasher/src/City.cpp"
 
 namespace fulgor {
+
+enum list_type { delta_gaps = 0, bitmap = 1, complement_delta_gaps = 2 };
 
 namespace constants {
 constexpr double invalid_threshold = -1.0;
 constexpr uint64_t default_ram_limit_in_GiB = 8;
 static const std::string default_tmp_dirname(".");
+static const std::string fulgor_filename_extension("fur");
+static const std::string meta_colored_fulgor_filename_extension("mfur");
 }  // namespace constants
 
 struct build_configuration {
@@ -31,28 +37,19 @@ struct build_configuration {
 
     uint32_t k;            // kmer length
     uint32_t m;            // minimizer length
-    uint64_t num_threads;  // for building and checking correctness
-    uint64_t ram_limit_in_GiB;
+    uint32_t num_threads;  // for building and checking correctness
+    uint32_t ram_limit_in_GiB;
     uint64_t num_docs;
+
     std::string tmp_dirname;
     std::string file_base_name;
+    std::string filenames_list;
+
+    std::string index_filename_to_partition;
+
     bool verbose;
     bool canonical_parsing;
     bool check;
-};
-
-struct ccdbg_builder {
-    ccdbg_builder() : ggcat(new GGCAT()) {}
-    ~ccdbg_builder() { delete ggcat; }
-
-    void build_ccdbg(std::string const& filenames_list) {
-        ggcat->build(filenames_list, config.ram_limit_in_GiB, config.k, config.num_threads,
-                     config.tmp_dirname, config.file_base_name);
-        config.num_docs = ggcat->num_docs();
-    }
-
-    build_configuration config;
-    GGCAT* ggcat;
 };
 
 namespace util {
@@ -64,6 +61,56 @@ static void print_cmd(int argc, char** argv) {
 
 /* return the number of 64-bit words for num_bits */
 static uint64_t num_64bit_words_for(uint64_t num_bits) { return (num_bits + 64 - 1) / 64; }
+
+template <typename ForwardIterator>
+bool check_intersection(std::vector<ForwardIterator>& iterators, std::vector<uint32_t> const& got) {
+    if (iterators.empty()) return true;
+
+    for (auto& it : iterators) it.rewind();
+
+    const uint32_t num_docs = iterators[0].num_docs();
+    std::vector<std::vector<uint32_t>> sets(iterators.size());
+    for (uint64_t i = 0; i != iterators.size(); ++i) {
+        auto& it = iterators[i];
+        uint32_t val = it.value();
+        while (val < num_docs) {
+            sets[i].push_back(val);
+            it.next();
+            val = it.value();
+        }
+    }
+
+    std::vector<uint32_t> expected;
+
+    if (iterators.size() > 1) {
+        std::vector<uint32_t> l = sets[0];
+        for (uint64_t i = 1; i != sets.size(); ++i) {
+            auto r = sets[i];
+            expected.clear();
+            std::set_intersection(l.begin(), l.end(), r.begin(), r.end(),
+                                  std::back_inserter(expected));
+            if (i != sets.size() - 1) l.swap(expected);
+        }
+    } else {
+        expected.swap(sets[0]);
+    }
+
+    if (expected.size() != got.size()) {
+        std::cerr << "expected intersection size " << expected.size() << " but got " << got.size()
+                  << std::endl;
+        return false;
+    }
+
+    for (uint64_t i = 0; i != got.size(); ++i) {
+        if (expected[i] != got[i]) {
+            std::cerr << "error at " << i << "/" << got.size() << ": expected " << expected[i]
+                      << " but got " << got[i] << std::endl;
+            return false;
+        }
+    }
+
+    return true;
+}
 
 /*
     Good reference for built-in functions:
@@ -90,15 +137,12 @@ inline uint8_t lsb(uint64_t x, unsigned long& ret) {
     return false;
 }
 
-static uint64_t binary_bitsize(uint64_t x) { return util::msbll(x) + 1; }
-static uint64_t unary_bitsize(uint64_t x) { return x; }
-static uint64_t gamma_bitsize(uint64_t x) {
-    uint64_t b = binary_bitsize(x + 1);
-    return unary_bitsize(b) + b - 1;
-}
-static uint64_t delta_bitsize(uint64_t x) {
-    uint64_t b = binary_bitsize(x + 1);
-    return gamma_bitsize(b - 1) + b - 1;
+__uint128_t hash128(char const* bytes, uint64_t num_bytes, const uint64_t seed = 1234567890) {
+    auto ret = CityHash128WithSeed(bytes, num_bytes, {seed, seed});
+    __uint128_t out;
+    *(reinterpret_cast<uint64_t*>(&out) + 0) = ret.first;
+    *(reinterpret_cast<uint64_t*>(&out) + 1) = ret.second;
+    return out;
 }
 
 }  // namespace util

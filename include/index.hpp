@@ -11,7 +11,8 @@ template <typename ColorClasses>
 struct index {
     typedef ColorClasses color_classes_type;
 
-    void build_from(ccdbg_builder const& cb);
+    struct builder;
+    struct meta_builder;
 
     template <typename Visitor>
     void visit(Visitor& visitor) {
@@ -21,9 +22,14 @@ struct index {
         visitor.visit(m_filenames);
     }
 
+    uint64_t k() const { return m_k2u.k(); }
     uint64_t num_docs() const { return m_ccs.num_docs(); }
+    uint64_t num_color_classes() const { return m_ccs.num_color_classes(); }
 
-    ColorClasses const& color_classes() const { return m_ccs; }
+    typename color_classes_type::iterator_type colors(uint64_t color_class_id) const {
+        assert(color_class_id < num_color_classes());
+        return m_ccs.colors(color_class_id);
+    }
 
     /* from unitig_id to color_class_id */
     uint64_t u2c(uint64_t unitig_id) const { return m_u2c.rank(unitig_id); }
@@ -46,9 +52,11 @@ struct index {
 
     void print_stats() const;
 
-    size_t k() const { return m_k2u.k(); }
-    sshash::dictionary const* get_dict() const { return &m_k2u; }
+    ColorClasses const& color_classes() const { return m_ccs; }
+    sshash::dictionary const& get_dict() const { return m_k2u; }
+    ranked_bit_vector const& get_u2c() const { return m_u2c; }
     pthash::bit_vector const& contigs() const { return m_k2u.strings(); }
+    filenames const& get_filenames() const { return m_filenames; }
 
 private:
     sshash::dictionary m_k2u;

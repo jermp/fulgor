@@ -1,18 +1,20 @@
 #include "psa.hpp"
 
-// the below function is ment to mimic, as closely as possible,
-// the behavior of kallisto. This function is taken directly from
+// The below function is meant to mimic, as closely as possible,
+// the behavior of Kallisto. This function is taken directly from
 // https://github.com/pachterlab/kallisto, from the KmerIndex.cpp file
 // and is modified only to make use of the relevant index and data
 // structure in this codebase.
 //
-// use:  match(s,l,v)
+// use:  match(s,l,idx,v)
 // pre:  v is initialized
 // post: v contains all equiv classes for the k-mers in s
-void match(const std::string& s, int l, fulgor::index_type const* idx,
+
+template <typename FulgorIndex>
+void match(const std::string& s, int l, FulgorIndex const* idx,
            std::vector<std::pair<projected_hits, int>>& v) {
-    sshash::dictionary const* kmap = idx->get_dict();
-    int64_t k = kmap->k();
+    sshash::dictionary const& kmap = idx->get_dict();
+    int64_t k = kmap.k();
     // NOTE: have to set this first, before starting any iterator or anything that
     // uses k-mers!!
     CanonicalKmer::k(k);
@@ -39,7 +41,7 @@ void match(const std::string& s, int l, fulgor::index_type const* idx,
     int nextPos = 0;  // nextPosition to check
     for (int i = 0; kit != kit_end; ++i, ++kit) {
         // need to check it
-        auto search = kmap->lookup_advanced_uint(kit->first.fwWord());
+        auto search = kmap.lookup_advanced_uint(kit->first.fwWord());
 
         int pos = kit->second;
 
@@ -74,7 +76,7 @@ void match(const std::string& s, int l, fulgor::index_type const* idx,
                 pufferfish::CanonicalKmerIterator kit2(kit);
                 kit2.jumpTo(nextPos);
                 if (kit2 != kit_end) {
-                    auto search2 = kmap->lookup_advanced_uint(kit2->first.fwWord());
+                    auto search2 = kmap.lookup_advanced_uint(kit2->first.fwWord());
                     bool found2 = false;
                     int found2pos = pos + dist;
                     if (search2.kmer_id == sshash::constants::invalid_uint64) {
@@ -104,7 +106,7 @@ void match(const std::string& s, int l, fulgor::index_type const* idx,
                             kit3.jumpTo(middlePos);
                             projected_hits val3;
                             if (kit3 != kit_end) {
-                                auto search3 = kmap->lookup_advanced_uint(kit3->first.fwWord());
+                                auto search3 = kmap.lookup_advanced_uint(kit3->first.fwWord());
                                 if (search3.kmer_id != sshash::constants::invalid_uint64) {
                                     val3.globalPos_ =
                                         search3.kmer_id + (search3.contig_id * (k - 1));
@@ -158,7 +160,7 @@ void match(const std::string& s, int l, fulgor::index_type const* idx,
                 if (j == skip) { j = 0; }
                 if (j == 0) {
                     // need to check it
-                    auto search = kmap->lookup_advanced_uint(kit->first.fwWord());
+                    auto search = kmap.lookup_advanced_uint(kit->first.fwWord());
                     if (search.kmer_id != sshash::constants::invalid_uint64) {
                         projected_hits tmpval;
                         tmpval.globalPos_ = search.kmer_id + (search.contig_id * (k - 1));

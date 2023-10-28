@@ -1,6 +1,7 @@
 #include "hit_searcher.hpp"
 #include "../external/sshash/include/bit_vector_iterator.hpp"
 #include "../external/sshash/include/constants.hpp"
+
 #include <cmath>
 #include <limits>
 
@@ -9,8 +10,6 @@
 namespace piscem_psa {
 // polute the namespace --- put this in the functions that need it.
 namespace kmers = combinelib::kmers;
-
-void hit_searcher::setAltSkip(uint32_t as) { altSkip = as; }
 
 enum class LastSkipType : uint8_t { NO_HIT = 0, SKIP_READ = 1, SKIP_UNI = 2 };
 
@@ -35,8 +34,10 @@ struct FastHitInfo {
 // We should also consider the optimizations that can
 // be done here (like having small checks expected to)
 // be on the same contig bypass a hash lookup.
+
+template <typename FulgorIndex>
 struct SkipContext {
-    SkipContext(std::string const& read, fulgor::index_type const* pfi_in, int32_t k_in,
+    SkipContext(std::string const& read, FulgorIndex const* pfi_in, int32_t k_in,
                 uint32_t alt_skip_in)
         : kit1(read)
         , kit_tmp(read)
@@ -476,7 +477,7 @@ struct SkipContext {
     pufferfish::CanonicalKmerIterator kit_tmp;
     pufferfish::CanonicalKmerIterator kit_end;
     pufferfish::CanonicalKmerIterator kit_swap;
-    fulgor::index_type const* pfi = nullptr;
+    FulgorIndex const* pfi = nullptr;
     sshash::bit_vector_iterator ref_contig_it;
     int32_t read_len;
     int32_t read_target_pos;
@@ -541,16 +542,18 @@ struct SkipContext {
 // Near-optimal probabilistic RNA-seq quantification.
 // Nat Biotechnol. 2016;34(5):525-527.
 //
-bool hit_searcher::get_raw_hits_sketch(std::string const& read,
-                                       sshash::streaming_query_canonical_parsing& qc, bool isLeft,
-                                       bool verbose) {
+
+template <typename FulgorIndex>
+bool hit_searcher<FulgorIndex>::get_raw_hits_sketch(std::string const& read,
+                                                    sshash::streaming_query_canonical_parsing& qc,
+                                                    bool isLeft, bool verbose) {
     (void)verbose;
     // projected_hits phits;
     auto& raw_hits = isLeft ? left_rawHits : right_rawHits;
 
     CanonicalKmer::k(k);
     int32_t k = static_cast<int32_t>(CanonicalKmer::k());
-    SkipContext skip_ctx(read, pfi_, k, altSkip);
+    SkipContext<FulgorIndex> skip_ctx(read, pfi_, k, altSkip);
 
     // while it is possible to search further
     while (!skip_ctx.is_exhausted()) {
@@ -654,11 +657,6 @@ bool hit_searcher::get_raw_hits_sketch(std::string const& read,
     }
 
     return raw_hits.size() != 0;
-}
-
-void hit_searcher::clear() {
-    left_rawHits.clear();
-    right_rawHits.clear();
 }
 
 }  // namespace piscem_psa

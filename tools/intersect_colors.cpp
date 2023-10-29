@@ -479,15 +479,29 @@ int do_color_map(index_type const& index, fastx_parser::FastxParser<fastx_parser
 
     auto rg = rparser.getReadGroup();
     while (rparser.refill(rg)) {
+      // get info about the first read in this chunk 
+      // and pack it. 
+      auto rg_offset_info = rg.chunk_frag_offset();
+      uint32_t file_idx = rg_offset_info.file_idx;
+      // TODO: This is a horrible hack right now! 
+      // we encode the file of origin (if there is > 1 input file)
+      // in the top 2 bits, and the read id in that file in 
+      // the lower 30 bits. Do this more robustly. It doesn't 
+      // make sense with > 4 inputs.
+      uint32_t file_mask = (0x2 & file_idx) << 30;
+      uint32_t read_id = rg_offset_info.frag_idx;
+
       for (auto const& record : rg) {
 
         index.pseudoalign_full_intersection_color_ids(record.seq, colors);
 
         buff_size += 1;
-        uint32_t read_id = num_reads.fetch_add(1);
+        //uint32_t read_id = num_reads.fetch_add(1);
+        num_reads.fetch_add(1);
+        uint32_t record_info = file_mask | read_id;
         if (!colors.empty()) {
           num_mapped_reads += 1;
-          ss.write( reinterpret_cast<char*>(&read_id), sizeof(read_id) );
+          ss.write( reinterpret_cast<char*>(&record_info), sizeof(record_info) );
 
           uint32_t num_colors = static_cast<uint32_t>(colors.size());
           ss.write( reinterpret_cast<char*>(&num_colors), sizeof(num_colors) );
@@ -496,7 +510,7 @@ int do_color_map(index_type const& index, fastx_parser::FastxParser<fastx_parser
             ss.write( reinterpret_cast<char*>(&c), sizeof(c) );
           }
         } else {
-          ss.write( reinterpret_cast<char*>(&read_id), sizeof(read_id) );
+          ss.write( reinterpret_cast<char*>(&record_info), sizeof(record_info) );
           uint32_t num_colors = 0;
           ss.write( reinterpret_cast<char*>(&num_colors), sizeof(num_colors) );
         }
@@ -514,6 +528,7 @@ int do_color_map(index_type const& index, fastx_parser::FastxParser<fastx_parser
           ofile_mut.unlock();
           buff_size = 0;
         }
+        ++read_id;
       }
     }
 
@@ -542,7 +557,6 @@ void sort_file(const std::string& tmp_outname, std::ofstream& output) {
     
     vals.resize(num_colors + 1);
     vals[0] = read_num;
-
     ifile.read( reinterpret_cast<char*>(&vals[1]), num_colors * sizeof(num_colors) );
     if (vals.size() > 1) {
       v.push_back(vals);

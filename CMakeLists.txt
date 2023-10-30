@@ -38,7 +38,7 @@ if (UNIX)
   # add the rt flag if requested by the user
   if (LINK_LIBRT)
     if (APPLE)
-      MESSAGE(STATUS "linking with rt shoul not be necessary on OSX; not adding rt")
+      MESSAGE(STATUS "linking with rt should not be necessary on OSX; not adding rt")
     else()
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lrt")
     endif()

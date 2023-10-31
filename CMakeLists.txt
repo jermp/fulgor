@@ -35,15 +35,6 @@ if (UNIX)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-missing-braces -Wno-unknown-attributes -Wno-unused-function")
 
-  # add the rt flag if requested by the user
-  if (LINK_LIBRT)
-    if (APPLE)
-      MESSAGE(STATUS "linking with rt should not be necessary on OSX; not adding rt")
-    else()
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lrt")
-    endif()
-  endif()
-
   MESSAGE(STATUS "Compiling with flags: ${CMAKE_CXX_FLAGS}")
 
   # Flags for PTHash:
@@ -103,3 +94,11 @@ target_link_libraries(fulgor
   ${GGCAT_CXX_INTEROP}
   ${CMAKE_DL_LIBS}
 )
+
+if (UNIX)
+  if (APPLE)
+    MESSAGE(STATUS "linking with rt should not be necessary on OSX; not adding rt")
+  else()
+    target_link_libraries(fulgor rt)
+  endif()
+endif()

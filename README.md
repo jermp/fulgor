@@ -8,7 +8,7 @@ The Fulgor index is described in the following paper.
 [**Fulgor: A Fast and Compact k-mer Index for Large-Scale Matching and Color Queries**](https://drops.dagstuhl.de/opus/volltexte/2023/18644/)
 (WABI, 2023)
 
-And the meta-colored version of Fulgor is described in this pre-print: [**Meta-colored compacted de Bruijn graphs: overview and challenges**](https://www.biorxiv.org/content/10.1101/2023.07.21.550101v1) (bioRxiv, 2023).
+And the *meta-colored* version of Fulgor is described in this pre-print: [**Meta-colored compacted de Bruijn graphs**](https://www.biorxiv.org/content/10.1101/2023.07.21.550101v2.full.pdf) (bioRxiv, 2 Nov. 2023).
 
 Please, cite these papers if you use Fulgor.
 

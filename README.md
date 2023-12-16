@@ -15,7 +15,7 @@ Please, cite these papers if you use Fulgor.
 ### Table of contents
 * [Dependencies](#dependencies)
 * [Compiling the code](#compiling-the-code)
-* [Tools](#tools)
+* [Tools and Usage](#tools-and-usage)
 * [Quick start](#quick-start)
 * [Indexing an example Salmonella pangenome](#indexing-an-example-salmonella-pangenome)
 
@@ -77,8 +77,8 @@ For a testing environment, use the following instead:
     make -j
 
 
-Tools
------
+Tools and Usage
+---------------
 
 There is one executable called `fulgor` after the compilation, which can be used to run a tool.
 Run `./fulgor` to see a list of available tools.
@@ -94,6 +94,10 @@ Run `./fulgor` to see a list of available tools.
 	  print-filenames    print all reference filenames
 	  partition          partition a Fulgor index and build a meta-colored Fulgor index
 	  permute            permute the reference names of a Fulgor index
+
+For large-scale indexing, it could be necessary to increase the number of file descriptors that can be opened simultaneously:
+
+	ulimit -n 2048
 
 Quick start
 -----------

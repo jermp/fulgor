@@ -3,12 +3,12 @@ Fulgor
 
 Fulgor is a *(meta-) colored compacted de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
 
-The Fulgor index is described in the following paper.
+The Fulgor index is described in the following papers:
 
-[**Fulgor: A Fast and Compact k-mer Index for Large-Scale Matching and Color Queries**](https://drops.dagstuhl.de/opus/volltexte/2023/18644/)
+- [**Fulgor: A Fast and Compact k-mer Index for Large-Scale Matching and Color Queries**](https://drops.dagstuhl.de/opus/volltexte/2023/18644/)
 (WABI, 2023)
 
-And the *meta-colored* version of Fulgor is described in this pre-print: [**Meta-colored compacted de Bruijn graphs**](https://www.biorxiv.org/content/10.1101/2023.07.21.550101v2.full.pdf) (bioRxiv, 2 Nov. 2023).
+- [**Meta-colored compacted de Bruijn graphs**](https://www.biorxiv.org/content/10.1101/2023.07.21.550101v2.full.pdf) (accepted to RECOMB 2024).
 
 Please, cite these papers if you use Fulgor.
 

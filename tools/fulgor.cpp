@@ -102,22 +102,30 @@ int help(char* arg0) {
                  "============================="
               << std::endl
               << std::endl;
+
+    std::cout << "Usage: " << arg0 << " <tool> ...\n\n";
+
+    std::cout << "Tools:\n"
+              << "  build              build a Fulgor index\n"
+              << "  pseudoalign        pseudoalign reads to references\n"
+              << "  stats              print index statistics\n"
+              << "  print-filenames    print all reference filenames\n"
+              << std::endl;
+
     std::cout
-        << "Usage: " << arg0 << " <tool> ...\n\n"
-        << "Available tools:\n"
-        << "  build              build a Fulgor index\n"
-        << "  pseudoalign        pseudoalign reads to references\n"
-        << "  stats              print index statistics\n"
-        << "  print-filenames    print all reference filenames\n"
+        << "Advanced tools:\n"
         << "  partition          partition a Fulgor index and build a meta-colored Fulgor index\n"
-        << "  permute            permute the reference names of a Fulgor index\n"
         << "  dump-colors        write colors to an output file in text format" << std::endl;
+
     return 1;
 }
 
 int main(int argc, char** argv) {
     if (argc < 2) return help(argv[0]);
+
     auto tool = std::string(argv[1]);
+
+    /* basic tools */
     if (tool == "build") {
         return build(argc - 1, argv + 1);
     } else if (tool == "pseudoalign") {
@@ -126,13 +134,16 @@ int main(int argc, char** argv) {
         return stats(argc - 1, argv + 1);
     } else if (tool == "print-filenames") {
         return print_filenames(argc - 1, argv + 1);
-    } else if (tool == "partition") {
+    }
+
+    /* advanced tools */
+    else if (tool == "partition") {
         return partition(argc - 1, argv + 1);
-    } else if (tool == "permute") {
-        return permute(argc - 1, argv + 1);
     } else if (tool == "dump-colors") {
         return dump_colors(argc - 1, argv + 1);
     }
+
     std::cout << "Unsupported tool '" << tool << "'.\n" << std::endl;
+
     return help(argv[0]);
 }

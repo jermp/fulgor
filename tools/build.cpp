@@ -1,5 +1,28 @@
 using namespace fulgor;
 
+void partition(build_configuration const& build_config) {
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+    timer.start();
+
+    meta_index_type index;
+    typename meta_index_type::meta_builder builder(build_config);
+    builder.build(index);
+    index.print_stats();
+
+    timer.stop();
+    essentials::logger("DONE");
+    std::cout << "** building the index took " << timer.elapsed() << " seconds / "
+              << timer.elapsed() / 60 << " minutes" << std::endl;
+
+    std::string output_filename = build_config.index_filename_to_partition.substr(
+                                      0, build_config.index_filename_to_partition.length() -
+                                             constants::fulgor_filename_extension.length() - 1) +
+                                  "." + constants::meta_colored_fulgor_filename_extension;
+    essentials::logger("saving index to disk...");
+    essentials::save(index, output_filename.c_str());
+    essentials::logger("DONE");
+}
+
 int build(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("filenames_list", "Filenames list.", "-l", true);
@@ -20,12 +43,27 @@ int build(int argc, char** argv) {
     parser.add("verbose", "Verbose output during construction.", "--verbose", false, true);
     parser.add("check", "Check correctness after index construction (it might take some time).",
                "--check", false, true);
+    parser.add("force", "Re-build the index even when an index with the same name is found.",
+               "--force", false, true);
+    parser.add("meta", "Build a meta-colored index.", "--meta", false, true);
 
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
 
     build_configuration build_config;
     build_config.file_base_name = parser.get<std::string>("file_base_name");
+    std::string output_filename =
+        build_config.file_base_name + "." + constants::fulgor_filename_extension;
+    bool force = parser.get<bool>("force");
+    bool meta_colored = parser.get<bool>("meta");
+
+    if (std::filesystem::exists(output_filename) and !force) {
+        std::cerr << "An index with the name '" << output_filename << "' alreay exists."
+                  << std::endl;
+        std::cerr << "Use option '--force' to re-build the index." << std::endl;
+        return 1;
+    }
+
     auto k = parser.get<uint64_t>("k");
     auto m = parser.get<uint64_t>("m");
     build_config.k = k;
@@ -57,11 +95,14 @@ int build(int argc, char** argv) {
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
-    std::string output_filename =
-        build_config.file_base_name + "." + constants::fulgor_filename_extension;
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");
+
+    if (meta_colored) {
+        build_config.index_filename_to_partition = output_filename;
+        partition(build_config);
+    }
 
     return 0;
 }
@@ -101,83 +142,7 @@ int partition(int argc, char** argv) {
     }
     build_config.check = parser.get<bool>("check");
 
-    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-    timer.start();
-
-    meta_index_type index;
-    typename meta_index_type::meta_builder builder(build_config);
-    builder.build(index);
-    index.print_stats();
-
-    timer.stop();
-    essentials::logger("DONE");
-    std::cout << "** building the index took " << timer.elapsed() << " seconds / "
-              << timer.elapsed() / 60 << " minutes" << std::endl;
-
-    std::string output_filename = build_config.index_filename_to_partition.substr(
-                                      0, build_config.index_filename_to_partition.length() -
-                                             constants::fulgor_filename_extension.length() - 1) +
-                                  "." + constants::meta_colored_fulgor_filename_extension;
-    essentials::logger("saving index to disk...");
-    essentials::save(index, output_filename.c_str());
-    essentials::logger("DONE");
-
-    return 0;
-}
-
-int permute(int argc, char** argv) {
-    cmd_line_parser::parser parser(argc, argv);
-    parser.add("index_filename",
-               "The Fulgor index filename from which we permute the reference names.", "-i", true);
-    parser.add(
-        "tmp_dirname",
-        "Temporary directory used for construction in external memory. Default is directory '" +
-            constants::default_tmp_dirname + "'.",
-        "-d", false);
-    parser.add("output_filename", "Output file where to save the permuted filenames.", "-o", true);
-    if (!parser.parse()) return 1;
-    util::print_cmd(argc, argv);
-
-    build_configuration build_config;
-    if (parser.parsed("tmp_dirname")) {
-        build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");
-        essentials::create_directory(build_config.tmp_dirname);
-    }
-
-    auto index_filename = parser.get<std::string>("index_filename");
-
-    if (!sshash::util::ends_with(index_filename, "." + constants::fulgor_filename_extension)) {
-        std::cerr << "Error: the file to partition must have extension \"."
-                  << constants::fulgor_filename_extension
-                  << "\". Have you first built a Fulgor index with the tool \"build\"?"
-                  << std::endl;
-        return 1;
-    }
-
-    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-    timer.start();
-
-    index_type index;
-    essentials::logger("step 1. loading index to be partitioned...");
-    essentials::load(index, index_filename.c_str());
-    essentials::logger("DONE");
-
-    permuter p(build_config);
-    p.permute(index);
-    auto const& filenames = p.filenames();
-
-    std::ofstream out(parser.get<std::string>("output_filename").c_str());
-    if (!out.is_open()) {
-        std::cerr << "cannot open output filename" << std::endl;
-        return 1;
-    }
-    for (auto const& fn : filenames) out << fn << '\n';
-    out.close();
-
-    timer.stop();
-    essentials::logger("DONE");
-    std::cout << "** permuting the reference names took " << timer.elapsed() << " seconds / "
-              << timer.elapsed() / 60 << " minutes" << std::endl;
+    partition(build_config);
 
     return 0;
 }

@@ -88,13 +88,14 @@ Run `./fulgor` to see a list of available tools.
 
 	Usage: ./fulgor <tool> ...
 
-	Available tools:
+	Tools:
 	  build              build a Fulgor index
 	  pseudoalign        pseudoalign reads to references
 	  stats              print index statistics
 	  print-filenames    print all reference filenames
+
+	Advanced tools:
 	  partition          partition a Fulgor index and build a meta-colored Fulgor index
-	  permute            permute the reference names of a Fulgor index
 	  dump-colors        write colors to an output file in text format
 
 For large-scale indexing, it could be necessary to increase the number of file descriptors that can be opened simultaneously:

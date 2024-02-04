@@ -42,7 +42,7 @@ struct SkipContext {
         : kit1(read)
         , kit_tmp(read)
         , pfi(pfi_in)
-        , ref_contig_it(sshash::bit_vector_iterator(pfi_in->contigs(), 0))
+        , ref_contig_it(sshash::bit_vector_iterator(pfi_in->get_k2u().strings(), 0))
         , read_len(static_cast<int32_t>(read.length()))
         , read_target_pos(0)
         , read_current_pos(0)

@@ -5,9 +5,9 @@ namespace fulgor {
 template <typename ColorClasses>
 void index<ColorClasses>::print_stats() const {
     uint64_t total_bits = num_bits();
-    auto const& k2u = get_dict();
-    auto const& ccs = color_classes();
+    auto const& k2u = get_k2u();
     auto const& u2c = get_u2c();
+    auto const& ccs = get_color_classes();
     auto const& filenames = get_filenames();
 
     std::cout << "total index size: " << essentials::convert(total_bits / 8, essentials::GB)

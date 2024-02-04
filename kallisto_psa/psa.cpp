@@ -13,7 +13,7 @@
 template <typename FulgorIndex>
 void match(const std::string& s, int l, FulgorIndex const* idx,
            std::vector<std::pair<projected_hits, int>>& v) {
-    sshash::dictionary const& kmap = idx->get_dict();
+    sshash::dictionary const& kmap = idx->get_k2u();
     int64_t k = kmap.k();
     // NOTE: have to set this first, before starting any iterator or anything that
     // uses k-mers!!

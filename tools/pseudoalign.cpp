@@ -52,12 +52,12 @@ int do_map(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::Rea
 
     if ((algo == pseudoalignment_algorithm::SKIPPING or
          algo == pseudoalignment_algorithm::SKIPPING_KALLISTO) and
-        (index.get_dict().canonicalized())) {
+        (index.get_k2u().canonicalized())) {
         std::vector<uint32_t> unitig_ids;                           // for use with skipping
         std::vector<std::pair<projected_hits, int>> kallisto_hits;  // for use with kallisto psa
 
         piscem_psa::hit_searcher<FulgorIndex> hs(&index);
-        sshash::streaming_query_canonical_parsing qc(&index.get_dict());
+        sshash::streaming_query_canonical_parsing qc(&index.get_k2u());
 
         auto get_hits_piscem_psa = [&qc, &hs](const std::string& seq,
                                               std::vector<uint32_t>& unitig_ids) -> void {
@@ -199,7 +199,7 @@ int pseudoalign(std::string const& index_filename, std::string const& query_file
 
     if (((algo == pseudoalignment_algorithm::SKIPPING) or
          (algo == pseudoalignment_algorithm::SKIPPING_KALLISTO)) and
-        !(index.get_dict().canonicalized())) {
+        !(index.get_k2u().canonicalized())) {
         std::cout << "==> Warning: skipping is only supported for canonicalized indexes. <=="
                   << std::endl;
     }

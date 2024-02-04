@@ -15,7 +15,7 @@ void build_reference_sketches(index_type const& index,
     const uint64_t num_docs = index.num_docs();
     typename sketch::hll_t::HashType hasher;
     auto const& u2c = index.get_u2c();
-    auto const& ccs = index.color_classes();
+    auto const& ccs = index.get_color_classes();
     const uint64_t num_color_classes = ccs.num_color_classes();
     const uint64_t num_ones = u2c.num_ones();
     assert(num_color_classes == num_ones + 1);
@@ -107,7 +107,7 @@ void build_reference_sketches(index_type const& index,
             uint64_t curr_pos =
                 color_id != num_color_classes - 1 ? unary_it.next() : (u2c.size() - 1);
             auto it = ccs.colors(color_id);
-            uint64_t size = it.size();
+            const uint64_t size = it.size();
             hashes.reserve(curr_pos - prev_pos + 1);
             for (uint64_t unitig_id = prev_pos; unitig_id <= curr_pos; ++unitig_id) {
                 assert(unitig_id < u2c.size());

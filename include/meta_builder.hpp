@@ -318,7 +318,7 @@ struct index<ColorClasses>::meta_builder {
             essentials::logger("step 5. copy u2c and k2u");
             timer.start();
             idx.m_u2c = index.get_u2c();
-            idx.m_k2u = index.get_dict();
+            idx.m_k2u = index.get_k2u();
             timer.stop();
             std::cout << "** copying u2c and k2u took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;

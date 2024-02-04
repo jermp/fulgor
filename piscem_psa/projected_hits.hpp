@@ -4,6 +4,14 @@
 #include <iostream>
 
 struct projected_hits {
+    projected_hits()
+        : contigIdx_(0)
+        , contigPos_(0)
+        , contigOrientation_(0)
+        , contigLen_(0)
+        , globalPos_(0)
+        , k_(0) {}
+
     uint32_t contigIdx_;
     // The relative position of the k-mer inducing this hit on the
     // contig

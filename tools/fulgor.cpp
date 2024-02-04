@@ -1,4 +1,5 @@
 #include <iostream>
+#include <filesystem>
 
 #include "../include/index_types.hpp"
 #include "../src/index.cpp"

@@ -95,6 +95,7 @@ Run `./fulgor` to see a list of available tools.
 	  print-filenames    print all reference filenames
 	  partition          partition a Fulgor index and build a meta-colored Fulgor index
 	  permute            permute the reference names of a Fulgor index
+	  dump-colors        write colors to an output file in text format
 
 For large-scale indexing, it could be necessary to increase the number of file descriptors that can be opened simultaneously:
 
@@ -169,7 +170,7 @@ The tool `pseudoalign` writes the result to an output file, in plain text format
 This file has one line for each mapped read, formatted as follows:
 
 	[read-name][TAB][list-lenght][TAB][list]
-	
+
 where `[list]` is a TAB-separated list of increasing integers, of length `[list-length]`, representing the list of reference identifiers to which the read is mapped. (`[TAB]` is the character `\t`.)
 
 #### Example
@@ -181,7 +182,7 @@ where `[list]` is a TAB-separated list of increasing integers, of length `[list-
 	NODE_477_length_1163_cov_22.0531_ID_953 2       0       8
 	NODE_9_length_173161_cov_9.33695_ID_17  1       0
 	NODE_22_length_45757_cov_12.1361_ID_43  1       0
-	
+
 #### Important note
 
 If pseudoalignment is performed against a **meta-colored** Fulgor index,

@@ -49,4 +49,11 @@ void index<ColorClasses>::print_stats() const {
     ccs.print_stats();
 }
 
+template <typename ColorClasses>
+void index<ColorClasses>::dump_colors(std::ofstream& os) const {
+    os << "num_references " << num_docs() << '\n';
+    auto const& ccs = get_color_classes();
+    ccs.dump(os);
+}
+
 }  // namespace fulgor

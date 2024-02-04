@@ -29,6 +29,18 @@ void print_filenames(std::string const& index_filename) {
     }
 }
 
+template <typename FulgorIndex>
+void dump_colors(std::string const& index_filename, std::string const& output_filename) {
+    FulgorIndex index;
+    essentials::logger("loading index from disk...");
+    essentials::load(index, index_filename.c_str());
+    essentials::logger("DONE");
+    std::ofstream os(output_filename.c_str());
+    if (!os.is_open()) throw std::runtime_error("cannot open output file");
+    index.dump_colors(os);
+    os.close();
+}
+
 int stats(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("index_filename", "The Fulgor index filename.", "-i", true);
@@ -65,6 +77,26 @@ int print_filenames(int argc, char** argv) {
     return 0;
 }
 
+int dump_colors(int argc, char** argv) {
+    cmd_line_parser::parser parser(argc, argv);
+    parser.add("index_filename", "The Fulgor index filename.", "-i", true);
+    parser.add("output_filename", "The output filename where to write colors.", "-o", true);
+    if (!parser.parse()) return 1;
+    util::print_cmd(argc, argv);
+    auto index_filename = parser.get<std::string>("index_filename");
+    auto output_filename = parser.get<std::string>("output_filename");
+    if (sshash::util::ends_with(index_filename,
+                                constants::meta_colored_fulgor_filename_extension)) {
+        dump_colors<meta_index_type>(index_filename, output_filename);
+    } else if (sshash::util::ends_with(index_filename, constants::fulgor_filename_extension)) {
+        dump_colors<index_type>(index_filename, output_filename);
+    } else {
+        std::cerr << "Wrong filename supplied." << std::endl;
+        return 1;
+    }
+    return 0;
+}
+
 int help(char* arg0) {
     std::cout << "== Fulgor: a (meta-) colored compacted de Bruijn graph index "
                  "============================="
@@ -78,7 +110,8 @@ int help(char* arg0) {
         << "  stats              print index statistics\n"
         << "  print-filenames    print all reference filenames\n"
         << "  partition          partition a Fulgor index and build a meta-colored Fulgor index\n"
-        << "  permute            permute the reference names of a Fulgor index" << std::endl;
+        << "  permute            permute the reference names of a Fulgor index\n"
+        << "  dump-colors        write colors to an output file in text format" << std::endl;
     return 1;
 }
 
@@ -97,6 +130,8 @@ int main(int argc, char** argv) {
         return partition(argc - 1, argv + 1);
     } else if (tool == "permute") {
         return permute(argc - 1, argv + 1);
+    } else if (tool == "dump-colors") {
+        return dump_colors(argc - 1, argv + 1);
     }
     std::cout << "Unsupported tool '" << tool << "'.\n" << std::endl;
     return help(argv[0]);

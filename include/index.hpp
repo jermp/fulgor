@@ -35,6 +35,7 @@ struct index {
     }
 
     void print_stats() const;
+    void dump_colors(std::ofstream& os) const;
 
     uint64_t k() const { return m_k2u.k(); }
     uint64_t num_docs() const { return m_ccs.num_docs(); }

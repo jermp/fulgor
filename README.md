@@ -15,9 +15,10 @@ Please, cite these papers if you use Fulgor.
 ### Table of contents
 * [Dependencies](#dependencies)
 * [Compiling the code](#compiling-the-code)
-* [Tools and Usage](#tools-and-usage)
+* [Tools and usage](#tools-and-usage)
 * [Quick start](#quick-start)
 * [Indexing an example Salmonella pangenome](#indexing-an-example-salmonella-pangenome)
+* [Pseudoalignment output format](#pseudoalignment-output-format)
 
 Dependencies
 ------------
@@ -77,7 +78,7 @@ For a testing environment, use the following instead:
     make -j
 
 
-Tools and Usage
+Tools and usage
 ---------------
 
 There is one executable called `fulgor` after the compilation, which can be used to run a tool.
@@ -159,3 +160,33 @@ To partition the index to obtain a meta-colored Fulgor index, then do:
 
 The meta-colored index will be serialized to the file `~/Salmonella_enterica/salmonella_4546.mfur`
 and will take 0.104 GB (2.55X smaller than the `.fur` index).
+
+Pseudoalignment output format
+-----------------------------
+
+The tool `pseudoalign` writes the result to an output file, in plain text format, specified with the option `-o [output-filename]`.
+
+This file has one line for each mapped read, formatted as follows:
+
+	[read-name][TAB][list-lenght][TAB][list]
+	
+where `[list]` is a TAB-separated list of increasing integers, of length `[list-length]`, representing the list of reference identifiers to which the read is mapped. (`[TAB]` is the character `\t`.)
+
+#### Example
+
+	NODE_11_length_149361_cov_9.71634_ID_21 1       0
+	NODE_3406_length_341_cov_20.0437_ID_681	1       0
+	NODE_4745_length_118_cov_12.7931_ID_949	3       0       3       7
+	NODE_102_length_2047_cov_18.1471_ID_203 1       0
+	NODE_477_length_1163_cov_22.0531_ID_953 2       0       8
+	NODE_9_length_173161_cov_9.33695_ID_17  1       0
+	NODE_22_length_45757_cov_12.1361_ID_43  1       0
+	
+#### Important note
+
+If pseudoalignment is performed against a **meta-colored** Fulgor index,
+the reference identifiers in the pseudoalignment output might **not** correspond to the ones assigned following the input-file order as specified with option `-l` during index construction.
+This is because the meta-colored index re-assignes identifiers to references to improve index compression.
+
+In this case, the reference identifiers in the pseudoalignment output
+are consistent with the ones returned by the `print-filenames` tool.

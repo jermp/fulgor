@@ -30,10 +30,6 @@ so make sure you have Rust installed. If not, Rust can be installed as recommend
 
 	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-It is also recommended to use the [Nightly](https://doc.rust-lang.org/book/appendix-07-nightly-rust.html#rustup-and-the-role-of-rust-nightly) release channel.
-
-	rustup toolchain install nightly
-
 #### zlib
 
 If you do not have `zlib` installed, you can do

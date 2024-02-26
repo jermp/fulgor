@@ -2,6 +2,7 @@
 
 #include "index.hpp"
 #include "GGCAT.hpp"
+#include "cluster_builder.hpp"
 
 namespace fulgor {
 
@@ -105,6 +106,20 @@ struct index<ColorClasses>::builder {
 
             timer.stop();
             std::cout << "** building m_k2u took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
+
+        {
+            essentials::logger("step 3 + 1/2. compress m_ccs");
+            timer.start();
+
+            std::cout << "\t\t-------\n";
+            build_partial_color_sketches(idx, 10, 1, m_build_config.tmp_dirname + "/my_sketches.bin");
+
+
+            timer.stop();
+            std::cout << "** compressing took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }

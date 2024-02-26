@@ -24,8 +24,8 @@ void build_reference_sketches(index_type const& index,
     // std::cout << "num_unitigs = " << u2c.size() << std::endl;
 
     if (num_ones < num_threads) {
-        throw std::runtime_error("there are only " + std::to_string(num_color_classes) +
-                                 ": reduce the number of threads.");
+        throw std::runtime_error("there are only " + std::to_string(num_ones) +
+                                 " ones: reduce the number of threads.");
     }
 
     std::vector<std::vector<sketch::hll_t>> thread_sketches(

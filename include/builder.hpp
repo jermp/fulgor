@@ -2,7 +2,7 @@
 
 #include "index.hpp"
 #include "GGCAT.hpp"
-#include "cluster_builder.hpp"
+#include "color_list_sketcher.hpp"
 
 namespace fulgor {
 
@@ -111,17 +111,85 @@ struct index<ColorClasses>::builder {
         }
 
         {
-            essentials::logger("step 3 + 1/2. compress m_ccs");
+            essentials::logger("step 3 + 1/2. cluster m_ccs");
             timer.start();
 
-            std::cout << "\t\t-------\n";
-            build_partial_color_sketches(idx, 10, 1, m_build_config.tmp_dirname + "/my_sketches.bin");
+            std::string filename = "/m_ccs_sketches.bin";
 
+            constexpr uint64_t p = 5;
+            build_color_list_sketches(idx, p, m_build_config.num_threads,
+                                         m_build_config.tmp_dirname + filename);
+
+            std::ifstream in(m_build_config.tmp_dirname + filename, std::ios::binary);
+            if (!in.is_open()) throw std::runtime_error("error in opening file");
+
+            std::vector<kmeans::point> points;
+            uint64_t num_bytes_per_point;
+            uint64_t num_points;
+            in.read(reinterpret_cast<char*>(&num_bytes_per_point), sizeof(uint64_t));
+            in.read(reinterpret_cast<char*>(&num_points), sizeof(uint64_t));
+            points.resize(num_points, kmeans::point(num_bytes_per_point));
+            for(auto & point: points){
+                in.read(reinterpret_cast<char*>(point.data()), num_bytes_per_point);
+            }
+            in.close();
+            std::remove((m_build_config.tmp_dirname + filename).c_str());
+
+            kmeans::clustering_parameters params;
+            constexpr float min_delta = 0.0001;
+            constexpr float max_iteration = 10;
+            constexpr uint64_t min_cluster_size = 3;
+            constexpr uint64_t seed = 42;
+            params.set_min_delta(min_delta);
+            params.set_max_iteration(max_iteration);
+            params.set_min_cluster_size(min_cluster_size);
+            params.set_random_seed(seed);
+            auto clustering_data = kmeans::kmeans_divisive(points.begin(), points.end(), params);
 
             timer.stop();
-            std::cout << "** compressing took " << timer.elapsed() << " seconds / "
+            std::cout << "** clustering took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
+
+            const uint64_t m_num_partitions = clustering_data.num_clusters;
+            std::vector<uint32_t> m_partition_size(m_num_partitions+1, 0);
+            for (auto c : clustering_data.clusters) m_partition_size[c] += 1;
+
+            /* prefix sum */
+            uint64_t val = 0;
+            for (auto& size: m_partition_size){
+                uint64_t tmp = size;
+                size = val;
+                val += tmp;
+            }
+
+            const uint64_t num_color_classes = idx.num_color_classes();
+
+            auto clusters_pos = m_partition_size;
+            std::vector<uint32_t> m_permutation(num_color_classes);
+            assert(clustering_data.clusters.size() == num_color_classes);
+            for(uint64_t i = 0; i != num_color_classes; ++i){
+                uint32_t cluster_id = clustering_data.clusters[i];
+                m_permutation[i] = clusters_pos[cluster_id];
+                clusters_pos[cluster_id] += 1;
+            }
+
+            std::vector<uint64_t> m_color_classes_ids(num_color_classes);
+            for(uint64_t i = 0; i != num_color_classes; ++i){
+                m_color_classes_ids[m_permutation[i]] = i;
+            }
+
+            /*
+            cout << "num_clusters " << clustering_data.num_clusters << '\n';
+            for(int i = 0, cluster = 0; i != num_color_classes; i++){
+                if (m_partition_size[cluster] < i+1) cluster++;
+                cout << "cluster=" << cluster << "; color=" << m_color_classes_ids[i] << ": ";
+                auto it = idx.colors(m_color_classes_ids[i]);
+                const uint64_t size = it.size();
+                for (uint64_t j = 0; j < size; ++j, ++it) cout << *it << ' ';
+                cout << '\n';
+            }
+             */
         }
 
         {

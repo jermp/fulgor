@@ -7,19 +7,15 @@
 namespace fulgor {
 
 template <typename ColorClasses>
-void build_partial_color_sketches(
-    index<ColorClasses>& index,
-    uint64_t p,                  // use 2^p bytes per HLL sketch
-    uint64_t num_threads,        // num. threads for construction
-    std::string output_filename  // where the sketches will be serialized
+void build_color_list_sketches(index<ColorClasses>& index,
+                               uint64_t p,                  // use 2^p bytes per HLL sketch
+                               uint64_t num_threads,        // num. threads for construction
+                               std::string output_filename  // where the sketches will be serialized
 ) {
     assert(num_threads > 0);
 
-    typename sketch::hll_t::HashType hasher;
     const uint64_t num_docs = index.num_docs();
     const uint64_t num_color_classes = index.num_color_classes();
-
-    cout << "num_color_classes: " << num_color_classes << '\n';
 
     if (num_color_classes < num_threads) {
         throw std::runtime_error("there are only " + std::to_string(num_color_classes) +
@@ -43,7 +39,6 @@ void build_partial_color_sketches(
     }
 
     uint64_t load_per_thread = load / num_threads;
-
     {
         slice s;
         s.begin = 0;
@@ -73,7 +68,7 @@ void build_partial_color_sketches(
             for (uint64_t i = 0; i < size; ++i, ++it) {
                 uint64_t ref_id = *it;
                 assert(ref_id < num_docs);
-                sketches[color_id].add(ref_id);
+                sketches[color_id].addh(ref_id);
             }
         }
     };
@@ -94,23 +89,20 @@ void build_partial_color_sketches(
         }
     }
 
-    uint64_t i = 0;
     std::ofstream out(output_filename, std::ios::binary);
     if (!out.is_open()) throw std::runtime_error("cannot open file");
     const uint64_t num_bytes = 1ULL << p;
     out.write(reinterpret_cast<char const*>(&num_bytes), 8);
-    out.write(reinterpret_cast<char const*>(&num_docs), 8);
+    out.write(reinterpret_cast<char const*>(&num_color_classes), 8);
     for (auto const& x : thread_sketches[0]) {
         assert(x.m() == num_bytes);
         assert(x.m() == x.core().size());
         uint8_t const* data = x.data();
-        std::cout << "color_sketch_" << i++ << ' ' << unsigned(*data) << '\n';
+        // for (uint8_t const* x = data; x != data + (1ULL << p); ++x) { std::cout << int(*x) << '
+        // '; } std::cout << std::endl;
         out.write(reinterpret_cast<char const*>(data), num_bytes);
     }
-    std::cout << '\n';
     out.close();
-
-    cout << '\n';
 }
 
 }  // namespace fulgor

@@ -4,6 +4,7 @@
 #include "../include/index_types.hpp"
 #include "../src/index.cpp"
 #include "../external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
+#include "../include/cluster_builder.hpp"
 
 #include "build.cpp"
 #include "pseudoalign.cpp"
@@ -78,6 +79,37 @@ int print_filenames(int argc, char** argv) {
     return 0;
 }
 
+int cluster(int argc, char** argv) {
+    cmd_line_parser::parser parser(argc, argv);
+    parser.add("index_filename", "The Fulgor index filename.", "-i", true);
+    parser.add("output_filename", "The output filename where to write colors.", "-o", true);
+    parser.add("left", "The minimum density of the list to be clustered [0, 1]. Default is 0", "-l",
+               false);
+    parser.add("right", "The maximum density of the list to be clustered [0, 1]. Default is 1",
+               "-r", false);
+    parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
+
+    if (!parser.parse()) return 1;
+
+    double left = 0, right = 1;
+    uint64_t num_threads = 1;
+    if (parser.parsed("left")) left = parser.get<double>("left");
+    if (parser.parsed("right")) right = parser.get<double>("right");
+    if (parser.parsed("num_threads")) num_threads = parser.get<uint64_t>("num_threads");
+
+    auto index_filename = parser.get<std::string>("index_filename");
+    auto output_filename = parser.get<std::string>("output_filename");
+    const uint64_t p = 5;
+
+    if (sshash::util::ends_with(index_filename, constants::fulgor_filename_extension)) {
+        index_type index;
+        essentials::load(index, index_filename.c_str());
+        sketch_color_lists(index, p, num_threads, left, right);
+        cluster_sketches(index, output_filename);
+    }
+    return 0;
+}
+
 int dump_colors(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("index_filename", "The Fulgor index filename.", "-i", true);
@@ -111,6 +143,7 @@ int help(char* arg0) {
               << "  pseudoalign        pseudoalign reads to references\n"
               << "  stats              print index statistics\n"
               << "  print-filenames    print all reference filenames\n"
+              << "  cluster            cluster the lists\n"
               << std::endl;
 
     std::cout
@@ -135,6 +168,8 @@ int main(int argc, char** argv) {
         return stats(argc - 1, argv + 1);
     } else if (tool == "print-filenames") {
         return print_filenames(argc - 1, argv + 1);
+    } else if (tool == "cluster") {
+        return cluster(argc - 1, argv + 1);
     }
 
     /* advanced tools */

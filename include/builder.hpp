@@ -116,7 +116,7 @@ struct index<ColorClasses>::builder {
 
             std::string filename = "/m_ccs_sketches.bin";
 
-            constexpr uint64_t p = 5;
+            constexpr uint64_t p = 10;
             build_color_list_sketches(idx, p, m_build_config.num_threads,
                                          m_build_config.tmp_dirname + filename);
 
@@ -138,7 +138,7 @@ struct index<ColorClasses>::builder {
             kmeans::clustering_parameters params;
             constexpr float min_delta = 0.0001;
             constexpr float max_iteration = 10;
-            constexpr uint64_t min_cluster_size = 3;
+            constexpr uint64_t min_cluster_size = 50;
             constexpr uint64_t seed = 42;
             params.set_min_delta(min_delta);
             params.set_max_iteration(max_iteration);
@@ -152,15 +152,17 @@ struct index<ColorClasses>::builder {
             timer.reset();
 
             const uint64_t m_num_partitions = clustering_data.num_clusters;
-            std::vector<uint32_t> m_partition_size(m_num_partitions+1, 0);
+            std::vector<uint64_t> m_partition_size(m_num_partitions+1, 0);
             for (auto c : clustering_data.clusters) m_partition_size[c] += 1;
 
             /* prefix sum */
-            uint64_t val = 0;
-            for (auto& size: m_partition_size){
-                uint64_t tmp = size;
-                size = val;
-                val += tmp;
+            {
+                uint64_t val = 0;
+                for (auto& size: m_partition_size){
+                    uint64_t tmp = size;
+                    size = val;
+                    val += tmp;
+                }
             }
 
             const uint64_t num_color_classes = idx.num_color_classes();
@@ -179,17 +181,28 @@ struct index<ColorClasses>::builder {
                 m_color_classes_ids[m_permutation[i]] = i;
             }
 
-            /*
-            cout << "num_clusters " << clustering_data.num_clusters << '\n';
-            for(int i = 0, cluster = 0; i != num_color_classes; i++){
-                if (m_partition_size[cluster] < i+1) cluster++;
-                cout << "cluster=" << cluster << "; color=" << m_color_classes_ids[i] << ": ";
+            std::cout << "Computed " << m_num_partitions << " partitions\n";
+
+            std::ofstream cluster_dump(m_build_config.file_base_name + ".clst", std::ios::binary);
+            uint64_t num_docs = idx.num_docs();
+            cluster_dump.write(reinterpret_cast<char const*>(&num_docs), 8);
+            cluster_dump.write(reinterpret_cast<char const*>(&num_color_classes), 8);
+            cluster_dump.write(reinterpret_cast<char const*>(&m_num_partitions), 8);
+
+            for(uint64_t i = 1; i < m_partition_size.size(); ++i){
+                cluster_dump.write(reinterpret_cast<char const*>(&m_partition_size[i]), 8);
+            }
+
+            for (uint64_t i = 0; i != num_color_classes; i++) {
                 auto it = idx.colors(m_color_classes_ids[i]);
                 const uint64_t size = it.size();
-                for (uint64_t j = 0; j < size; ++j, ++it) cout << *it << ' ';
-                cout << '\n';
+                cluster_dump.write(reinterpret_cast<char const*>(&size), 8);
+                for (uint64_t j = 0; j < size; ++j, ++it) {
+                    uint64_t val = *it;
+                    cluster_dump.write(reinterpret_cast<char const*>(&val), 8);
+                }
             }
-             */
+            cluster_dump.close();
         }
 
         {

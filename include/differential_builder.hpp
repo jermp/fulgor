@@ -109,8 +109,11 @@ struct differential_permuter {
                 if (color_id == m_partition_size[cluster_id + 1]) {
                     auto& reference = m_references[cluster_id];
                     for (uint32_t i = 0; i != num_docs; ++i) {
+                        //
+                        // Giulio: check this, shouldn't it be >= ?
                         if (distribution[i] > ceil(1. * cluster_size / 2.))
                             reference.emplace_back(i);
+                        //
                     }
                     fill(distribution.begin(), distribution.end(), 0);
                     cluster_id++;
@@ -167,17 +170,24 @@ struct index<ColorClasses>::differential_builder {
             essentials::logger("step 4. building differential colors");
             timer.start();
 
+            //
+            // Giulio: this should not be needed in the future since
+            // the differential colors are created and then immediately written
+            // in compressed format in colors_builder.encode_list(...).
             std::ofstream diffcolors_out(m_build_config.tmp_dirname + "/diffcolors.bin ",
                                          std::ios::binary);
             if (!diffcolors_out.is_open()) throw std::runtime_error("error in opening file");
 
             typename ColorClasses::builder colors_builder;
 
-            uint64_t pos = 0;
-            for (auto& reference : references) {
-                colors_builder.encode_reference(reference);
-            }
-            for (auto& [cluster_id, color_id]: permutation){
+            uint64_t pos = 0;  // Giulio: ??
+
+            // Giulio:
+            // These two for loops place all the references before the differential lists.
+            // I think it's ok; there should be no advantage in having, for each cluster,
+            // the reference followed by all its differential lists.
+            for (auto& reference : references) { colors_builder.encode_reference(reference); }
+            for (auto& [cluster_id, color_id] : permutation) {
                 colors_builder.encode_list(references[cluster_id], index.colors(color_id));
             }
         }

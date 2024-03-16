@@ -158,10 +158,11 @@ void build_reference_sketches(index_type const& index,
 template <typename ColorClass>
 void build_reference_sketches_partitioned(
     index<ColorClass> const& index,
-    uint64_t p,              // use 2^p bytes per HLL sketch
-    uint64_t num_threads,    // num. threads for construction
+    uint64_t p,                   // use 2^p bytes per HLL sketch
+    uint64_t num_threads,         // num. threads for construction
     std::string output_filename,  // where the sketches will be serialized
-    double left, double right) {
+    double left, double right)    //
+{
     assert(num_threads > 0);
 
     const uint64_t num_docs = index.num_docs();

@@ -2,7 +2,6 @@
 
 #include "index.hpp"
 #include "GGCAT.hpp"
-#include "color_list_sketcher.hpp"
 
 namespace fulgor {
 
@@ -118,7 +117,7 @@ struct index<ColorClasses>::builder {
 
             constexpr uint64_t p = 10;
             build_color_list_sketches(idx, p, m_build_config.num_threads,
-                                         m_build_config.tmp_dirname + filename);
+                                      m_build_config.tmp_dirname + filename);
 
             std::ifstream in(m_build_config.tmp_dirname + filename, std::ios::binary);
             if (!in.is_open()) throw std::runtime_error("error in opening file");
@@ -129,7 +128,7 @@ struct index<ColorClasses>::builder {
             in.read(reinterpret_cast<char*>(&num_bytes_per_point), sizeof(uint64_t));
             in.read(reinterpret_cast<char*>(&num_points), sizeof(uint64_t));
             points.resize(num_points, kmeans::point(num_bytes_per_point));
-            for(auto & point: points){
+            for (auto& point : points) {
                 in.read(reinterpret_cast<char*>(point.data()), num_bytes_per_point);
             }
             in.close();
@@ -152,13 +151,13 @@ struct index<ColorClasses>::builder {
             timer.reset();
 
             const uint64_t m_num_partitions = clustering_data.num_clusters;
-            std::vector<uint64_t> m_partition_size(m_num_partitions+1, 0);
+            std::vector<uint64_t> m_partition_size(m_num_partitions + 1, 0);
             for (auto c : clustering_data.clusters) m_partition_size[c] += 1;
 
             /* prefix sum */
             {
                 uint64_t val = 0;
-                for (auto& size: m_partition_size){
+                for (auto& size : m_partition_size) {
                     uint64_t tmp = size;
                     size = val;
                     val += tmp;
@@ -170,14 +169,14 @@ struct index<ColorClasses>::builder {
             auto clusters_pos = m_partition_size;
             std::vector<uint32_t> m_permutation(num_color_classes);
             assert(clustering_data.clusters.size() == num_color_classes);
-            for(uint64_t i = 0; i != num_color_classes; ++i){
+            for (uint64_t i = 0; i != num_color_classes; ++i) {
                 uint32_t cluster_id = clustering_data.clusters[i];
                 m_permutation[i] = clusters_pos[cluster_id];
                 clusters_pos[cluster_id] += 1;
             }
 
             std::vector<uint64_t> m_color_classes_ids(num_color_classes);
-            for(uint64_t i = 0; i != num_color_classes; ++i){
+            for (uint64_t i = 0; i != num_color_classes; ++i) {
                 m_color_classes_ids[m_permutation[i]] = i;
             }
 
@@ -189,7 +188,7 @@ struct index<ColorClasses>::builder {
             cluster_dump.write(reinterpret_cast<char const*>(&num_color_classes), 8);
             cluster_dump.write(reinterpret_cast<char const*>(&m_num_partitions), 8);
 
-            for(uint64_t i = 1; i < m_partition_size.size(); ++i){
+            for (uint64_t i = 1; i < m_partition_size.size(); ++i) {
                 cluster_dump.write(reinterpret_cast<char const*>(&m_partition_size[i]), 8);
             }
 

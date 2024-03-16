@@ -46,6 +46,7 @@ struct build_configuration {
     std::string filenames_list;
 
     std::string index_filename_to_partition;
+    std::string index_filename_to_differentiate;
 
     bool verbose;
     bool canonical_parsing;

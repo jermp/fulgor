@@ -23,6 +23,13 @@ void partition(build_configuration const& build_config) {
     essentials::logger("DONE");
 }
 
+void differential_coloring(build_configuration const& build_config) {
+    differential_index_type index;
+    typename differential_index_type::differential_builder builder(build_config);
+    builder.build(index);
+
+}
+
 int build(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("filenames_list", "Filenames list.", "-l", true);
@@ -46,6 +53,7 @@ int build(int argc, char** argv) {
     parser.add("force", "Re-build the index even when an index with the same name is found.",
                "--force", false, true);
     parser.add("meta", "Build a meta-colored index.", "--meta", false, true);
+    parser.add("diff", "Build a differential-colored index.", "--diff", false, true);
 
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
@@ -56,6 +64,7 @@ int build(int argc, char** argv) {
         build_config.file_base_name + "." + constants::fulgor_filename_extension;
     bool force = parser.get<bool>("force");
     bool meta_colored = parser.get<bool>("meta");
+    bool diff_colored = parser.get<bool>("diff");
 
     if (std::filesystem::exists(output_filename) and !force) {
         std::cerr << "An index with the name '" << output_filename << "' alreay exists."
@@ -102,6 +111,11 @@ int build(int argc, char** argv) {
     if (meta_colored) {
         build_config.index_filename_to_partition = output_filename;
         partition(build_config);
+    }
+
+    if (diff_colored) {
+        build_config.index_filename_to_differentiate = output_filename;
+        differential_coloring(build_config);
     }
 
     return 0;

@@ -9,61 +9,79 @@ struct differential {
 
     struct builder {
         builder() {
-            // Giulio: perhaps here some
-            // m_bvb.reserve() ?
+            m_list_offsets.push_back(0);
+            m_reference_offsets.push_back(0);
         }
 
         void encode_reference(std::vector<uint32_t> const& reference) {
-            util::write_delta(m_bvb, reference.size());
+            uint64_t size = reference.size();
+            util::write_delta(m_bvb, size);
 
-            // Giulio: take the gaps and then encode with delta, like:
-            //   gap = color_id - (prev + 1)
-            //   write_delta(gap)
-            // and the first integer written with no gap, of course.
-            for (auto color_id : reference) { util::write_delta(m_bvb, color_id); }
+            if (size == 0) return;
+
+            uint32_t prev_val = reference[0];
+            util::write_delta(m_bvb, prev_val);
+
+            for (uint64_t i = 1; i < size; ++i) {
+                uint32_t val = reference[i];
+                assert(val >= prev_val + 1);
+                util::write_delta(m_bvb, val - (prev_val + 1));
+                prev_val = val;
+            }
+            m_reference_offsets.push_back(m_bvb.num_bits());
         }
 
         void encode_list(std::vector<uint32_t> const& reference,
                          typename ColorClasses::forward_iterator it) {
-            // Giulio:
-            // same comment as above: take gaps + delta
-            // you need to keep track of the last written integer
+            std::vector<uint32_t> edit_list;
+            uint64_t ref_size = reference.size();
+            uint64_t it_size = it.size();
+            edit_list.reserve(ref_size + it_size);
 
             uint64_t i = 0, j = 0;
-            while (i < it.size() && j < reference.size()) {
+            while (i < it_size && j < ref_size) {
                 if (*it == reference[j]) {
                     i += 1;
                     ++it;
                     j += 1;
                 } else if (*it < reference[j]) {
-                    util::write_delta(m_bvb, *it);
+                    edit_list.push_back(*it);
                     i += 1;
                     ++it;
                 } else {
-                    util::write_delta(m_bvb, reference[j]);
+                    edit_list.push_back(reference[j]);
                     j += 1;
                 }
             }
-            while (i < it.size()) {
-                util::write_delta(m_bvb, *it);
+            while (i < it_size) {
+                edit_list.push_back(*it);
                 i += 1;
                 ++it;
             }
-
-            while (j < reference.size()) {
-                util::write_delta(m_bvb, reference[j]);
+            while (j < ref_size) {
+                edit_list.push_back(reference[j]);
                 j += 1;
             }
+
+            uint64_t size = edit_list.size();
+            util::write_delta(m_bvb, size);
+
+            if (size == 0) return;
+
+            uint32_t prev_val = edit_list[0];
+            util::write_delta(m_bvb, prev_val);
+
+            for (uint64_t i = 1; i < size; ++i) {
+                uint32_t val = edit_list[i];
+                assert(val >= prev_val + 1);
+                util::write_delta(m_bvb, val - (prev_val + 1));
+                prev_val = val;
+            }
+
+            m_list_offsets.push_back(m_bvb.num_bits());
         }
 
     private:
-        //
-        // Giulio: these two would be needed to delimit
-        // where each list begins in the bits of m_bvb.
-        //
-        // Additionally, we would need a bitvector + rank
-        // to compute for each differential list its corresponding
-        // reference. (See the notes I sent you.)
         std::vector<uint64_t> m_reference_offsets;
         std::vector<uint64_t> m_list_offsets;
 

@@ -176,7 +176,7 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
 }
 
 void stream_through(sshash::dictionary const& k2u, std::string const& sequence,
-                    std::vector<uint32_t>& unitig_ids) {
+                    std::vector<uint64_t>& unitig_ids) {
     sshash::streaming_query_canonical_parsing query(&k2u);
     query.start();
     const uint64_t num_kmers = sequence.length() - k2u.k() + 1;
@@ -197,13 +197,13 @@ void index<ColorClasses>::pseudoalign_full_intersection(std::string const& seque
                                                         std::vector<uint32_t>& colors) const {
     if (sequence.length() < m_k2u.k()) return;
     colors.clear();
-    std::vector<uint32_t> unitig_ids;
+    std::vector<uint64_t> unitig_ids;
     stream_through(m_k2u, sequence, unitig_ids);
     intersect_unitigs(unitig_ids, colors);
 }
 
 template <typename ColorClasses>
-void index<ColorClasses>::intersect_unitigs(std::vector<uint32_t>& unitig_ids,
+void index<ColorClasses>::intersect_unitigs(std::vector<uint64_t>& unitig_ids,
                                             std::vector<uint32_t>& colors) const {
     /* here we use it to hold the color class ids;
        in meta_intersect we use it to hold the partition ids */
@@ -212,9 +212,9 @@ void index<ColorClasses>::intersect_unitigs(std::vector<uint32_t>& unitig_ids,
 
     /* deduplicate unitig_ids */
     std::sort(unitig_ids.begin(), unitig_ids.end());
-    auto end = std::unique(unitig_ids.begin(), unitig_ids.end());
-    tmp.reserve(end - unitig_ids.begin());
-    for (auto it = unitig_ids.begin(); it != end; ++it) {
+    auto end_unitigs = std::unique(unitig_ids.begin(), unitig_ids.end());
+    tmp.reserve(end_unitigs - unitig_ids.begin());
+    for (auto it = unitig_ids.begin(); it != end_unitigs; ++it) {
         uint32_t unitig_id = *it;
         uint32_t color_class_id = u2c(unitig_id);
         tmp.push_back(color_class_id);
@@ -222,9 +222,9 @@ void index<ColorClasses>::intersect_unitigs(std::vector<uint32_t>& unitig_ids,
 
     /* deduplicate color class ids */
     std::sort(tmp.begin(), tmp.end());
-    end = std::unique(tmp.begin(), tmp.end());
-    iterators.reserve(end - tmp.begin());
-    for (auto it = tmp.begin(); it != end; ++it) {
+    auto end_tmp = std::unique(tmp.begin(), tmp.end());
+    iterators.reserve(end_tmp - tmp.begin());
+    for (auto it = tmp.begin(); it != end_tmp; ++it) {
         uint64_t color_class_id = *it;
         auto fwd_it = m_ccs.colors(color_class_id);
         iterators.push_back(fwd_it);

@@ -11,7 +11,7 @@ struct scored {
     uint32_t score;
 };
 
-typedef scored<uint32_t> scored_id;
+typedef scored<uint64_t> scored_id;
 
 template <typename Iterator>
 void merge(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,

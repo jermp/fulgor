@@ -53,14 +53,14 @@ int do_map(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::Rea
     if ((algo == pseudoalignment_algorithm::SKIPPING or
          algo == pseudoalignment_algorithm::SKIPPING_KALLISTO) and
         (index.get_k2u().canonicalized())) {
-        std::vector<uint32_t> unitig_ids;                           // for use with skipping
+        std::vector<uint64_t> unitig_ids;                           // for use with skipping
         std::vector<std::pair<projected_hits, int>> kallisto_hits;  // for use with kallisto psa
 
         piscem_psa::hit_searcher<FulgorIndex> hs(&index);
         sshash::streaming_query_canonical_parsing qc(&index.get_k2u());
 
         auto get_hits_piscem_psa = [&qc, &hs](const std::string& seq,
-                                              std::vector<uint32_t>& unitig_ids) -> void {
+                                              std::vector<uint64_t>& unitig_ids) -> void {
             hs.clear();
             auto had_hits = hs.get_raw_hits_sketch(seq, qc, true, false);
             if (had_hits) {
@@ -72,7 +72,7 @@ int do_map(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::Rea
 
         auto get_hits_kallisto_psa = [&index, &kallisto_hits](
                                          const std::string& seq,
-                                         std::vector<uint32_t>& unitig_ids) -> void {
+                                         std::vector<uint64_t>& unitig_ids) -> void {
             kallisto_hits.clear();
             match(seq, seq.length(), &index, kallisto_hits);
             if (!kallisto_hits.empty()) {

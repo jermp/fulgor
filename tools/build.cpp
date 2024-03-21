@@ -57,10 +57,23 @@ int build(int argc, char** argv) {
     bool force = parser.get<bool>("force");
     bool meta_colored = parser.get<bool>("meta");
 
+    if (parser.parsed("tmp_dirname")) {
+        build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");
+        essentials::create_directory(build_config.tmp_dirname);
+    }
+    if (parser.parsed("num_threads")) {
+        build_config.num_threads = parser.get<uint64_t>("num_threads");
+    }
+
     if (std::filesystem::exists(output_filename) and !force) {
         std::cerr << "An index with the name '" << output_filename << "' alreay exists."
                   << std::endl;
         std::cerr << "Use option '--force' to re-build the index." << std::endl;
+        if (meta_colored) {
+            std::cerr << "Consider using: \"./fulgor partition -i " << output_filename << " -d "
+                      << build_config.tmp_dirname << " -t "
+                      << std::to_string(build_config.num_threads) << "\"" << std::endl;
+        }
         return 1;
     }
 
@@ -68,18 +81,11 @@ int build(int argc, char** argv) {
     auto m = parser.get<uint64_t>("m");
     build_config.k = k;
     build_config.m = m;
-    if (parser.parsed("tmp_dirname")) {
-        build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");
-        essentials::create_directory(build_config.tmp_dirname);
-    }
     build_config.verbose = parser.get<bool>("verbose");
     build_config.check = parser.get<bool>("check");
     build_config.filenames_list = parser.get<std::string>("filenames_list");
     if (parser.get<uint64_t>("RAM")) {
         build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
-    }
-    if (parser.parsed("num_threads")) {
-        build_config.num_threads = parser.get<uint64_t>("num_threads");
     }
 
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;

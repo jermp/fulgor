@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../external/sshash/include/constants.hpp"
+#include "external/sshash/include/constants.hpp"
 #include <iostream>
 
 struct projected_hits {

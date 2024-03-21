@@ -8,12 +8,12 @@
 #include <chrono>
 #include <algorithm>  // for std::set_intersection
 
-#include "../external/smhasher/src/City.h"
-#include "../external/smhasher/src/City.cpp"
+#include "external/smhasher/src/City.h"
+#include "external/smhasher/src/City.cpp"
 
 namespace fulgor {
 
-enum list_type { delta_gaps = 0, bitmap = 1, complement_delta_gaps = 2 };
+enum list_type { delta_gaps, bitmap, complement_delta_gaps };
 
 namespace constants {
 constexpr double invalid_threshold = -1.0;

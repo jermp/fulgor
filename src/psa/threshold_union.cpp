@@ -1,7 +1,7 @@
 #include <numeric>  // for std::accumulate
 
-#include "index.hpp"
-#include "../external/sshash/include/query/streaming_query_canonical_parsing.hpp"
+#include "include/index.hpp"
+#include "external/sshash/include/query/streaming_query_canonical_parsing.hpp"
 
 namespace fulgor {
 

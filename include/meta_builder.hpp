@@ -176,7 +176,11 @@ struct index<ColorClasses>::meta_builder {
             uint64_t partition_id = 0;
             uint32_t meta_color_list_size = 0;
 
-            std::vector<std::unordered_map<__uint128_t, uint32_t>> hashes;  // (hash, id)
+            std::vector<std::unordered_map<__uint128_t,            // key
+                                           uint32_t,               // value
+                                           util::hasher_uint128_t  // key's hasher
+                                           >>
+                hashes;  // (hash, id)
             hashes.resize(num_partitions);
 
             auto hash_and_compress = [&]() {

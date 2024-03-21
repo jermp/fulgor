@@ -139,11 +139,15 @@ inline uint8_t lsb(uint64_t x, unsigned long& ret) {
 
 __uint128_t hash128(char const* bytes, uint64_t num_bytes, const uint64_t seed = 1234567890) {
     auto ret = CityHash128WithSeed(bytes, num_bytes, {seed, seed});
-    __uint128_t out;
-    *(reinterpret_cast<uint64_t*>(&out) + 0) = ret.first;
-    *(reinterpret_cast<uint64_t*>(&out) + 1) = ret.second;
+    __uint128_t out = 0;
+    out += __uint128_t(ret.first);
+    out += __uint128_t(ret.second) << 64;
     return out;
 }
+
+struct hasher_uint128_t {
+    uint64_t operator()(const __uint128_t x) const { return static_cast<uint64_t>(x) ^ (x >> 64); }
+};
 
 }  // namespace util
 }  // namespace fulgor

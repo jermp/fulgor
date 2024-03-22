@@ -349,8 +349,8 @@ struct index<ColorClasses>::meta_builder {
                  ++color_class_id) {
                 auto it_exp = index.colors(color_class_id);
                 auto it_got = idx.colors(color_class_id);
-                uint64_t exp_size = it_exp.size();
-                uint64_t got_size = it_got.size();
+                const uint64_t exp_size = it_exp.size();
+                const uint64_t got_size = it_got.size();
 
                 if (exp_size != got_size) {
                     std::cout << "got colors list of size " << got_size << " but expected "

@@ -119,16 +119,18 @@ struct index<ColorClasses>::builder {
             timer.reset();
         }
 
-        if (m_build_config.check) {
+        if (m_build_config.check)  //
+        {
             essentials::logger("step 5. check correctness...");
             m_ccdbg.loop_through_unitigs(
                 [&](ggcat::Slice<char> const unitig, ggcat::Slice<uint32_t> const colors,
-                    bool /* same_color */) {
+                    bool /* same_color */)  //
+                {
                     auto lookup_result = idx.m_k2u.lookup_advanced(unitig.data);
-                    uint32_t unitig_id = lookup_result.contig_id;
-                    uint32_t color_id = idx.u2c(unitig_id);
+                    const uint64_t unitig_id = lookup_result.contig_id;
+                    const uint64_t color_id = idx.u2c(unitig_id);
                     for (uint64_t i = 1; i != unitig.size - idx.m_k2u.k() + 1; ++i) {
-                        uint32_t got = idx.m_k2u.lookup_advanced(unitig.data + i).contig_id;
+                        uint64_t got = idx.m_k2u.lookup_advanced(unitig.data + i).contig_id;
                         if (got != unitig_id) {
                             std::cout << "got unitig_id " << got << " but expected " << unitig_id
                                       << std::endl;
@@ -136,7 +138,7 @@ struct index<ColorClasses>::builder {
                         }
                     }
                     auto fwd_it = idx.m_ccs.colors(color_id);
-                    uint64_t size = fwd_it.size();
+                    const uint64_t size = fwd_it.size();
                     if (size != colors.size) {
                         std::cout << "got colors list of size " << size << " but expected "
                                   << colors.size << std::endl;
@@ -151,7 +153,8 @@ struct index<ColorClasses>::builder {
                         }
                     }
                 },
-                m_build_config.num_threads);
+                m_build_config.num_threads  //
+            );
             essentials::logger("DONE!");
         }
     }

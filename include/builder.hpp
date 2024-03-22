@@ -70,11 +70,17 @@ struct index<ColorClasses>::builder {
 
             out.close();
 
+            assert(num_unitigs > 0);
             assert(num_unitigs < (uint64_t(1) << 32));
+
             std::cout << "num_unitigs " << num_unitigs << std::endl;
             std::cout << "num_distinct_colors " << num_distinct_colors << std::endl;
 
+            u2c_builder.set(num_unitigs - 1, 1);
             idx.m_u2c.build(&u2c_builder);
+            assert(idx.m_u2c.size() == num_unitigs);
+            assert(idx.m_u2c.num_ones() == num_distinct_colors);
+
             std::cout << "m_u2c.size() " << idx.m_u2c.size() << std::endl;
             std::cout << "m_u2c.num_ones() " << idx.m_u2c.num_ones() << std::endl;
             std::cout << "m_u2c.num_zeros() " << idx.m_u2c.num_zeros() << std::endl;

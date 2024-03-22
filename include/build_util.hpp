@@ -18,10 +18,7 @@ void build_reference_sketches(index_type const& index,
     auto const& ccs = index.get_color_classes();
     const uint64_t num_color_classes = ccs.num_color_classes();
     const uint64_t num_ones = u2c.num_ones();
-    assert(num_color_classes == num_ones + 1);
-
-    // std::cout << "num_color_classes = " << num_color_classes << std::endl;
-    // std::cout << "num_unitigs = " << u2c.size() << std::endl;
+    assert(num_color_classes == num_ones);
 
     if (num_ones < num_threads) {
         throw std::runtime_error("there are only " + std::to_string(num_color_classes) +
@@ -56,9 +53,6 @@ void build_reference_sketches(index_type const& index,
 
     const uint64_t load_per_thread = load / num_threads;
 
-    // std::cout << "load " << load << std::endl;
-    // std::cout << "load_per_thread " << load_per_thread << std::endl;
-
     {
         uint64_t prev_pos = 0;
         pthash::bit_vector::unary_iterator unary_it(u2c);
@@ -79,13 +73,6 @@ void build_reference_sketches(index_type const& index,
 
             if (cur_load >= load_per_thread or color_id == num_color_classes - 1) {
                 s.color_id_end = color_id + 1;
-
-                // std::cout << "slice: begin=" << s.begin << "; color_ids[" << s.color_id_begin <<
-                // ","
-                //           << s.color_id_end
-                //           << "); num. colors = " << (s.color_id_end - s.color_id_begin)
-                //           << "; load = " << cur_load << std::endl;
-
                 thread_slices.push_back(s);
                 s.begin = prev_pos;
                 s.color_id_begin = color_id + 1;

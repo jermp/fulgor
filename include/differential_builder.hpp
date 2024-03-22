@@ -185,8 +185,12 @@ struct index<ColorClasses>::differential_builder {
                 auto exp_it = index.colors(permutation[color_id].second);
                 auto res_it = idx.colors(color_id);
                 for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
-                    if (*exp_it != *res_it) {
-                        cout << "Error while checking color " << color_id << ", mismatch at position " << j << "\n";
+                    auto exp = *exp_it;
+                    auto got = *res_it;
+                    if (exp != got) {
+                        cout << "Error while checking color " << color_id
+                             << ", mismatch at position " << j << ": expected " << exp
+                             << " but got " << got << std::endl;
                     }
                 }
                 if (*res_it < index.num_docs()) {

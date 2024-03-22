@@ -2,7 +2,7 @@
 
 namespace fulgor {
 
-template <typename ColorClasses>
+template <typename ColorClasses>  // Giulio: you can remove this template parameter for now
 struct differential {
     static const bool meta_colored = false;
     static const bool differential_colored = true;
@@ -14,15 +14,13 @@ struct differential {
             m_reference_offsets.push_back(0);
         }
 
-        void init_colors_builder(uint64_t num_docs){
-            m_num_docs = num_docs;
-        }
+        void init_colors_builder(uint64_t num_docs) { m_num_docs = num_docs; }
 
         void encode_reference(std::vector<uint32_t> const& reference) {
             uint64_t size = reference.size();
             util::write_delta(m_bvb, size);
 
-            if (size == 0){
+            if (size == 0) {
                 m_reference_offsets.push_back(m_bvb.num_bits());
                 m_list_offsets[0] = m_bvb.num_bits();
                 return;
@@ -43,6 +41,15 @@ struct differential {
 
         void encode_list(uint64_t cluster_id, std::vector<uint32_t> const& reference,
                          typename ColorClasses::forward_iterator it) {
+            /*
+                To be fixed later:
+                avoid allocating memory here. We can avoid the vector
+                std::vector<uint32_t> edit_list entirely: just write
+                directly to m_bvb each element of the edit list
+                once computed. (We need to keep track of the previously
+                written value to take the gap.)
+            */
+
             std::vector<uint32_t> edit_list;
             uint64_t ref_size = reference.size();
             uint64_t it_size = it.size();
@@ -105,6 +112,15 @@ struct differential {
             d.m_colors.swap(m_bvb.bits());
             d.m_clusters.build(&m_clusters);
 
+            // Giulio: these two guys should be encoded
+            // with Elias-Fano, so:
+            // d.m_reference_offsets.encode(m_reference_offsets.begin(), m_reference_offsets.size(),
+            //                              m_reference_offsets.back());
+            // d.m_list_offsets.encode(m_list_offsets.begin(), m_list_offsets.size(),
+            //                         m_list_offsets.back());
+
+            // and then print some bit/rate statistics, see hybrid::builder::build().
+
             d.m_reference_offsets.swap(m_reference_offsets);
             d.m_list_offsets.swap(m_list_offsets);
         }
@@ -136,7 +152,8 @@ struct differential {
 
             m_curr_edit_val = m_edit_list_size == 0 ? num_docs() : util::read_delta(m_edit_list_it);
             m_prev_edit_val = 0;
-            m_curr_reference_val = m_reference_size == 0 ? num_docs() : util::read_delta(m_reference_it);
+            m_curr_reference_val =
+                m_reference_size == 0 ? num_docs() : util::read_delta(m_reference_it);
             m_prev_reference_val = 0;
 
             m_pos_in_edit_list = 0;
@@ -152,8 +169,7 @@ struct differential {
                 m_curr_val = num_docs();
                 return;
             }
-            if (m_pos_in_reference >= m_reference_size  ||
-                m_curr_edit_val < m_curr_reference_val) {
+            if (m_pos_in_reference >= m_reference_size || m_curr_edit_val < m_curr_reference_val) {
                 next_edit_val();
             } else if (m_pos_in_edit_list >= m_edit_list_size ||
                        m_curr_reference_val < m_curr_edit_val) {
@@ -222,9 +238,27 @@ struct differential {
     uint64_t num_color_classes() const { return m_list_offsets.size() - 1; }
     uint64_t num_docs() const { return m_num_docs; }
 
+    uint64_t num_bits() const {
+        // Giulio: this won't compile yet...
+        return sizeof(m_num_docs) * 8 + m_reference_offsets.num_bits() + m_list_offsets.num_bits() +
+               essentials::vec_bytes(m_colors) * 8 + m_clusters.num_bits();
+    }
+
+    template <typename Visitor>
+    void visit(Visitor& visitor) {
+        visitor.visit(m_num_docs);
+        visitor.visit(m_reference_offsets);
+        visitor.visit(m_list_offsets);
+        visitor.visit(m_colors);
+        visitor.visit(m_clusters);
+    }
+
 private:
     uint32_t m_num_docs;
-    std::vector<uint64_t> m_reference_offsets, m_list_offsets;
+
+    // Giulio: render these two as an EF-sequence:
+    std::vector<uint64_t> m_reference_offsets;  // sshash::ef_sequence<false> m_reference_offsets;
+    std::vector<uint64_t> m_list_offsets;       // sshash::ef_sequence<false> m_list_offsets;
 
     std::vector<uint64_t> m_colors;
     ranked_bit_vector m_clusters;

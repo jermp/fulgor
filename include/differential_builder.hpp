@@ -119,8 +119,7 @@ struct differential_permuter {
                 }
                 auto it = index.colors(m_color_classes_ids[color_id]);
                 for (uint32_t i = 0; i != it.size(); ++i, ++it) { distribution[*it]++; }
-
-                m_permutation[color_id] = {cluster_id, m_color_classes_ids[permutation[color_id]]};
+                m_permutation[color_id] = {cluster_id, m_color_classes_ids[color_id]};
             }
         }
     }
@@ -161,6 +160,7 @@ struct index<ColorClasses>::differential_builder {
         auto const& references = p.references();
 
         const uint64_t num_partitions = p.num_partitions();
+        const uint64_t num_color_classes = index.num_color_classes();
         std::cout << "num_partitions = " << num_partitions << std::endl;
 
         {
@@ -168,10 +168,30 @@ struct index<ColorClasses>::differential_builder {
             timer.start();
 
             typename ColorClasses::builder colors_builder;
+            colors_builder.init_colors_builder(index.num_docs());
 
             for (auto& reference : references) { colors_builder.encode_reference(reference); }
             for (auto& [cluster_id, color_id] : permutation) {
-                colors_builder.encode_list(references[cluster_id], index.colors(color_id));
+                colors_builder.encode_list(cluster_id, references[cluster_id],
+                                           index.colors(color_id));
+            }
+            colors_builder.build(idx.m_ccs);
+        }
+
+        if (m_build_config.check) {
+            essentials::logger("step 5. check correctness...");
+
+            for (uint64_t color_id = 0; color_id < num_color_classes; color_id++) {
+                auto exp_it = index.colors(permutation[color_id].second);
+                auto res_it = idx.colors(color_id);
+                for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
+                    if (*exp_it != *res_it) {
+                        cout << "Error while checking color " << color_id << ", mismatch at position " << j << "\n";
+                    }
+                }
+                if (*res_it < index.num_docs()) {
+                    cout << "Error while checking color " << color_id << ", different sizes\n";
+                }
             }
         }
     }

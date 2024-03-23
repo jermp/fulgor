@@ -18,7 +18,7 @@ void build_reference_sketches(index_type const& index,
     auto const& ccs = index.get_color_classes();
     const uint64_t num_color_classes = ccs.num_color_classes();
     const uint64_t num_ones = u2c.num_ones();
-    assert(num_color_classes == num_ones + 1);
+    assert(num_color_classes == num_ones);
 
     // std::cout << "num_color_classes = " << num_color_classes << std::endl;
     // std::cout << "num_unitigs = " << u2c.size() << std::endl;

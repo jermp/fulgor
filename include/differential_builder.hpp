@@ -178,6 +178,72 @@ struct index<ColorClasses>::differential_builder {
             colors_builder.build(idx.m_ccs);
         }
 
+        {
+            /* permute the unitigs and rebuild sshash */
+
+            // Giulio: I haven't compiled nor tested the code! Please, check it.
+
+            const std::string permuted_unitigs_filename =
+                m_build_config.tmp_dirname + "/permuted_unitigs.fa";
+            std::ofstream out(permuted_unitigs_filename.c_str());
+            if (!out.is_open()) throw std::runtime_error("cannot open output file");
+
+            pthash::darray1 d;  // for select_1 on index.u2c
+            d.build(index.get_u2c());
+            pthash::bit_vector_builder u2c_builder;
+            uint64_t pos = 0;
+
+            auto const& dict = index.get_k2u();
+            const uint64_t k = dict.k();
+
+            const uint64_t num_unitigs = index.get_u2c().size();
+            for (uint64_t new_color_id = 0; new_color_id != num_unitigs; ++new_color_id)  //
+            {
+                auto [_, old_color_id] = permutation[new_color_id];
+                uint64_t old_unitig_id_end = d.select(index.get_u2c(), old_color_id);
+                uint64_t old_unitig_id_begin = 0;
+                if (old_color_id > 0) {
+                    old_unitig_id_begin = d.select(index.get_u2c(), old_color_id - 1);
+                }
+
+                // num. unitigs that have the same color
+                pos += old_unitig_id_end - old_unitig_id_begin;
+
+                u2c_builder.set(pos - 1, 1);
+
+                for (uint64_t i = old_unitig_id_begin; i != old_unitig_id_end; ++i) {
+                    auto it = dict.at_contig_id(i);
+                    out << ">\n";
+                    auto [_, kmer] = *it;
+                    out << kmer;
+                    ++it;
+                    while (it.has_next()) {
+                        auto [_, kmer] = *it;
+                        out << kmer[k - 1];  // overlaps!
+                        ++it;
+                    }
+                    out << '\n';
+                }
+            }
+
+            assert(pos == num_unitigs);
+            out.close();
+            idx.m_u2c.build(&u2c_builder);
+
+            /* build a new sshash::dictionary on the permuted unitigs */
+            sshash::build_configuration sshash_config;
+            sshash_config.k = m_build_config.k;
+            sshash_config.m = m_build_config.m;
+            sshash_config.canonical_parsing = m_build_config.canonical_parsing;
+            sshash_config.verbose = m_build_config.verbose;
+            sshash_config.tmp_dirname = m_build_config.tmp_dirname;
+            sshash_config.print();
+            idx.m_k2u.build(permuted_unitigs_filename, sshash_config);
+            try {  // remove unitig file
+                std::remove(permuted_unitigs_filename.c_str());
+            } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
+        }
+
         if (m_build_config.check) {
             essentials::logger("step 5. check correctness...");
 

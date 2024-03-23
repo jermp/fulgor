@@ -190,13 +190,14 @@ struct index<ColorClasses>::differential_builder {
 
             pthash::darray1 d;  // for select_1 on index.u2c
             d.build(index.get_u2c());
-            pthash::bit_vector_builder u2c_builder;
-            uint64_t pos = 0;
+
+            const uint64_t num_unitigs = index.get_u2c().size();
+            pthash::bit_vector_builder u2c_builder(num_unitigs, 0);
 
             auto const& dict = index.get_k2u();
             const uint64_t k = dict.k();
 
-            const uint64_t num_unitigs = index.get_u2c().size();
+            uint64_t pos = 0;
             for (uint64_t new_color_id = 0; new_color_id != num_unitigs; ++new_color_id)  //
             {
                 auto [_, old_color_id] = permutation[new_color_id];

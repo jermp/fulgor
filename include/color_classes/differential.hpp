@@ -2,7 +2,6 @@
 
 namespace fulgor {
 
-template <typename ColorClasses>  // Giulio: you can remove this template parameter for now
 struct differential {
     static const bool meta_colored = false;
     static const bool differential_colored = true;
@@ -14,33 +13,35 @@ struct differential {
             m_reference_offsets.push_back(0);
         }
 
-        void init_colors_builder(uint64_t num_docs) { m_num_docs = num_docs; }
+        void init_colors_builder(uint64_t num_docs) {
+            m_num_docs = num_docs;
+            m_num_total_integers = 0;
+            m_num_lists = 0;
+        }
 
         void encode_reference(std::vector<uint32_t> const& reference) {
             uint64_t size = reference.size();
             util::write_delta(m_bvb, size);
+            m_num_total_integers += size + 1; // size plus size number
+            m_num_lists += 1;
 
-            if (size == 0) {
-                m_reference_offsets.push_back(m_bvb.num_bits());
-                m_list_offsets[0] = m_bvb.num_bits();
-                return;
-            }
+            if (size > 0){
+                uint32_t prev_val = reference[0];
+                util::write_delta(m_bvb, prev_val);
 
-            uint32_t prev_val = reference[0];
-            util::write_delta(m_bvb, prev_val);
-
-            for (uint64_t i = 1; i < size; ++i) {
-                uint32_t val = reference[i];
-                assert(val >= prev_val + 1);
-                util::write_delta(m_bvb, val - (prev_val + 1));
-                prev_val = val;
+                for (uint64_t i = 1; i < size; ++i) {
+                    uint32_t val = reference[i];
+                    assert(val >= prev_val + 1);
+                    util::write_delta(m_bvb, val - (prev_val + 1));
+                    prev_val = val;
+                }
             }
             m_reference_offsets.push_back(m_bvb.num_bits());
             m_list_offsets[0] = m_bvb.num_bits();
         }
 
         void encode_list(uint64_t cluster_id, std::vector<uint32_t> const& reference,
-                         typename ColorClasses::forward_iterator it) {
+                         hybrid::forward_iterator it) {
             /*
                 To be fixed later:
                 avoid allocating memory here. We can avoid the vector
@@ -88,20 +89,19 @@ struct differential {
 
             uint64_t size = edit_list.size();
             util::write_delta(m_bvb, size);
+            m_num_total_integers += size+1; // size plus size number
+            m_num_lists += 1;
 
-            if (size == 0) {
-                m_list_offsets.push_back(m_bvb.num_bits());
-                return;
-            }
+            if (size > 0){
+                uint32_t prev_val = edit_list[0];
+                util::write_delta(m_bvb, prev_val);
 
-            uint32_t prev_val = edit_list[0];
-            util::write_delta(m_bvb, prev_val);
-
-            for (uint64_t pos = 1; pos < size; ++pos) {
-                uint32_t val = edit_list[pos];
-                assert(val >= prev_val + 1);
-                util::write_delta(m_bvb, val - (prev_val + 1));
-                prev_val = val;
+                for (uint64_t pos = 1; pos < size; ++pos) {
+                    uint32_t val = edit_list[pos];
+                    assert(val >= prev_val + 1);
+                    util::write_delta(m_bvb, val - (prev_val + 1));
+                    prev_val = val;
+                }
             }
 
             m_list_offsets.push_back(m_bvb.num_bits());
@@ -112,32 +112,43 @@ struct differential {
             d.m_colors.swap(m_bvb.bits());
             d.m_clusters.build(&m_clusters);
 
-            // Giulio: these two guys should be encoded
-            // with Elias-Fano, so:
-            // d.m_reference_offsets.encode(m_reference_offsets.begin(), m_reference_offsets.size(),
-            //                              m_reference_offsets.back());
-            // d.m_list_offsets.encode(m_list_offsets.begin(), m_list_offsets.size(),
-            //                         m_list_offsets.back());
+            d.m_reference_offsets.encode(m_reference_offsets.begin(), m_reference_offsets.size(),
+                                         m_reference_offsets.back());
+            d.m_list_offsets.encode(m_list_offsets.begin(), m_list_offsets.size(),
+                                    m_list_offsets.back());
+
+            std::cout << "processed " << m_num_lists << " lists\n";
+            std::cout << "m_num_total_integers " << m_num_total_integers << '\n';
+
+            std::cout << "  total bits for ints = " << d.m_colors.size() * 64 << '\n';
+            std::cout << "  total bits per offset = "
+                      << d.m_list_offsets.num_bits() + d.m_reference_offsets.num_bits()
+                      << " (lists: " << d.m_list_offsets.num_bits()
+                      << ", references: " << d.m_reference_offsets.num_bits() << ")\n";
+            std::cout << "  offsets: "
+                      << static_cast<double>(d.m_list_offsets.num_bits() +
+                                             d.m_reference_offsets.num_bits()) /
+                             m_num_total_integers
+                      << " bits/int\n";
+            std::cout << "  lists: "
+                      << static_cast<double>(d.m_colors.size() * 64) / m_num_total_integers
+                      << " bits/int\n";
 
             // and then print some bit/rate statistics, see hybrid::builder::build().
-
-            d.m_reference_offsets.swap(m_reference_offsets);
-            d.m_list_offsets.swap(m_list_offsets);
         }
 
     private:
         bit_vector_builder m_bvb;
         pthash::bit_vector_builder m_clusters;
+        uint64_t m_num_total_integers, m_num_lists;
 
         uint64_t m_num_docs;
-        std::vector<uint64_t> m_reference_offsets;
-        std::vector<uint64_t> m_list_offsets;
         uint64_t m_prev_cluster_id;
+        std::vector<uint64_t> m_reference_offsets, m_list_offsets;
     };
 
     struct forward_iterator {
-        forward_iterator(differential<ColorClasses> const* ptr, uint64_t list_begin,
-                         uint64_t reference_begin)
+        forward_iterator(differential const* ptr, uint64_t list_begin, uint64_t reference_begin)
             : m_ptr(ptr), m_edit_list_begin(list_begin), m_reference_begin(reference_begin) {
             rewind();
         }
@@ -179,14 +190,10 @@ struct differential {
         }
         void operator++() { next(); }
 
-        bool has_next() {
-            return m_pos_in_reference == m_reference_size && m_pos_in_edit_list == m_edit_list_size;
-        }
-
         uint32_t num_docs() const { return m_ptr->m_num_docs; }
 
     private:
-        differential<ColorClasses> const* m_ptr;
+        differential const* m_ptr;
         uint64_t m_edit_list_begin, m_reference_begin;
         uint64_t m_reference_size, m_edit_list_size;
         uint64_t m_pos_in_edit_list, m_pos_in_reference;
@@ -230,8 +237,8 @@ struct differential {
 
     forward_iterator colors(uint64_t color_id) const {
         assert(color_id < num_color_classes());
-        uint64_t list_begin = m_list_offsets[color_id];
-        uint64_t reference_begin = m_reference_offsets[m_clusters.rank(color_id)];
+        uint64_t list_begin = m_list_offsets.access(color_id);
+        uint64_t reference_begin = m_reference_offsets.access(m_clusters.rank(color_id));
         return forward_iterator(this, list_begin, reference_begin);
     }
 
@@ -239,9 +246,8 @@ struct differential {
     uint64_t num_docs() const { return m_num_docs; }
 
     uint64_t num_bits() const {
-        // Giulio: this won't compile yet...
         return sizeof(m_num_docs) * 8 + m_reference_offsets.num_bits() + m_list_offsets.num_bits() +
-               essentials::vec_bytes(m_colors) * 8 + m_clusters.num_bits();
+               essentials::vec_bytes(m_colors) * 8 + m_clusters.size();
     }
 
     template <typename Visitor>
@@ -256,9 +262,7 @@ struct differential {
 private:
     uint32_t m_num_docs;
 
-    // Giulio: render these two as an EF-sequence:
-    std::vector<uint64_t> m_reference_offsets;  // sshash::ef_sequence<false> m_reference_offsets;
-    std::vector<uint64_t> m_list_offsets;       // sshash::ef_sequence<false> m_list_offsets;
+    sshash::ef_sequence<false> m_reference_offsets, m_list_offsets;
 
     std::vector<uint64_t> m_colors;
     ranked_bit_vector m_clusters;

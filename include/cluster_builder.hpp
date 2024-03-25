@@ -1,7 +1,7 @@
 #pragma once
 
 #include "sketch/hll.h"
-#include "kmeans.hpp"
+#include "external/kmeans/include/kmeans.hpp"
 #include "index_types.hpp"
 
 namespace fulgor {

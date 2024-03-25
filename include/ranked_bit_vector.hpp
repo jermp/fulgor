@@ -2,8 +2,8 @@
 
 #include <vector>
 
-#include "../external/sshash/external/pthash/external/essentials/include/essentials.hpp"
-#include "../external/sshash/external/pthash/include/encoders/bit_vector.hpp"
+#include "external/sshash/external/pthash/external/essentials/include/essentials.hpp"
+#include "external/sshash/external/pthash/include/encoders/bit_vector.hpp"
 
 namespace fulgor {
 

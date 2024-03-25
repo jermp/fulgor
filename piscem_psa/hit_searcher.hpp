@@ -3,7 +3,7 @@
 #include "CanonicalKmer.hpp"
 #include "CanonicalKmerIterator.hpp"
 #include "projected_hits.hpp"
-#include "../external/sshash/include/query/streaming_query_canonical_parsing.hpp"
+#include "external/sshash/include/query/streaming_query_canonical_parsing.hpp"
 
 #include <algorithm>
 #include <iostream>

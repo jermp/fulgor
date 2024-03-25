@@ -1,7 +1,7 @@
 #pragma once
 
-#include "sketch/hll.h"
-#include "kmeans.hpp"
+#include "external/sketch/include/sketch/hll.h"
+#include "external/kmeans/include/kmeans.hpp"
 
 namespace fulgor {
 

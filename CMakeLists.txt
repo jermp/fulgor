@@ -3,7 +3,7 @@ project(FULGOR)
 
 set(CMAKE_CXX_STANDARD 17)
 if (NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "Release")
+  set(CMAKE_BUILD_TYPE "Release")
 endif ()
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
@@ -47,18 +47,20 @@ if (UNIX)
 
 endif()
 
-include_directories(include)
+include_directories(.)
+include_directories(external/sshash/external/pthash)
+include_directories(external/sshash/external/pthash/external/essentials/include)
+include_directories(external/sshash)
 include_directories(external/FQFeeder/include)
 include_directories(external/sketch/include)
 include_directories(external/sketch/include/blaze)
-include_directories(external/kmeans/include)
 
 ## GGCAT ####
 
 add_custom_target(
-   ggcat_cpp_api
-   COMMAND make
-   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api
+        ggcat_cpp_api
+        COMMAND make
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api
 )
 set(GGCAT_CPP_BINDINGS ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cpp_bindings.a)
 set(GGCAT_CXX_INTEROP ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cxx_interop.a)
@@ -68,31 +70,31 @@ set(GGCAT_API ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/l
 ## Fulgor ###
 
 set(Z_LIB_SOURCES
-  external/sshash/include/gz/zip_stream.cpp
+        external/sshash/include/gz/zip_stream.cpp
 )
 
 set(SSHASH_SOURCES
-  external/sshash/include/dictionary.cpp
-  external/sshash/include/info.cpp
-  external/sshash/include/builder/build.cpp
+        external/sshash/include/dictionary.cpp
+        external/sshash/include/info.cpp
+        external/sshash/include/builder/build.cpp
 )
 
 # Create a static lib for SSHash
 add_library(sshash_static STATIC
-  ${Z_LIB_SOURCES}
-  ${SSHASH_SOURCES}
+        ${Z_LIB_SOURCES}
+        ${SSHASH_SOURCES}
 )
 
 add_executable(fulgor tools/fulgor.cpp)
 add_dependencies(fulgor ggcat_cpp_api sshash_static)
 target_link_libraries(fulgor
-  sshash_static
-  z
-  ${GGCAT}
-  ${GGCAT_API}
-  ${GGCAT_CPP_BINDINGS}
-  ${GGCAT_CXX_INTEROP}
-  ${CMAKE_DL_LIBS}
+        sshash_static
+        z
+        ${GGCAT}
+        ${GGCAT_API}
+        ${GGCAT_CPP_BINDINGS}
+        ${GGCAT_CXX_INTEROP}
+        ${CMAKE_DL_LIBS}
 )
 
 if (UNIX)

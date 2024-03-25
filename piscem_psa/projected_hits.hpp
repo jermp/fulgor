@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../external/sshash/include/constants.hpp"
+#include "external/sshash/include/constants.hpp"
 #include <iostream>
 
 struct projected_hits {
@@ -12,7 +12,7 @@ struct projected_hits {
         , globalPos_(0)
         , k_(0) {}
 
-    uint32_t contigIdx_;
+    uint64_t contigIdx_;
     // The relative position of the k-mer inducing this hit on the
     // contig
     uint32_t contigPos_;
@@ -25,7 +25,7 @@ struct projected_hits {
 
     // sshash::util::contig_span refRange;
     inline bool empty() {
-        return contigIdx_ == sshash::constants::invalid_uint32;
+        return contigIdx_ == sshash::constants::invalid_uint64;
     }  // refRange.empty(); }
 
     inline uint32_t contig_id() const { return contigIdx_; }

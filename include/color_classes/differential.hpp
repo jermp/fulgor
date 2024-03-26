@@ -133,8 +133,6 @@ struct differential {
             std::cout << "  lists: "
                       << static_cast<double>(d.m_colors.size() * 64) / m_num_total_integers
                       << " bits/int\n";
-
-            // and then print some bit/rate statistics, see hybrid::builder::build().
         }
 
     private:

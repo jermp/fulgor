@@ -209,8 +209,9 @@ struct index<ColorClasses>::differential_builder {
 
                 // num. unitigs that have the same color
                 pos += old_unitig_id_end - old_unitig_id_begin;
+                assert(pos < u2c_builder.size());
 
-                u2c_builder.set(pos - 1, 1);
+                u2c_builder.set(pos, 1);
 
                 for (uint64_t i = old_unitig_id_begin; i != old_unitig_id_end; ++i) {
                     auto it = dict.at_contig_id(i);

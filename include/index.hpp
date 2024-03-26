@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../external/sshash/include/dictionary.hpp"
+#include "external/sshash/include/dictionary.hpp"
 #include "ranked_bit_vector.hpp"
 #include "filenames.hpp"
 #include "util.hpp"

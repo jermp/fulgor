@@ -8,8 +8,8 @@
 #include <chrono>
 #include <algorithm>  // for std::set_intersection
 
-#include "../external/smhasher/src/City.h"
-#include "../external/smhasher/src/City.cpp"
+#include "external/smhasher/src/City.h"
+#include "external/smhasher/src/City.cpp"
 
 namespace fulgor {
 

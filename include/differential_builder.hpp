@@ -198,7 +198,7 @@ struct index<ColorClasses>::differential_builder {
             const uint64_t k = dict.k();
 
             uint64_t pos = 0;
-            for (uint64_t new_color_id = 0; new_color_id != num_unitigs; ++new_color_id)  //
+            for (uint64_t new_color_id = 0; new_color_id != num_color_classes; ++new_color_id)  //
             {
                 auto [_, old_color_id] = permutation[new_color_id];
                 uint64_t old_unitig_id_end = d.select(index.get_u2c(), old_color_id);
@@ -209,25 +209,24 @@ struct index<ColorClasses>::differential_builder {
 
                 // num. unitigs that have the same color
                 pos += old_unitig_id_end - old_unitig_id_begin;
+                assert(pos < u2c_builder.size());
 
-                u2c_builder.set(pos - 1, 1);
+                u2c_builder.set(pos, 1);
 
                 for (uint64_t i = old_unitig_id_begin; i != old_unitig_id_end; ++i) {
                     auto it = dict.at_contig_id(i);
                     out << ">\n";
-                    auto [_, kmer] = *it;
+                    auto [_, kmer] = it.next();
                     out << kmer;
-                    ++it;
                     while (it.has_next()) {
-                        auto [_, kmer] = *it;
+                        auto [_, kmer] = it.next();
                         out << kmer[k - 1];  // overlaps!
-                        ++it;
                     }
                     out << '\n';
                 }
             }
 
-            assert(pos == num_unitigs);
+            assert(pos == num_unitigs - 1);
             out.close();
             idx.m_u2c.build(&u2c_builder);
 

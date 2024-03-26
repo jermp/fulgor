@@ -1,10 +1,10 @@
 #include <iostream>
 #include <filesystem>
 
-#include "../include/index_types.hpp"
-#include "../src/index.cpp"
-#include "../external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
-#include "../include/cluster_builder.hpp"
+#include "include/index_types.hpp"
+#include "src/index.cpp"
+#include "external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
+#include "include/cluster_builder.hpp"
 
 #include "build.cpp"
 #include "pseudoalign.cpp"

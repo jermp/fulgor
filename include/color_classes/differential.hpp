@@ -89,7 +89,8 @@ struct differential {
 
             uint64_t size = edit_list.size();
             util::write_delta(m_bvb, size);
-            m_num_total_integers += size+1; // size plus size number
+            util::write_delta(m_bvb, it.size());
+            m_num_total_integers += size+2; // size plus edit_list size plus original list size
             m_num_lists += 1;
 
             if (size > 0){
@@ -158,6 +159,7 @@ struct differential {
                                                  m_reference_begin);
             m_edit_list_size = util::read_delta(m_edit_list_it);
             m_reference_size = util::read_delta(m_reference_it);
+            m_size = util::read_delta(m_edit_list_it);
 
             m_curr_edit_val = m_edit_list_size == 0 ? num_docs() : util::read_delta(m_edit_list_it);
             m_prev_edit_val = 0;
@@ -168,6 +170,10 @@ struct differential {
             m_pos_in_edit_list = 0;
             m_pos_in_reference = 0;
             update_curr_val();
+        }
+
+        uint32_t size(){
+            return m_size;
         }
 
         uint64_t value() const { return m_curr_val; }
@@ -198,6 +204,7 @@ struct differential {
         uint32_t m_curr_reference_val, m_curr_edit_val;
         uint32_t m_prev_reference_val, m_prev_edit_val;
         uint32_t m_curr_val;
+        uint32_t m_size;
         bit_vector_iterator m_reference_it, m_edit_list_it;
 
         void next_reference_val() {
@@ -246,6 +253,10 @@ struct differential {
     uint64_t num_bits() const {
         return sizeof(m_num_docs) * 8 + m_reference_offsets.num_bits() + m_list_offsets.num_bits() +
                essentials::vec_bytes(m_colors) * 8 + m_clusters.size();
+    }
+
+    void print_stats() const {
+
     }
 
     template <typename Visitor>

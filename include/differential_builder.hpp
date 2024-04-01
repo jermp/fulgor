@@ -179,9 +179,7 @@ struct index<ColorClasses>::differential_builder {
         }
 
         {
-            /* permute the unitigs and rebuild sshash */
-
-            // Giulio: I haven't compiled nor tested the code! Please, check it.
+            essentials::logger("step 5. permute unitigs and rebuild sshash");
 
             const std::string permuted_unitigs_filename =
                 m_build_config.tmp_dirname + "/permuted_unitigs.fa";
@@ -192,16 +190,18 @@ struct index<ColorClasses>::differential_builder {
             d.build(index.get_u2c());
 
             const uint64_t num_unitigs = index.get_u2c().size();
-            pthash::bit_vector_builder u2c_builder(num_unitigs, 0);
+            pthash::bit_vector_builder u2c_builder(num_unitigs+1, 0);
 
             auto const& dict = index.get_k2u();
             const uint64_t k = dict.k();
 
             uint64_t pos = 0;
-            for (uint64_t new_color_id = 0; new_color_id != num_color_classes; ++new_color_id)  //
-            {
+            for (uint64_t new_color_id = 0; new_color_id != num_color_classes; ++new_color_id) {
                 auto [_, old_color_id] = permutation[new_color_id];
-                uint64_t old_unitig_id_end = d.select(index.get_u2c(), old_color_id);
+                uint64_t old_unitig_id_end = num_unitigs;
+                if (old_color_id < num_color_classes -1 ){
+                    old_unitig_id_end = d.select(index.get_u2c(), old_color_id);
+                }
                 uint64_t old_unitig_id_begin = 0;
                 if (old_color_id > 0) {
                     old_unitig_id_begin = d.select(index.get_u2c(), old_color_id - 1);
@@ -209,9 +209,10 @@ struct index<ColorClasses>::differential_builder {
 
                 // num. unitigs that have the same color
                 pos += old_unitig_id_end - old_unitig_id_begin;
-                assert(pos < u2c_builder.size());
+                cout << "[" << new_color_id << "] " << pos << "\n";
+                assert(pos-1 <= u2c_builder.size());
 
-                u2c_builder.set(pos, 1);
+                u2c_builder.set(pos-1, 1);
 
                 for (uint64_t i = old_unitig_id_begin; i != old_unitig_id_end; ++i) {
                     auto it = dict.at_contig_id(i);
@@ -226,7 +227,7 @@ struct index<ColorClasses>::differential_builder {
                 }
             }
 
-            assert(pos == num_unitigs - 1);
+            assert(pos == num_unitigs);
             out.close();
             idx.m_u2c.build(&u2c_builder);
 
@@ -244,12 +245,21 @@ struct index<ColorClasses>::differential_builder {
             } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
         }
 
+        { essentials::logger("step 6. copying filenames"); }
+
         if (m_build_config.check) {
-            essentials::logger("step 5. check correctness...");
+            essentials::logger("step 7. check correctness...");
 
             for (uint64_t color_id = 0; color_id < num_color_classes; color_id++) {
                 auto exp_it = index.colors(permutation[color_id].second);
                 auto res_it = idx.colors(color_id);
+                if (res_it.size() != exp_it.size()) {
+                    cout << "Error while checking color " << color_id
+                         << ", different sizes: expected " << exp_it.size() << " but got "
+                         << res_it.size() << ")\n";
+                    continue;
+                }
+                cout << color_id << " -> "<<permutation[color_id].second << '\n';
                 for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
                     auto exp = *exp_it;
                     auto got = *res_it;
@@ -259,8 +269,44 @@ struct index<ColorClasses>::differential_builder {
                              << " but got " << got << std::endl;
                     }
                 }
-                if (*res_it < index.num_docs()) {
-                    cout << "Error while checking color " << color_id << ", different sizes\n";
+            }
+            cout << " COLORS DONE.\n";
+
+            for (uint64_t unitig_id = 0; unitig_id < idx.m_k2u.num_contigs(); ++unitig_id) {
+                auto it = idx.get_k2u().at_contig_id(unitig_id);
+                while (it.has_next()) {
+                    auto [_, kmer] = it.next();
+                    uint64_t new_contig_id = idx.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+                    if (new_contig_id != unitig_id) {
+                        std::cout << "expected " << unitig_id << " but found " << new_contig_id
+                                  << std::endl;
+                        continue;
+                    }
+                    uint64_t old_contig_id =
+                        index.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+
+                    uint64_t new_color_id = idx.u2c(new_contig_id);
+                    // The +1 solves the mismatch error but causes an assertion to fail
+                    uint64_t old_color_id = index.u2c(old_contig_id + 1);
+                    // cout << "[" << unitig_id << "] " << new_color_id << " -> " << permutation[new_color_id].second << " (got: "<< old_color_id <<")\n";
+
+                    auto exp_it = index.colors(old_color_id);
+                    auto res_it = idx.colors(new_color_id);
+                    if (res_it.size() != exp_it.size()) {
+                        std::cout << "Error while checking color " << new_color_id
+                                  << ", different sizes: expected " << exp_it.size() << " but got "
+                                  << res_it.size() << std::endl;
+                        continue;
+                    }
+                    for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
+                        auto exp = *exp_it;
+                        auto got = *res_it;
+                        if (exp != got) {
+                            std::cout << "Error while checking color " << new_color_id
+                                      << ", mismatch at position " << j << ": expected " << exp
+                                      << " but got " << got << std::endl;
+                        }
+                    }
                 }
             }
         }

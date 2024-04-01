@@ -28,6 +28,10 @@ void differential_coloring(build_configuration const& build_config) {
     typename differential_index_type::differential_builder builder(build_config);
     builder.build(index);
 
+    index.print_stats();
+
+
+
 }
 
 int build(int argc, char** argv) {

@@ -21,7 +21,7 @@ constexpr uint64_t default_ram_limit_in_GiB = 8;
 static const std::string default_tmp_dirname(".");
 static const std::string fulgor_filename_extension("fur");
 static const std::string meta_colored_fulgor_filename_extension("mfur");
-static const std::string differential_colored_fulgor_filename_extension("mfur");
+static const std::string diff_colored_fulgor_filename_extension("dfur");
 }  // namespace constants
 
 struct build_configuration {

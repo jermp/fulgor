@@ -24,14 +24,26 @@ void partition(build_configuration const& build_config) {
 }
 
 void differential_coloring(build_configuration const& build_config) {
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+    timer.start();
+
     differential_index_type index;
     typename differential_index_type::differential_builder builder(build_config);
     builder.build(index);
-
     index.print_stats();
 
+    timer.stop();
+    essentials::logger("DONE");
+    std::cout << "** building the index took " << timer.elapsed() << " seconds / "
+              << timer.elapsed() / 60 << " minutes" << std::endl;
 
-
+    std::string output_filename = build_config.index_filename_to_differentiate.substr(
+                                      0, build_config.index_filename_to_differentiate.length() -
+                                             constants::fulgor_filename_extension.length() - 1) +
+                                  "." + constants::diff_colored_fulgor_filename_extension;
+    essentials::logger("saving index to disk...");
+    essentials::save(index, output_filename.c_str());
+    essentials::logger("DONE");
 }
 
 int build(int argc, char** argv) {

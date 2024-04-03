@@ -200,17 +200,17 @@ struct index<ColorClasses>::differential_builder {
                 auto [_, old_color_id] = permutation[new_color_id];
                 uint64_t old_unitig_id_end = num_unitigs;
                 if (old_color_id < num_color_classes -1 ){
-                    old_unitig_id_end = d.select(index.get_u2c(), old_color_id);
+                    old_unitig_id_end = d.select(index.get_u2c(), old_color_id) + 1;
                 }
                 uint64_t old_unitig_id_begin = 0;
                 if (old_color_id > 0) {
-                    old_unitig_id_begin = d.select(index.get_u2c(), old_color_id - 1);
+                    old_unitig_id_begin = d.select(index.get_u2c(), old_color_id - 1) + 1;
                 }
 
                 // num. unitigs that have the same color
                 pos += old_unitig_id_end - old_unitig_id_begin;
-                cout << "[" << new_color_id << "] " << pos << "\n";
-                assert(pos-1 <= u2c_builder.size());
+                // cout << "[" << new_color_id << "] " << pos << "\n";
+                assert(pos-1 < u2c_builder.size());
 
                 u2c_builder.set(pos-1, 1);
 
@@ -240,6 +240,7 @@ struct index<ColorClasses>::differential_builder {
             sshash_config.tmp_dirname = m_build_config.tmp_dirname;
             sshash_config.print();
             idx.m_k2u.build(permuted_unitigs_filename, sshash_config);
+            assert(idx.get_k2u().size() == dict.size());
             try {  // remove unitig file
                 std::remove(permuted_unitigs_filename.c_str());
             } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
@@ -259,7 +260,6 @@ struct index<ColorClasses>::differential_builder {
                          << res_it.size() << ")\n";
                     continue;
                 }
-                cout << color_id << " -> "<<permutation[color_id].second << '\n';
                 for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
                     auto exp = *exp_it;
                     auto got = *res_it;
@@ -286,9 +286,8 @@ struct index<ColorClasses>::differential_builder {
                         index.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
 
                     uint64_t new_color_id = idx.u2c(new_contig_id);
-                    // The +1 solves the mismatch error but causes an assertion to fail
-                    uint64_t old_color_id = index.u2c(old_contig_id + 1);
-                    // cout << "[" << unitig_id << "] " << new_color_id << " -> " << permutation[new_color_id].second << " (got: "<< old_color_id <<")\n";
+                    uint64_t old_color_id = index.u2c(old_contig_id);
+                    // cout << "[" << new_contig_id << "] " << new_color_id << " -> " << old_color_id << " (got: "<< permutation[new_color_id].second <<")\n";
 
                     auto exp_it = index.colors(old_color_id);
                     auto res_it = idx.colors(new_color_id);

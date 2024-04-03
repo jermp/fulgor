@@ -176,3 +176,45 @@ int partition(int argc, char** argv) {
 
     return 0;
 }
+
+
+int diff(int argc, char** argv){
+    cmd_line_parser::parser parser(argc, argv);
+    parser.add("index_filename", "The Fulgor index filename to partition.", "-i", true);
+    parser.add(
+        "tmp_dirname",
+        "Temporary directory used for construction in external memory. Default is directory '" +
+            constants::default_tmp_dirname + "'.",
+        "-d", false);
+    parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
+    parser.add("check", "Check correctness after index construction (it might take some time).",
+               "--check", false, true);
+
+    if (!parser.parse()) return 1;
+    util::print_cmd(argc, argv);
+
+    build_configuration build_config;
+    build_config.index_filename_to_differentiate = parser.get<std::string>("index_filename");
+    if (!sshash::util::ends_with(build_config.index_filename_to_differentiate,
+                                 "." + constants::fulgor_filename_extension)) {
+        std::cerr << "Error: the file to partition must have extension \"."
+                  << constants::fulgor_filename_extension
+                  << "\". Have you first built a Fulgor index with the tool \"build\"?"
+                  << std::endl;
+        return 1;
+    }
+
+    if (parser.parsed("tmp_dirname")) {
+        build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");
+        essentials::create_directory(build_config.tmp_dirname);
+    }
+    if (parser.parsed("num_threads")) {
+        build_config.num_threads = parser.get<uint64_t>("num_threads");
+    }
+    build_config.check = parser.get<bool>("check");
+
+    differential_coloring(build_config);
+
+
+    return 0;
+}

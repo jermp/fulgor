@@ -246,7 +246,15 @@ struct index<ColorClasses>::differential_builder {
             } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
         }
 
-        { essentials::logger("step 6. copying filenames"); }
+        {
+            essentials::logger("step 6. building filenames");
+            timer.start();
+            idx.m_filenames = index.get_filenames();
+            timer.stop();
+            std::cout << "** building filenames took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
 
         if (m_build_config.check) {
             essentials::logger("step 7. check correctness...");

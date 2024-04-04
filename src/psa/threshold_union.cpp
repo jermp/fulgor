@@ -1,7 +1,7 @@
 #include <numeric>  // for std::accumulate
 
-#include "index.hpp"
-#include "../external/sshash/include/query/streaming_query_canonical_parsing.hpp"
+#include "include/index.hpp"
+#include "external/sshash/include/query/streaming_query_canonical_parsing.hpp"
 
 namespace fulgor {
 
@@ -11,7 +11,7 @@ struct scored {
     uint32_t score;
 };
 
-typedef scored<uint32_t> scored_id;
+typedef scored<uint64_t> scored_id;
 
 template <typename Iterator>
 void merge(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../external/sshash/include/dictionary.hpp"
+#include "external/sshash/include/dictionary.hpp"
 #include "ranked_bit_vector.hpp"
 #include "filenames.hpp"
 #include "util.hpp"
@@ -27,7 +27,7 @@ struct index {
     void pseudoalign_threshold_union(std::string const& sequence, std::vector<uint32_t>& results,
                                      const double threshold) const;
 
-    void intersect_unitigs(std::vector<uint32_t>& unitig_ids, std::vector<uint32_t>& colors) const;
+    void intersect_unitigs(std::vector<uint64_t>& unitig_ids, std::vector<uint32_t>& colors) const;
 
     std::string_view filename(uint64_t doc_id) const {
         assert(doc_id < num_docs());

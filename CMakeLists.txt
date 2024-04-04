@@ -47,11 +47,13 @@ if (UNIX)
 
 endif()
 
-include_directories(include)
+include_directories(.)
+include_directories(external/sshash/external/pthash)
+include_directories(external/sshash/external/pthash/external/essentials/include)
+include_directories(external/sshash)
 include_directories(external/FQFeeder/include)
 include_directories(external/sketch/include)
 include_directories(external/sketch/include/blaze)
-include_directories(external/kmeans/include)
 
 ## GGCAT ####
 

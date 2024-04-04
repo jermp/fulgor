@@ -1,6 +1,6 @@
 #include "hit_searcher.hpp"
-#include "../external/sshash/include/bit_vector_iterator.hpp"
-#include "../external/sshash/include/constants.hpp"
+#include "external/sshash/include/bit_vector_iterator.hpp"
+#include "external/sshash/include/constants.hpp"
 
 #include <cmath>
 #include <limits>
@@ -110,7 +110,7 @@ struct SkipContext {
                 phits.contigOrientation_ =
                     (lookup.kmer_orientation == sshash::constants::forward_orientation);
             } else {
-                phits.contigIdx_ = sshash::constants::invalid_uint32;
+                phits.contigIdx_ = sshash::constants::invalid_uint64;
             }
             last_lookup_offset = kit1->second;
         } else {

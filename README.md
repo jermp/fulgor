@@ -5,7 +5,7 @@ Fulgor is a *(meta-) colored compacted de Bruijn graph* index for large-scale ma
 
 The Fulgor index is described in the following papers:
 
-- [**Fulgor: A Fast and Compact k-mer Index for Large-Scale Matching and Color Queries**](https://almob.biomedcentral.com/articles/10.1186/s13015-024-00251-9) (Algorithms for Molecular Biology, ALMOB 2024):
+- [**Fulgor: A Fast and Compact k-mer Index for Large-Scale Matching and Color Queries**](https://almob.biomedcentral.com/articles/10.1186/s13015-024-00251-9) (Algorithms for Molecular Biology, ALMOB 2024), and
 <!--	- [WABI 2023 version](https://drops.dagstuhl.de/opus/volltexte/2023/18644/)-->
 
 - [**Meta-colored compacted de Bruijn graphs**](https://www.biorxiv.org/content/10.1101/2023.07.21.550101v2.full.pdf) (International Conference on Research in Computational Molecular Biology, RECOMB 2024).

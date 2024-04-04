@@ -22,10 +22,10 @@ struct differential {
         void encode_reference(std::vector<uint32_t> const& reference) {
             uint64_t size = reference.size();
             util::write_delta(m_bvb, size);
-            m_num_total_integers += size + 1; // size plus size number
+            m_num_total_integers += size + 1;  // size plus size number
             m_num_lists += 1;
 
-            if (size > 0){
+            if (size > 0) {
                 uint32_t prev_val = reference[0];
                 util::write_delta(m_bvb, prev_val);
 
@@ -90,10 +90,10 @@ struct differential {
             uint64_t size = edit_list.size();
             util::write_delta(m_bvb, size);
             util::write_delta(m_bvb, it.size());
-            m_num_total_integers += size+2; // size plus edit_list size plus original list size
+            m_num_total_integers += size + 2;  // size plus edit_list size plus original list size
             m_num_lists += 1;
 
-            if (size > 0){
+            if (size > 0) {
                 uint32_t prev_val = edit_list[0];
                 util::write_delta(m_bvb, prev_val);
 
@@ -172,9 +172,7 @@ struct differential {
             update_curr_val();
         }
 
-        uint32_t size(){
-            return m_size;
-        }
+        uint32_t size() { return m_size; }
 
         uint64_t value() const { return m_curr_val; }
         uint64_t operator*() const { return value(); }
@@ -256,7 +254,22 @@ struct differential {
     }
 
     void print_stats() const {
+        std::cout << "Color statistics:\n";
+        std::cout << "  Number of partitions: " << m_clusters.num_ones() + 1 << std::endl;
 
+        uint64_t num_reference_offsets = m_reference_offsets.num_bits();
+        uint64_t num_list_offsets = m_list_offsets.num_bits();
+        uint64_t num_colors = essentials::vec_bytes(m_colors) * 8;
+        uint64_t num_clusters = m_clusters.size();
+
+        std::cout << "  reference offsets: " << num_reference_offsets / 8 << " bytes ("
+                  << (num_reference_offsets * 100.0) / num_bits() << "%)" << std::endl;
+        std::cout << "  edit list offsets: " << num_list_offsets / 8 << " bytes ("
+                  << (num_list_offsets * 100.0) / num_bits() << "%)" << std::endl;
+        std::cout << "  differential colors: " << num_colors / 8 << " bytes ("
+                  << (num_colors * 100.0) / num_bits() << "%)" << std::endl;
+        std::cout << "  clusters: " << num_clusters / 8 << " bytes ("
+                  << (num_clusters * 100.0) / num_bits() << "%)" << std::endl;
     }
 
     template <typename Visitor>

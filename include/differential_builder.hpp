@@ -233,9 +233,9 @@ struct index<ColorClasses>::differential_builder {
 
             /* build a new sshash::dictionary on the permuted unitigs */
             sshash::build_configuration sshash_config;
-            sshash_config.k = m_build_config.k;
-            sshash_config.m = m_build_config.m;
-            sshash_config.canonical_parsing = m_build_config.canonical_parsing;
+            sshash_config.k = dict.k();
+            sshash_config.m = dict.m();
+            sshash_config.canonical_parsing = dict.canonicalized();
             sshash_config.verbose = m_build_config.verbose;
             sshash_config.tmp_dirname = m_build_config.tmp_dirname;
             sshash_config.print();

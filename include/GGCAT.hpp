@@ -3,7 +3,7 @@
 #include <functional>
 #include <vector>
 
-#include "../external/ggcat/crates/capi/ggcat-cpp-api/include/ggcat.hh"
+#include "external/ggcat/crates/capi/ggcat-cpp-api/include/ggcat.hh"
 #include "util.hpp"
 
 namespace fulgor {

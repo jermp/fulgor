@@ -176,7 +176,11 @@ struct index<ColorClasses>::meta_builder {
             uint64_t partition_id = 0;
             uint32_t meta_color_list_size = 0;
 
-            std::vector<std::unordered_map<__uint128_t, uint32_t>> hashes;  // (hash, id)
+            std::vector<std::unordered_map<__uint128_t,            // key
+                                           uint32_t,               // value
+                                           util::hasher_uint128_t  // key's hasher
+                                           >>
+                hashes;  // (hash, id)
             hashes.resize(num_partitions);
 
             auto hash_and_compress = [&]() {
@@ -345,8 +349,8 @@ struct index<ColorClasses>::meta_builder {
                  ++color_class_id) {
                 auto it_exp = index.colors(color_class_id);
                 auto it_got = idx.colors(color_class_id);
-                uint64_t exp_size = it_exp.size();
-                uint64_t got_size = it_got.size();
+                const uint64_t exp_size = it_exp.size();
+                const uint64_t got_size = it_got.size();
 
                 if (exp_size != got_size) {
                     std::cout << "got colors list of size " << got_size << " but expected "

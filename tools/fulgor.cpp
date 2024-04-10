@@ -4,6 +4,7 @@
 #include "include/index_types.hpp"
 #include "src/index.cpp"
 #include "external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
+#include "include/cluster_builder.hpp"
 
 #include "util.cpp"
 #include "build.cpp"
@@ -30,6 +31,7 @@ int help(char* arg0) {
         << "Advanced tools:\n"
         << "  permute            permute the reference names of a Fulgor index\n"
         << "  partition          partition a Fulgor index and build a meta-colored Fulgor index\n"
+        << "  differential       partition a Fulgor index and build a differential-colored Fulgor index\n"
         << "  dump-colors        write colors to an output file in text format" << std::endl;
 
     return 1;
@@ -49,8 +51,6 @@ int main(int argc, char** argv) {
         return stats(argc - 1, argv + 1);
     } else if (tool == "print-filenames") {
         return print_filenames(argc - 1, argv + 1);
-    } else if (tool == "cluster") {
-        return cluster(argc - 1, argv + 1);
     }
 
     /* advanced tools */
@@ -58,6 +58,8 @@ int main(int argc, char** argv) {
         return permute(argc - 1, argv + 1);
     } else if (tool == "partition") {
         return partition(argc - 1, argv + 1);
+    } else if (tool == "differential") {
+        return diff(argc - 1, argv + 1);
     } else if (tool == "dump-colors") {
         return dump_colors(argc - 1, argv + 1);
     }

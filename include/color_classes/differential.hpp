@@ -37,7 +37,6 @@ struct differential {
                 }
             }
             m_reference_offsets.push_back(m_bvb.num_bits());
-            m_list_offsets[0] = m_bvb.num_bits();
         }
 
         void encode_list(uint64_t cluster_id, std::vector<uint32_t> const& reference,
@@ -105,7 +104,8 @@ struct differential {
                 }
             }
 
-            m_list_offsets.push_back(m_bvb.num_bits());
+            uint64_t last_offset = m_reference_offsets[m_reference_offsets.size() - 1];
+            m_list_offsets.push_back(m_bvb.num_bits() - last_offset);
         }
 
         void build(differential& d) {
@@ -240,12 +240,14 @@ struct differential {
 
     forward_iterator colors(uint64_t color_id) const {
         assert(color_id < num_color_classes());
-        uint64_t list_begin = m_list_offsets.access(color_id);
+        uint64_t last_reference = m_reference_offsets.access(num_clusters());
+        uint64_t list_begin = m_list_offsets.access(color_id) + last_reference;
         uint64_t reference_begin = m_reference_offsets.access(m_clusters.rank(color_id));
         return forward_iterator(this, list_begin, reference_begin);
     }
 
     uint64_t num_color_classes() const { return m_list_offsets.size() - 1; }
+    uint64_t num_clusters() const { return m_clusters.num_ones() + 1; }
     uint64_t num_docs() const { return m_num_docs; }
 
     uint64_t num_bits() const {
@@ -255,7 +257,7 @@ struct differential {
 
     void print_stats() const {
         std::cout << "Color statistics:\n";
-        std::cout << "  Number of partitions: " << m_clusters.num_ones() + 1 << std::endl;
+        std::cout << "  Number of partitions: " << num_clusters() << std::endl;
 
         uint64_t num_reference_offsets = m_reference_offsets.num_bits();
         uint64_t num_list_offsets = m_list_offsets.num_bits();

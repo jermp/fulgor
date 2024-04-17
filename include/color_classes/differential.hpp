@@ -37,7 +37,6 @@ struct differential {
                 }
             }
             m_reference_offsets.push_back(m_bvb.num_bits());
-            m_list_offsets[0] = m_bvb.num_bits();
         }
 
         void encode_list(uint64_t cluster_id, std::vector<uint32_t> const& reference,
@@ -105,7 +104,8 @@ struct differential {
                 }
             }
 
-            m_list_offsets.push_back(m_bvb.num_bits());
+            uint64_t last_offset = m_reference_offsets[m_reference_offsets.size() - 1];
+            m_list_offsets.push_back(m_bvb.num_bits() - last_offset);
         }
 
         void build(differential& d) {
@@ -240,12 +240,14 @@ struct differential {
 
     forward_iterator colors(uint64_t color_id) const {
         assert(color_id < num_color_classes());
-        uint64_t list_begin = m_list_offsets.access(color_id);
+        uint64_t last_reference = m_reference_offsets.access(num_partitions());
+        uint64_t list_begin = m_list_offsets.access(color_id) + last_reference;
         uint64_t reference_begin = m_reference_offsets.access(m_clusters.rank(color_id));
         return forward_iterator(this, list_begin, reference_begin);
     }
 
     uint64_t num_color_classes() const { return m_list_offsets.size() - 1; }
+    uint64_t num_partitions() const { return m_clusters.num_ones() + 1; }
     uint64_t num_docs() const { return m_num_docs; }
 
     uint64_t num_bits() const {
@@ -255,21 +257,78 @@ struct differential {
 
     void print_stats() const {
         std::cout << "Color statistics:\n";
-        std::cout << "  Number of partitions: " << m_clusters.num_ones() + 1 << std::endl;
+        std::cout << "  Number of partitions: " << num_partitions() << std::endl;
 
         uint64_t num_reference_offsets = m_reference_offsets.num_bits();
         uint64_t num_list_offsets = m_list_offsets.num_bits();
         uint64_t num_colors = essentials::vec_bytes(m_colors) * 8;
         uint64_t num_clusters = m_clusters.size();
 
+        uint64_t num_references = 0;
+        uint64_t num_edit_lists = 0;
+        uint64_t num_metadata = 0;
+
+        std::vector<uint64_t> distribution(11, 0);
+
+        for (uint64_t reference_id = 0; reference_id < num_partitions(); reference_id++) {
+            uint64_t reference_begin = m_reference_offsets.access(reference_id);
+            auto it = bit_vector_iterator(m_colors.data(), m_colors.size(), reference_begin);
+            uint64_t prev_position = it.position();
+
+            uint64_t size = util::read_delta(it);
+            num_metadata += it.position() - prev_position;
+            prev_position = it.position();
+
+            for (uint64_t i = 0; i < size; i++) {
+                util::read_delta(it);
+                num_references += it.position() - prev_position;
+                prev_position = it.position();
+            }
+        }
+        uint64_t last_reference = m_reference_offsets.access(num_partitions());
+        for (uint64_t color_id = 0; color_id < num_color_classes(); color_id++) {
+            uint64_t list_begin = m_list_offsets.access(color_id) + last_reference;
+            auto it = bit_vector_iterator(m_colors.data(), m_colors.size(), list_begin);
+            uint64_t prev_position = it.position();
+
+            uint64_t size = util::read_delta(it);
+            num_metadata += it.position() - prev_position;
+            prev_position = it.position();
+
+            util::read_delta(it); // original list size
+            num_metadata += it.position() - prev_position;
+            prev_position = it.position();
+
+            for (uint64_t i = 0; i < size; i++) {
+                util::read_delta(it);
+                num_edit_lists += it.position() - prev_position;
+                prev_position = it.position();
+            }
+
+            uint64_t q = size/(num_docs()/10) > 10 ? 10 : size/(num_docs()/10);
+
+            distribution[q]++;
+        }
+
         std::cout << "  reference offsets: " << num_reference_offsets / 8 << " bytes ("
                   << (num_reference_offsets * 100.0) / num_bits() << "%)" << std::endl;
         std::cout << "  edit list offsets: " << num_list_offsets / 8 << " bytes ("
                   << (num_list_offsets * 100.0) / num_bits() << "%)" << std::endl;
-        std::cout << "  differential colors: " << num_colors / 8 << " bytes ("
-                  << (num_colors * 100.0) / num_bits() << "%)" << std::endl;
         std::cout << "  clusters: " << num_clusters / 8 << " bytes ("
                   << (num_clusters * 100.0) / num_bits() << "%)" << std::endl;
+        std::cout << "  differential colors: " << num_colors / 8 << " bytes ("
+                  << (num_colors * 100.0) / num_bits() << "%)" << std::endl;
+        std::cout << "    references: " << num_references / 8 << " bytes ("
+                  << (num_references * 100.0) / num_colors << "%)" << std::endl;
+        std::cout << "    edit lists: " << num_edit_lists / 8 << " bytes ("
+                  << (num_edit_lists * 100.0) / num_colors << "%)" << std::endl;
+        std::cout << "    metadata: " << num_metadata / 8 << " bytes ("
+                  << (num_metadata * 100.0) / num_colors << "%)" << std::endl;
+        std::cout << "  edit lists size distribution: ";
+        for (uint64_t q: distribution){
+            std::cout << q << " ";
+        }
+        std::cout << std::endl;
     }
 
     template <typename Visitor>

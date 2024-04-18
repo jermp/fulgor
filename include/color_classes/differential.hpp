@@ -268,7 +268,11 @@ struct differential {
         uint64_t num_edit_lists = 0;
         uint64_t num_metadata = 0;
 
+        uint64_t num_docs_tenth = num_docs()/10;
+
         std::vector<uint64_t> distribution(11, 0);
+        std::vector<uint64_t> distribution_0_10(num_docs_tenth,0);
+        std::vector<uint64_t> distribution_0_10_bits(num_docs_tenth,0);
 
         for (uint64_t reference_id = 0; reference_id < num_partitions(); reference_id++) {
             uint64_t reference_begin = m_reference_offsets.access(reference_id);
@@ -299,13 +303,21 @@ struct differential {
             num_metadata += it.position() - prev_position;
             prev_position = it.position();
 
+            uint64_t curr_edit_list_size = 0;
             for (uint64_t i = 0; i < size; i++) {
                 util::read_delta(it);
-                num_edit_lists += it.position() - prev_position;
+                uint64_t delta_size = it.position() - prev_position;
+                num_edit_lists += delta_size;
+                curr_edit_list_size += delta_size;
+
                 prev_position = it.position();
             }
 
-            uint64_t q = size/(num_docs()/10) > 10 ? 10 : size/(num_docs()/10);
+            uint64_t q = size/(num_docs_tenth) > 10 ? 10 : size/(num_docs_tenth);
+            if (q == 0){
+                distribution_0_10[size]++;
+                distribution_0_10_bits[size] += curr_edit_list_size;
+            }
 
             distribution[q]++;
         }
@@ -324,10 +336,16 @@ struct differential {
                   << (num_edit_lists * 100.0) / num_colors << "%)" << std::endl;
         std::cout << "    metadata: " << num_metadata / 8 << " bytes ("
                   << (num_metadata * 100.0) / num_colors << "%)" << std::endl;
-        std::cout << "  edit lists size distribution: ";
-        for (uint64_t q: distribution){
-            std::cout << q << " ";
+        std::cout << "  edit lists size distribution:" << std::endl;
+        for (uint64_t partition = 0; partition < 11; partition++){
+            std::cout << "    range " << partition * num_docs_tenth << " -> " << (partition+1) * num_docs_tenth-1 << ": " << distribution[partition] << std::endl;
         }
+        std::cout << "  edit lists size distribution, detail 0% - 10%:" << std::endl;
+        for (uint64_t length = 0; length < distribution_0_10.size(); length++){
+            std::cout << "    [" << length << "] num_edit_lists: " << distribution_0_10[length] << ", num_bits: "<< distribution_0_10_bits[length] <<
+                " (" << distribution_0_10_bits[length]*100.0 / num_edit_lists << "%), bits/int: " << 1.*distribution_0_10_bits[length] / distribution_0_10[length] / length << std::endl;
+        }
+
         std::cout << std::endl;
     }
 

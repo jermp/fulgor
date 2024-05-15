@@ -14,6 +14,7 @@ struct index {
     struct builder;
     struct meta_builder;
     struct differential_builder;
+    struct meta_differential_builder;
 
     typename color_classes_type::iterator_type colors(uint64_t color_class_id) const {
         assert(color_class_id < num_color_classes());

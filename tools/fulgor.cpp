@@ -60,6 +60,8 @@ int main(int argc, char** argv) {
         return partition(argc - 1, argv + 1);
     } else if (tool == "differential") {
         return diff(argc - 1, argv + 1);
+    } else if (tool == "meta-differential") {
+        return meta_diff(argc - 1, argv + 1);
     } else if (tool == "dump-colors") {
         return dump_colors(argc - 1, argv + 1);
     }

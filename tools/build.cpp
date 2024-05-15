@@ -37,8 +37,31 @@ void differential_coloring(build_configuration const& build_config) {
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
-    std::string output_filename = build_config.index_filename_to_differentiate.substr(
-                                      0, build_config.index_filename_to_differentiate.length() -
+    std::string output_filename = build_config.index_filename_to_partition.substr(
+                                      0, build_config.index_filename_to_partition.length() -
+                                             constants::fulgor_filename_extension.length() - 1) +
+                                  "." + constants::diff_colored_fulgor_filename_extension;
+    essentials::logger("saving index to disk...");
+    essentials::save(index, output_filename.c_str());
+    essentials::logger("DONE");
+}
+
+void meta_differential_coloring(build_configuration const& build_config) {
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+    timer.start();
+
+    meta_differential_index_type index;
+    typename meta_differential_index_type::meta_differential_builder builder(build_config);
+    builder.build(index);
+    index.print_stats();
+
+    timer.stop();
+    essentials::logger("DONE");
+    std::cout << "** building the index took " << timer.elapsed() << " seconds / "
+              << timer.elapsed() / 60 << " minutes" << std::endl;
+
+    std::string output_filename = build_config.index_filename_to_partition.substr(
+                                      0, build_config.index_filename_to_partition.length() -
                                              constants::fulgor_filename_extension.length() - 1) +
                                   "." + constants::diff_colored_fulgor_filename_extension;
     essentials::logger("saving index to disk...");
@@ -130,13 +153,16 @@ int build(int argc, char** argv) {
     essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");
 
-    if (meta_colored) {
+    if (meta_colored && diff_colored) {
+        build_config.index_filename_to_partition = output_filename;
+        meta_differential_coloring(build_config);
+    }
+    else if (meta_colored) {
         build_config.index_filename_to_partition = output_filename;
         partition(build_config);
     }
-
-    if (diff_colored) {
-        build_config.index_filename_to_differentiate = output_filename;
+    else if (diff_colored) {
+        build_config.index_filename_to_partition = output_filename;
         differential_coloring(build_config);
     }
 
@@ -184,7 +210,7 @@ int partition(int argc, char** argv) {
 }
 
 
-int diff(int argc, char** argv){
+int diff(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("index_filename", "The Fulgor index filename to partition.", "-i", true);
     parser.add(
@@ -200,8 +226,8 @@ int diff(int argc, char** argv){
     util::print_cmd(argc, argv);
 
     build_configuration build_config;
-    build_config.index_filename_to_differentiate = parser.get<std::string>("index_filename");
-    if (!sshash::util::ends_with(build_config.index_filename_to_differentiate,
+    build_config.index_filename_to_partition = parser.get<std::string>("index_filename");
+    if (!sshash::util::ends_with(build_config.index_filename_to_partition,
                                  "." + constants::fulgor_filename_extension)) {
         std::cerr << "Error: the file to partition must have extension \"."
                   << constants::fulgor_filename_extension
@@ -221,6 +247,46 @@ int diff(int argc, char** argv){
 
     differential_coloring(build_config);
 
+
+    return 0;
+}
+
+int meta_diff(int argc, char** argv){
+    cmd_line_parser::parser parser(argc, argv);
+    parser.add("index_filename", "The Fulgor index filename to partition.", "-i", true);
+    parser.add(
+        "tmp_dirname",
+        "Temporary directory used for construction in external memory. Default is directory '" +
+            constants::default_tmp_dirname + "'.",
+        "-d", false);
+    parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
+    parser.add("check", "Check correctness after index construction (it might take some time).",
+               "--check", false, true);
+
+    if (!parser.parse()) return 1;
+    util::print_cmd(argc, argv);
+
+    build_configuration build_config;
+    build_config.index_filename_to_partition = parser.get<std::string>("index_filename");
+    if (!sshash::util::ends_with(build_config.index_filename_to_partition,
+                                 "." + constants::meta_colored_fulgor_filename_extension)) {
+        std::cerr << "Error: the file to partition must have extension \"."
+                  << constants::meta_colored_fulgor_filename_extension
+                  << "\". Have you first built a Fulgor index with the tool \"build\"?"
+                  << std::endl;
+        return 1;
+    }
+
+    if (parser.parsed("tmp_dirname")) {
+        build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");
+        essentials::create_directory(build_config.tmp_dirname);
+    }
+    if (parser.parsed("num_threads")) {
+        build_config.num_threads = parser.get<uint64_t>("num_threads");
+    }
+    build_config.check = parser.get<bool>("check");
+
+    meta_differential_coloring(build_config);
 
     return 0;
 }

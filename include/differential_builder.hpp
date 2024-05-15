@@ -149,7 +149,7 @@ struct index<ColorClasses>::differential_builder {
 
         index_type index;
         essentials::logger("step 1. loading index to be differentiated...");
-        essentials::load(index, m_build_config.index_filename_to_differentiate.c_str());
+        essentials::load(index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");
 
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;

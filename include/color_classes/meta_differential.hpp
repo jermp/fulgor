@@ -2,9 +2,9 @@
 
 namespace fulgor {
 
-template <typename ColorClasses>
-struct meta {
+struct meta_differential {
     static const bool meta_colored = true;
+    static const bool differential_colored = true;
 
     struct partition_endpoint {
         template <typename Visitor>
@@ -19,61 +19,14 @@ struct meta {
     struct builder {
         builder() : m_offset(0) { m_meta_colors_offsets.push_back(0); }
 
-        void init_meta_colors_builder(uint64_t num_integers_in_metacolors, uint64_t num_color_lists,
-                                      std::vector<uint32_t> const& partition_sizes,
-                                      std::vector<uint32_t> const& num_lists_in_partitions) {
-            m_meta_colors_builder.resize(num_integers_in_metacolors,
-                                         std::ceil(std::log2(num_color_lists)));
-            m_partition_endpoints.reserve(num_lists_in_partitions.size());
-            assert(partition_sizes.front() == 0);
-            m_partition_endpoints.push_back({partition_sizes[0], 0});
-            for (uint32_t i = 0, val = 0; i != num_lists_in_partitions.size(); ++i) {
-                val += num_lists_in_partitions[i];
-                m_partition_endpoints.push_back({partition_sizes[i + 1], val});
-            }
-        }
 
-        void init_colors_builder(uint64_t num_docs, uint64_t num_partitions) {
-            m_num_docs = num_docs;
-            m_colors_builders.resize(num_partitions);
-        }
+        void build(meta_differential& m) {
 
-        void init_color_partition(uint64_t partition_id, uint64_t num_docs_in_partition) {
-            assert(partition_id < m_colors_builders.size());
-            m_colors_builders[partition_id].init(num_docs_in_partition);
-        }
-
-        void process_colors(uint64_t partition_id, uint32_t const* colors, uint64_t list_size) {
-            assert(partition_id < m_colors_builders.size());
-            m_colors_builders[partition_id].process(colors, list_size);
-        }
-
-        void process_metacolors(uint32_t const* metacolors, uint64_t list_size) {
-            assert(list_size < (1ULL << m_meta_colors_builder.width()));
-            m_meta_colors_builder.push_back(list_size);
-            for (uint64_t i = 0; i != list_size; ++i) {
-                m_meta_colors_builder.push_back(metacolors[i]);
-            }
-            m_offset += list_size + 1;
-            m_meta_colors_offsets.push_back(m_offset);
-        }
-
-        void build(meta& m) {
-            m.m_num_docs = m_num_docs;
-            m_meta_colors_builder.build(m.m_meta_colors);
-            m.m_colors.resize(m_colors_builders.size());
-            for (uint64_t i = 0; i != m_colors_builders.size(); ++i) {
-                m_colors_builders[i].build(m.m_colors[i]);
-            }
-            m.m_meta_colors_offsets.encode(m_meta_colors_offsets.begin(),
-                                           m_meta_colors_offsets.size(),
-                                           m_meta_colors_offsets.back());
-            m.m_partition_endpoints.swap(m_partition_endpoints);
         }
 
     private:
         pthash::compact_vector::builder m_meta_colors_builder;
-        std::vector<typename ColorClasses::builder> m_colors_builders;
+        std::vector<hybrid::builder> m_colors_builders;
 
         uint64_t m_num_docs;
         uint64_t m_offset;
@@ -81,9 +34,9 @@ struct meta {
 
         std::vector<partition_endpoint> m_partition_endpoints;
     };
-
+    
     struct forward_iterator {
-        forward_iterator(meta<ColorClasses> const* ptr, uint64_t begin)
+        forward_iterator(meta_differential const* ptr, uint64_t begin)
             : m_ptr(ptr), m_begin(begin), m_meta_color_list_size((m_ptr->m_meta_colors)[m_begin]) {
             rewind();
         }
@@ -194,12 +147,10 @@ struct meta {
         uint32_t num_partitions() const { return m_ptr->num_partitions(); }
         uint32_t partition_lower_bound() const { return m_partition_lower_bound; }
         uint32_t partition_upper_bound() const { return m_partition_upper_bound; }
-        uint32_t num_lists_before() const { return m_ptr->m_partition_endpoints[m_partition_id].num_lists_before; }
-
 
     private:
-        meta<ColorClasses> const* m_ptr;
-        typename ColorClasses::iterator_type m_curr_partition_it;
+        meta_differential const* m_ptr;
+        hybrid::iterator_type m_curr_partition_it;
         uint64_t m_begin;
         uint32_t m_curr_meta_color, m_curr_val;
         uint32_t m_meta_color_list_size, m_pos_in_meta_color_list;
@@ -230,8 +181,6 @@ struct meta {
         return forward_iterator(this, begin);
     }
 
-    std::vector<ColorClasses> partial_colors() const { return m_colors; }
-
     uint32_t num_docs() const { return m_num_docs; }
 
     /* num. meta color lists */
@@ -247,23 +196,19 @@ struct meta {
                (essentials::vec_bytes(m_partition_endpoints) + sizeof(m_num_docs)) * 8;
     }
 
-    uint64_t num_max_lists_in_partition() const{
-        uint64_t max_size = 0;
-        for(auto color: m_colors){
-            max_size = max(max_size, color.num_color_classes());
-        }
-        return max_size;
-    }
+    std::vector<hybrid> partial_colors() const { return m_colors; }
 
     void print_stats() const {
         std::cout << "Color statistics:\n";
         std::cout << "  Number of partitions: " << num_partitions() << '\n';
         uint64_t colors_bits = 0;
+        uint64_t diff_colors_bits = 0;
 
         uint64_t num_partial_colors_very_dense = 0;
         uint64_t num_partial_colors_dense = 0;
         uint64_t num_partial_colors_sparse = 0;
         uint64_t num_total_partial_colors = 0;
+        uint64_t num_total_diff_colors = 0;
 
         for (auto const& c : m_colors) {
             // c.print_stats();
@@ -284,6 +229,10 @@ struct meta {
 
             colors_bits += c.num_bits();
         }
+        for (auto const& c : m_diff_colors) {
+            // c.print_stats();
+            diff_colors_bits += c.num_bits();
+        }
 
         std::cout << "  num_partial_colors_very_dense = " << num_partial_colors_very_dense << " / "
                   << num_total_partial_colors << " ("
@@ -300,11 +249,15 @@ struct meta {
 
         std::cout << "  partial colors: " << colors_bits / 8 << " bytes ("
                   << (colors_bits * 100.0) / num_bits() << "%)\n";
+        std::cout << "  differential partial colors: " << diff_colors_bits / 8 << " bytes ("
+                  << (diff_colors_bits * 100.0) / num_bits() << "%)\n";
         std::cout << "  meta colors: "
                   << m_meta_colors.bytes() + m_meta_colors_offsets.num_bits() / 8 << " bytes ("
                   << ((m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits()) * 100.0) /
                          num_bits()
                   << "%)\n";
+        std::cout << "  differential meta colors: " << m_diff_partitions.num_bits() / 8 << " bytes ("
+                  << (m_diff_partitions.num_bits() * 100.0) / num_bits() << "%)\n";
         std::cout << "  other: " << essentials::vec_bytes(m_partition_endpoints) << " bytes ("
                   << ((essentials::vec_bytes(m_partition_endpoints) * 8) * 100.0) / num_bits()
                   << "%)\n";
@@ -367,12 +320,14 @@ struct meta {
         visitor.visit(m_partition_endpoints);
     }
 
-private:
-    uint32_t m_num_docs;
+    std::vector<differential> m_diff_colors;
+    differential m_diff_partitions;
     pthash::compact_vector m_meta_colors;
     sshash::ef_sequence<false> m_meta_colors_offsets;
-    std::vector<ColorClasses> m_colors;
+private:
     std::vector<partition_endpoint> m_partition_endpoints;
+    uint32_t m_num_docs;
+    std::vector<hybrid> m_colors;
 };
 
-}  // namespace fulgor
+} // namespace fulgor

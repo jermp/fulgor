@@ -39,6 +39,69 @@ struct differential {
             m_reference_offsets.push_back(m_bvb.num_bits());
         }
 
+        void encode_list(uint64_t cluster_id, 
+                         std::vector<uint32_t> const& reference, 
+                         uint64_t it_size,
+                         function<void()> next,
+                         function<uint64_t()> get
+                         ) {
+            std::vector<uint32_t> edit_list;
+            uint64_t ref_size = reference.size();
+            edit_list.reserve(ref_size + it_size);
+
+            if (cluster_id != m_prev_cluster_id) {
+                m_prev_cluster_id = cluster_id;
+                m_clusters.set(m_clusters.size() - 1);
+            }
+            m_clusters.push_back(false);
+
+            uint64_t i = 0, j = 0;
+            while (i < it_size && j < ref_size) {
+                if (get() == reference[j]) {
+                    i += 1;
+                    j += 1;
+                    next();
+                } else if (get() < reference[j]) {
+                    edit_list.push_back(get());
+                    i += 1;
+                    next();
+                } else {
+                    edit_list.push_back(reference[j]);
+                    j += 1;
+                }
+            }
+            while (i < it_size) {
+                edit_list.push_back(get());
+                next();
+                i += 1;
+            }
+            while (j < ref_size) {
+                edit_list.push_back(reference[j]);
+                j += 1;
+            }
+
+            uint64_t size = edit_list.size();
+            util::write_delta(m_bvb, size);
+            util::write_delta(m_bvb, it_size);
+            m_num_total_integers += size + 2;  // size plus edit_list size plus original list size
+            m_num_lists += 1;
+
+            if (size > 0) {
+                uint32_t prev_val = edit_list[0];
+                util::write_delta(m_bvb, prev_val);
+
+                for (uint64_t pos = 1; pos < size; ++pos) {
+                    uint32_t val = edit_list[pos];
+                    assert(val >= prev_val + 1);
+                    util::write_delta(m_bvb, val - (prev_val + 1));
+                    prev_val = val;
+                }
+            }
+
+            uint64_t last_offset = m_reference_offsets[m_reference_offsets.size() - 1];
+            m_list_offsets.push_back(m_bvb.num_bits() - last_offset);
+        }
+
         void encode_list(uint64_t cluster_id, std::vector<uint32_t> const& reference,
                          hybrid::forward_iterator it) {
             /*
@@ -340,10 +403,12 @@ struct differential {
         for (uint64_t partition = 0; partition < 11; partition++){
             std::cout << "    range " << partition * num_docs_tenth << " -> " << (partition+1) * num_docs_tenth-1 << ": " << distribution[partition] << std::endl;
         }
+        uint64_t count = 0;
         std::cout << "  edit lists size distribution, detail 0% - 10%:" << std::endl;
-        for (uint64_t length = 0; length < distribution_0_10.size(); length++){
+        for (uint64_t length = 0; length < distribution_0_10.size() && count < distribution[0]; length++){
             std::cout << "    [" << length << "] num_edit_lists: " << distribution_0_10[length] << ", num_bits: "<< distribution_0_10_bits[length] <<
                 " (" << distribution_0_10_bits[length]*100.0 / num_edit_lists << "%), bits/int: " << 1.*distribution_0_10_bits[length] / distribution_0_10[length] / length << std::endl;
+            count += distribution_0_10[length];
         }
 
         std::cout << std::endl;

@@ -10,14 +10,46 @@ struct meta_differential {
         template <typename Visitor>
         void visit(Visitor& visitor) {
             visitor.visit(docid_lower_bound);
+            visitor.visit(num_lists);
             visitor.visit(num_lists_before);
         }
-        uint32_t docid_lower_bound;
-        uint32_t num_lists_before;
+        uint64_t docid_lower_bound;
+        uint64_t num_lists;
+        uint32_t num_lists_before; // TODO: deprecate
     };
 
     struct builder {
-        builder() : m_offset(0) { m_meta_colors_offsets.push_back(0); }
+        builder() : m_partition_id(0) { m_base_offsets.push_back(0); }
+
+        void init(uint64_t num_docs, uint64_t num_partitions) {
+            m_num_docs = num_docs;
+            m_partition_endpoints.reserve(num_partitions);
+            m_partial_colors.reserve(num_partitions);
+        }
+
+        void init_meta_color_bases(uint64_t num_bases){
+            m_num_bases = num_bases;
+            
+            m_bases.reserve(num_bases);
+            m_base_offsets.reserve(num_bases);
+        }
+
+        void process_meta_color_base(vector<uint64_t> base, uint64_t count){
+            m_bases.push_back(base);
+            m_base_offsets.push_back(count);
+        }
+
+        void process_partition(differential& d){
+            m_partial_colors.push_back(d);
+            m_partition_endpoints.push_back({d.num_docs(), d.num_color_classes(), 0});
+        }
+
+        void process_metacolors(uint64_t base_id, vector<uint64_t> relative_colors){
+            for(auto col: relative_colors){
+                cout << col << " ";
+            }
+            cout << endl;
+        }
 
 
         void build(meta_differential& m) {
@@ -25,16 +57,20 @@ struct meta_differential {
         }
 
     private:
-        pthash::compact_vector::builder m_meta_colors_builder;
-        std::vector<hybrid::builder> m_colors_builders;
+        std::vector<differential> m_partial_colors;
+        pthash::bit_vector_builder m_meta_colors_builder;
+        
+        std::vector<std::vector<uint64_t>> m_bases;
+        std::vector<uint64_t> m_base_offsets;
 
         uint64_t m_num_docs;
-        uint64_t m_offset;
-        std::vector<uint64_t> m_meta_colors_offsets;
+        uint64_t m_num_bases;
+
+        uint64_t m_partition_id;
 
         std::vector<partition_endpoint> m_partition_endpoints;
     };
-    
+
     struct forward_iterator {
         forward_iterator(meta_differential const* ptr, uint64_t begin)
             : m_ptr(ptr), m_begin(begin), m_meta_color_list_size((m_ptr->m_meta_colors)[m_begin]) {

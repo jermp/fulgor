@@ -172,8 +172,14 @@ struct index<ColorClasses>::differential_builder {
 
             for (auto& reference : references) { colors_builder.encode_reference(reference); }
             for (auto& [cluster_id, color_id] : permutation) {
-                colors_builder.encode_list(cluster_id, references[cluster_id],
-                                           index.colors(color_id));
+                auto it = index.colors(color_id);
+                colors_builder.encode_list(
+                    cluster_id, 
+                    references[cluster_id],
+                    it.size(), 
+                    [&it]() -> void {++it; },
+                    [&it]() -> uint64_t {return *it; }
+                );
             }
             colors_builder.build(idx.m_ccs);
         }

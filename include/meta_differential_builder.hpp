@@ -277,22 +277,22 @@ struct index<ColorClasses>::meta_differential_builder {
 
             builder.build(idx.m_ccs);
 
-            auto exp_it = meta_index.colors(0);
-            uint64_t exp_size = exp_it.size();
-            cout << "Expected index size: " << exp_size << endl;
-            for (uint64_t j = 0; j < exp_size; j++, ++exp_it){
-                cout << *exp_it << " ";
+            for (uint64_t i = 0; i < num_color_classes; i++){
+                auto exp_it = meta_index.colors(permutation[i]);
+                auto res_it = idx.colors(i);
+                uint64_t exp_size = exp_it.size();
+                uint64_t res_size = res_it.size();
+                if (exp_size != res_size){
+                    std::cout << "Size mismatch while checking color " << i << std::endl;
+                    continue;
+                }
+                for (uint64_t j = 0; j < exp_size; j++, ++exp_it, ++res_it){
+                    if (*res_it != *exp_it){
+                        std::cout << "Error while checking color " << i << ", mismatch at position " << j << std::endl;
+                        break;
+                    }
+                }
             }
-            cout << endl;
-
-
-            auto it = idx.colors(0);
-            uint64_t size = it.size();
-            cout << "Result index size: " << size << endl;
-            for (uint64_t j = 0; j < size; j++, ++it){
-                cout << *it << " ";
-            }
-            cout << endl;
 
 
             /*
@@ -305,7 +305,6 @@ struct index<ColorClasses>::meta_differential_builder {
                 cout << endl;
             }*/
 
-            // TODO: add to index
 
             timer.stop();
             std::cout << "** building differential-meta colors took " << timer.elapsed() << " seconds / "

@@ -141,6 +141,8 @@ struct differential {
     };
 
     struct forward_iterator {
+        forward_iterator() {}
+        
         forward_iterator(differential const* ptr, uint64_t list_begin, uint64_t reference_begin)
             : m_ptr(ptr), m_edit_list_begin(list_begin), m_reference_begin(reference_begin) {
             rewind();

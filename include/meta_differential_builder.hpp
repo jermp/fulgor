@@ -168,6 +168,8 @@ struct index<ColorClasses>::meta_differential_builder {
         meta_differential::builder builder;
         builder.init(meta_index.num_docs(), num_partitions);
 
+        std::vector<std::vector<uint64_t>> partial_permutations(num_partitions);
+
         {
             essentials::logger("step 2. building differential partial/meta colors");
             timer.start();
@@ -185,6 +187,9 @@ struct index<ColorClasses>::meta_differential_builder {
                 auto const& permutation = dp.permutation();
                 auto const& references = dp.references();
 
+                partial_permutations[i].resize(permutation.size());
+                uint64_t original_id = 0;
+
                 for (auto& reference : references) { diff_builder.encode_reference(reference); }
                 for (auto& [cluster_id, color_id] : permutation) {
                     auto it = pc[i].colors(color_id);
@@ -195,6 +200,7 @@ struct index<ColorClasses>::meta_differential_builder {
                         [&it]() -> void {++it;},
                         [&it]() -> uint64_t {return *it;}
                     );
+                    partial_permutations[i][color_id] = original_id++;
                 }
                 differential d;
                 diff_builder.build(d);
@@ -240,7 +246,7 @@ struct index<ColorClasses>::meta_differential_builder {
 
             builder.init_meta_color_bases(num_bases);
             for(uint64_t base_id = 0; base_id < num_bases; base_id++){
-                builder.process_meta_color_base(partition_bases[base_id], counts[base_id]);
+                builder.process_meta_color_base(partition_bases[base_id]);
             }
 
             std::vector<uint64_t> cum_sum = {0};
@@ -263,27 +269,41 @@ struct index<ColorClasses>::meta_differential_builder {
 
                 for(uint64_t i = 0; i < size; i++, it.next_partition_id()){
                     it.update_partition();
-                    relative_colors.push_back(it.meta_color() - it.num_lists_before());
+                    uint64_t partition_id = partition_bases[base_id][i];
+                    relative_colors.push_back(partial_permutations[partition_id][it.meta_color() - it.num_lists_before()]);
                 }
-                builder.process_metacolors(base_id, relative_colors);
+                builder.process_metacolors(base_id, partition_bases[base_id], relative_colors);
             }
 
+            builder.build(idx.m_ccs);
 
-            pthash::compact_vector::builder partial_colors_ids_builder(
-                num_integers_in_metacolors + num_color_classes,
-                std::ceil(std::log2(meta_index.get_color_classes().num_max_lists_in_partition()))
-            );
-            for (uint64_t color_id = 0; color_id < num_color_classes; color_id++) {
-                auto it = meta_index.get_color_classes().colors(color_id);
-                partial_colors_ids_builder.push_back(it.meta_color_list_size());
-                for(uint64_t i = 0; i < it.meta_color_list_size(); i++, it.next_partition_id()){
-                    it.update_partition();
-                    partial_colors_ids_builder.push_back(it.meta_color() - it.num_lists_before());
-                }
+            auto exp_it = meta_index.colors(0);
+            uint64_t exp_size = exp_it.size();
+            cout << "Expected index size: " << exp_size << endl;
+            for (uint64_t j = 0; j < exp_size; j++, ++exp_it){
+                cout << *exp_it << " ";
             }
-            pthash::compact_vector partial_colors_ids;
-            partial_colors_ids_builder.build(partial_colors_ids);
-            cout << "  PARTIAL COLORS IDS SIZE: " << partial_colors_ids.bytes() << endl; 
+            cout << endl;
+
+
+            auto it = idx.colors(0);
+            uint64_t size = it.size();
+            cout << "Result index size: " << size << endl;
+            for (uint64_t j = 0; j < size; j++, ++it){
+                cout << *it << " ";
+            }
+            cout << endl;
+
+
+            /*
+            for (uint64_t i = 0; i < 100; i++){
+                auto it = idx.colors(i);
+                cout << permutation[i] << " -> ";
+                for (int j = 0; j < 10; j++, ++it){
+                    cout << *it << " ";
+                }
+                cout << endl;
+            }*/
 
             // TODO: add to index
 

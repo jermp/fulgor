@@ -17,7 +17,7 @@ struct meta_differential {
     };
 
     struct builder {
-        builder() : m_prev_base_id(0), m_prev_docs(0) { m_bases_offsets.push_back(0); m_relative_colors_offsets.push_back(0); }
+        builder() : m_prev_docs(0), m_prev_base_id(0) { m_bases_offsets.push_back(0); m_relative_colors_offsets.push_back(0); }
 
         void init(uint64_t num_docs, uint64_t num_partitions) {
             m_num_docs = num_docs;
@@ -237,6 +237,8 @@ struct meta_differential {
     /* num. partial color sets */
     uint64_t num_partitions() const { return m_partition_endpoints.size() - 1; }
 
+    uint64_t num_bases() const { return m_num_bases; }
+
     uint64_t num_bits() const {
         uint64_t partial_colors_size = 0;
         for (auto d: m_partial_colors){
@@ -254,7 +256,29 @@ struct meta_differential {
     }
 
     void print_stats() const {
+        std::cout << "Color statistics:\n";
+        std::cout << "  Number of partitions: " << num_partitions() << '\n';
+        std::cout << "  Number of bases: " << num_bases() << '\n';
+        uint64_t colors_bits = 0;
 
+        uint64_t meta_colors_size = (m_relative_colors_offsets.num_bits() + m_bases_offsets.num_bits()) / 8 +
+            essentials::vec_bytes(m_relative_colors) + 
+            essentials::vec_bytes(m_bases) +
+            m_bases_partitions.size();
+
+        for (auto const& c : m_partial_colors) {
+            colors_bits += c.num_bits();
+        }
+
+        std::cout << "  partial colors: " << colors_bits / 8 << " bytes ("
+                  << (colors_bits * 100.0) / num_bits() << "%)\n";
+        std::cout << "  meta colors: "
+                  << meta_colors_size << " bytes ("
+                  << (meta_colors_size * 8 * 100.0) / num_bits()
+                  << "%)\n";
+        std::cout << "  other: " << essentials::vec_bytes(m_partition_endpoints) << " bytes ("
+                  << ((essentials::vec_bytes(m_partition_endpoints) * 8) * 100.0) / num_bits()
+                  << "%)\n";
     }
 
     void dump(std::ofstream& os) const {
@@ -276,13 +300,13 @@ struct meta_differential {
 
     
 private:
-    uint32_t m_num_docs;
-    uint32_t m_num_bases;
-    sshash::ef_sequence<false> m_bases_offsets, m_relative_colors_offsets;
-    std::vector<partition_endpoint> m_partition_endpoints;
-    std::vector<differential> m_partial_colors;
-    std::vector<uint64_t> m_relative_colors;
-    std::vector<uint64_t> m_bases;
+    uint32_t m_num_docs; //
+    uint32_t m_num_bases; //
+    sshash::ef_sequence<false> m_bases_offsets, m_relative_colors_offsets; //
+    std::vector<partition_endpoint> m_partition_endpoints; //
+    std::vector<differential> m_partial_colors; //
+    std::vector<uint64_t> m_relative_colors; //
+    std::vector<uint64_t> m_bases; 
     ranked_bit_vector m_bases_partitions;
 };
 

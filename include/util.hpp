@@ -22,6 +22,7 @@ static const std::string default_tmp_dirname(".");
 static const std::string fulgor_filename_extension("fur");
 static const std::string meta_colored_fulgor_filename_extension("mfur");
 static const std::string diff_colored_fulgor_filename_extension("dfur");
+static const std::string meta_diff_colored_fulgor_filename_extension("mdfur");
 }  // namespace constants
 
 struct build_configuration {

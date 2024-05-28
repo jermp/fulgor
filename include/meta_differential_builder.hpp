@@ -14,7 +14,7 @@ struct md_diff_permuter {
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
 
         {
-            essentials::logger("step 4. build sketches");
+            essentials::logger("step 3. build sketches");
             timer.start();
 
             constexpr uint64_t p = 10;
@@ -29,7 +29,7 @@ struct md_diff_permuter {
         }
 
         {
-            essentials::logger("step 5. clustering sketches");
+            essentials::logger("step 4. clustering sketches");
             timer.start();
 
             std::ifstream in(m_build_config.tmp_dirname + "/sketches.bin", std::ios::binary);
@@ -159,7 +159,6 @@ struct index<ColorClasses>::meta_differential_builder {
         essentials::load(meta_index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");
 
-        const uint64_t num_docs = meta_index.num_docs();
         const uint64_t num_color_classes = meta_index.num_color_classes();
 
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
@@ -215,7 +214,7 @@ struct index<ColorClasses>::meta_differential_builder {
         }
 
         {
-            essentials::logger("step 3. build differential-meta colors");
+            essentials::logger("step 5. build differential-meta colors");
             timer.start();
 
             std::vector<uint64_t> permutation(num_color_classes);

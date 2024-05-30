@@ -56,7 +56,7 @@ struct differential_permuter {
             constexpr float min_delta = 0.0001;
             constexpr float max_iteration = 10;
             constexpr uint64_t min_cluster_size = 50;
-            constexpr uint64_t seed = 42;
+            constexpr uint64_t seed = 0;
             params.set_min_delta(min_delta);
             params.set_max_iteration(max_iteration);
             params.set_min_cluster_size(min_cluster_size);

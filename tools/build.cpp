@@ -62,7 +62,7 @@ void meta_differential_coloring(build_configuration const& build_config) {
 
     std::string output_filename = build_config.index_filename_to_partition.substr(
                                       0, build_config.index_filename_to_partition.length() -
-                                             constants::fulgor_filename_extension.length() - 1) +
+                                             constants::meta_colored_fulgor_filename_extension.length() - 1) +
                                   "." + constants::meta_diff_colored_fulgor_filename_extension;
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());

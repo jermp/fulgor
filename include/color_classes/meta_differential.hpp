@@ -89,12 +89,8 @@ struct meta_differential {
         }
 
     private:
-        uint64_t msb(uint64_t n){
-            uint64_t r = 1;
-            while (n >>= 1) {
-                r++;
-            }
-            return r;
+        uint8_t msb(uint64_t n){
+            return 64 - __builtin_clzll(n);
         } 
 
         std::vector<differential> m_partial_colors;
@@ -212,11 +208,7 @@ struct meta_differential {
         }
 
         uint8_t msb(uint64_t n) const{
-            uint8_t r = 1;
-            while (n >>= 1) {
-                r++;
-            }
-            return r;
+            return 64 - __builtin_clzll(n);
         } 
     };
 
@@ -300,12 +292,12 @@ struct meta_differential {
 
     
 private:
-    uint32_t m_num_docs; //
-    uint32_t m_num_bases; //
-    sshash::ef_sequence<false> m_bases_offsets, m_relative_colors_offsets; //
-    std::vector<partition_endpoint> m_partition_endpoints; //
-    std::vector<differential> m_partial_colors; //
-    std::vector<uint64_t> m_relative_colors; //
+    uint32_t m_num_docs;
+    uint32_t m_num_bases; 
+    sshash::ef_sequence<false> m_bases_offsets, m_relative_colors_offsets;
+    std::vector<partition_endpoint> m_partition_endpoints;
+    std::vector<differential> m_partial_colors; 
+    std::vector<uint64_t> m_relative_colors; 
     std::vector<uint64_t> m_bases; 
     ranked_bit_vector m_bases_partitions;
 };

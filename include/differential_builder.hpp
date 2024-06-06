@@ -15,7 +15,7 @@ struct differential_permuter {
             timer.start();
 
             constexpr uint64_t p = 10;
-            build_reference_sketches_partitioned(index, p, m_build_config.num_threads,
+            build_colors_sketches_partitioned(index, p, m_build_config.num_threads,
                                                  m_build_config.tmp_dirname + "/sketches.bin", 0.,
                                                  1.);
 

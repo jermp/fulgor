@@ -144,7 +144,7 @@ void build_reference_sketches(index_type const& index,
 }
 
 template <typename ColorClass>
-void build_reference_sketches_partitioned(
+void build_colors_sketches_partitioned(
     index<ColorClass> const& index,
     uint64_t p,                   // use 2^p bytes per HLL sketch
     uint64_t num_threads,         // num. threads for construction
@@ -177,8 +177,7 @@ void build_reference_sketches_partitioned(
     }
     const uint64_t partition_size = filtered_colors.size();
 
-    std::vector<std::vector<sketch::hll_t>> thread_sketches(
-        num_threads, std::vector<sketch::hll_t>(partition_size, sketch::hll_t(p)));
+    std::vector<std::vector<sketch::hll_t>> thread_sketches(num_threads);
 
     struct slice {
         uint64_t begin, end;  // [..)
@@ -213,6 +212,7 @@ void build_reference_sketches_partitioned(
         assert(thread_id < thread_slices.size());
         auto& sketches = thread_sketches[thread_id];
         auto s = thread_slices[thread_id];
+        sketches = std::vector<sketch::hll_t>(s.end - s.begin, sketch::hll_t(p));
 
         for (uint64_t color_id = s.begin; color_id != s.end; ++color_id) {
             auto it = filtered_colors[color_id];
@@ -220,7 +220,7 @@ void build_reference_sketches_partitioned(
             for (uint64_t i = 0; i < size; ++i, ++it) {
                 uint64_t ref_id = *it;
                 assert(ref_id < num_docs);
-                sketches[color_id].addh(ref_id);
+                sketches[color_id-s.begin].addh(ref_id);
             }
         }
     };
@@ -233,14 +233,6 @@ void build_reference_sketches_partitioned(
         if (t.joinable()) t.join();
     }
 
-    /* merge sketches into thread_sketches[0] */
-    for (uint64_t i = 0; i != partition_size; ++i) {
-        auto& sketch = thread_sketches[0][i];
-        for (uint64_t thread_id = 1; thread_id != num_threads; ++thread_id) {
-            sketch += thread_sketches[thread_id][i];
-        }
-    }
-
     std::ofstream out(output_filename, std::ios::binary);
     if (!out.is_open()) throw std::runtime_error("cannot open file");
     const uint64_t num_bytes = 1ULL << p;
@@ -250,16 +242,18 @@ void build_reference_sketches_partitioned(
     for (auto const color_id : filtered_colors_ids) {
         out.write(reinterpret_cast<char const*>(&color_id), 8);
     }
-    for (auto const& x : thread_sketches[0]) {
-        assert(x.m() == num_bytes);
-        assert(x.m() == x.core().size());
-        uint8_t const* data = x.data();
-        out.write(reinterpret_cast<char const*>(data), num_bytes);
+    for (auto const& sketch : thread_sketches) {
+    	for (auto const& x: sketch){
+                assert(x.m() == num_bytes);
+                assert(x.m() == x.core().size());
+                uint8_t const* data = x.data();
+                out.write(reinterpret_cast<char const*>(data), num_bytes);
+    	}
     }
     out.close();
 }
 
-void build_differential_sketches_from_hybrid(
+void build_colors_sketches_from_hybrid(
     hybrid const& h, uint64_t num_docs, const uint64_t num_color_classes,
     const uint64_t p,                   // use 2^p bytes per HLL sketch
     const uint64_t num_threads,         // num. threads for construction
@@ -289,8 +283,7 @@ void build_differential_sketches_from_hybrid(
     }
     const uint64_t partition_size = filtered_colors.size();
 
-    std::vector<std::vector<sketch::hll_t>> thread_sketches(
-        num_threads, std::vector<sketch::hll_t>(partition_size, sketch::hll_t(p)));
+    std::vector<std::vector<sketch::hll_t>> thread_sketches(num_threads);
 
     struct slice {
         uint64_t begin, end;  // [..)
@@ -325,6 +318,7 @@ void build_differential_sketches_from_hybrid(
         assert(thread_id < thread_slices.size());
         auto& sketches = thread_sketches[thread_id];
         auto s = thread_slices[thread_id];
+        sketches = std::vector<sketch::hll_t>(s.end - s.begin, sketch::hll_t(p));
 
         for (uint64_t color_id = s.begin; color_id != s.end; ++color_id) {
             auto it = filtered_colors[color_id];
@@ -332,7 +326,7 @@ void build_differential_sketches_from_hybrid(
             for (uint64_t i = 0; i < size; ++i, ++it) {
                 uint64_t ref_id = *it;
                 assert(ref_id < num_docs);
-                sketches[color_id].addh(ref_id);
+                sketches[color_id-s.begin].addh(ref_id);
             }
         }
     };
@@ -345,14 +339,6 @@ void build_differential_sketches_from_hybrid(
         if (t.joinable()) t.join();
     }
 
-    /* merge sketches into thread_sketches[0] */
-    for (uint64_t i = 0; i != partition_size; ++i) {
-        auto& sketch = thread_sketches[0][i];
-        for (uint64_t thread_id = 1; thread_id != num_threads; ++thread_id) {
-            sketch += thread_sketches[thread_id][i];
-        }
-    }
-
     std::ofstream out(output_filename, std::ios::binary);
     if (!out.is_open()) throw std::runtime_error("cannot open file");
     const uint64_t num_bytes = 1ULL << p;
@@ -362,11 +348,13 @@ void build_differential_sketches_from_hybrid(
     for (auto const color_id : filtered_colors_ids) {
         out.write(reinterpret_cast<char const*>(&color_id), 8);
     }
-    for (auto const& x : thread_sketches[0]) {
-        assert(x.m() == num_bytes);
-        assert(x.m() == x.core().size());
-        uint8_t const* data = x.data();
-        out.write(reinterpret_cast<char const*>(data), num_bytes);
+    for (auto const& sketch : thread_sketches) {
+        for (auto const& x: sketch){
+                assert(x.m() == num_bytes);
+                assert(x.m() == x.core().size());
+                uint8_t const* data = x.data();
+                out.write(reinterpret_cast<char const*>(data), num_bytes);
+        }
     }
     out.close();
 }

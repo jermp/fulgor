@@ -4,7 +4,6 @@
 #include "include/index_types.hpp"
 #include "src/index.cpp"
 #include "external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
-#include "include/cluster_builder.hpp"
 
 #include "util.cpp"
 #include "build.cpp"

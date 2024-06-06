@@ -18,7 +18,7 @@ struct md_diff_permuter {
             timer.start();
 
             constexpr uint64_t p = 10;
-            build_differential_sketches_from_hybrid(h, h.num_docs(), h.num_color_classes(), p,
+            build_colors_sketches_from_hybrid(h, h.num_docs(), h.num_color_classes(), p,
                                                     m_build_config.num_threads,
                                                     m_build_config.tmp_dirname + "/sketches.bin");
 
@@ -213,22 +213,20 @@ struct index<ColorClasses>::meta_differential_builder {
             timer.reset();
         }
 
+        std::vector<uint64_t> permutation(num_color_classes);
+
         {
             essentials::logger("step 5. build differential-meta colors");
             timer.start();
-
-            std::vector<uint64_t> permutation(num_color_classes);
 
             std::vector<uint32_t> counts;
             std::map<std::vector<uint64_t>, uint64_t> meta_partitions;
             std::vector<std::vector<uint64_t>> partition_bases;
             std::vector<uint64_t> color_class_to_base(num_color_classes);
-            uint64_t num_integers_in_metacolors = 0;
             uint64_t num_bases = 0;
             for (uint64_t color_id = 0; color_id < num_color_classes; color_id++) {
                 auto it = meta_index.get_color_classes().colors(color_id);
                 uint64_t size = it.meta_color_list_size();
-                num_integers_in_metacolors += size;
 
                 std::vector<uint64_t> partition_list(size);
                 for (uint64_t i = 0; i < size; ++i, it.next_partition_id()) {
@@ -276,6 +274,36 @@ struct index<ColorClasses>::meta_differential_builder {
 
             builder.build(idx.m_ccs);
 
+            timer.stop();
+            std::cout << "** building differential-meta colors took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
+
+        {
+            essentials::logger("step 6. copy u2c and k2u");
+            timer.start();
+            idx.m_u2c = meta_index.get_u2c();
+            idx.m_k2u = meta_index.get_k2u();
+            timer.stop();
+            std::cout << "** copying u2c and k2u took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
+
+        {
+            essentials::logger("step 7. building filenames");
+            timer.start();
+            idx.m_filenames = meta_index.get_filenames();
+            timer.stop();
+            std::cout << "** building filenames took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
+
+        if (m_build_config.check) {
+            essentials::logger("step 8. check correctness...");
+
             for (uint64_t i = 0; i < num_color_classes; i++){
                 auto exp_it = meta_index.colors(permutation[i]);
                 auto res_it = idx.colors(i);
@@ -292,80 +320,6 @@ struct index<ColorClasses>::meta_differential_builder {
                     }
                 }
             }
-
-
-            /*
-            for (uint64_t i = 0; i < 100; i++){
-                auto it = idx.colors(i);
-                cout << permutation[i] << " -> ";
-                for (int j = 0; j < 10; j++, ++it){
-                    cout << *it << " ";
-                }
-                cout << endl;
-            }*/
-
-
-            timer.stop();
-            std::cout << "** building differential-meta colors took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
-            timer.reset();
-        }
-
-        {
-/*
-            essentials::logger("step 7. check correctness...");
-
-            for (uint64_t color_id = 0; color_id < num_color_classes; color_id++) {
-                uint64_t meta_list_start =
-                    idx.m_ccs.m_meta_colors_offsets.access(permutation[color_id].second);
-                pthash::compact_vector::iterator exp_it =
-                    idx.m_ccs.m_meta_colors.at(meta_list_start);
-                uint64_t exp_it_size = *exp_it;
-                auto res_it = d.colors(color_id);
-                if (res_it.size() != exp_it_size) {
-                    cout << "Error while checking color " << color_id
-                         << ", different sizes: expected " << exp_it_size << " but got "
-                         << res_it.size() << ")\n";
-                    continue;
-                }
-                for (uint64_t j = 0; j < exp_it_size; ++j, ++res_it) {
-                    auto exp = *exp_it;
-                    auto got = *res_it;
-                    if (exp != got) {
-                        cout << "Error while checking color " << color_id
-                             << ", mismatch at position " << j << ": expected " << exp
-                             << " but got " << got << std::endl;
-                    }
-                }
-            }
-            
-            cout << " META-COLORS DONE.\n";
-*/
-        }
-
-        {
-            essentials::logger("step 5. copy u2c and k2u");
-            timer.start();
-            idx.m_u2c = meta_index.get_u2c();
-            idx.m_k2u = meta_index.get_k2u();
-            timer.stop();
-            std::cout << "** copying u2c and k2u took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
-            timer.reset();
-        }
-
-        {
-            essentials::logger("step 6. building filenames");
-            timer.start();
-            idx.m_filenames = meta_index.get_filenames();
-            timer.stop();
-            std::cout << "** building filenames took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
-            timer.reset();
-        }
-
-        if (m_build_config.check) {
-            essentials::logger("step 7. check correctness...");
 
             essentials::logger("DONE!");
         }

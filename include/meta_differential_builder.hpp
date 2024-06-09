@@ -155,7 +155,7 @@ struct index<ColorClasses>::meta_differential_builder {
         if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
 
         meta_index_type meta_index;
-        essentials::logger("step 1. loading index to be mega-partitioned");
+        essentials::logger("step 1. loading index to be partitioned");
         essentials::load(meta_index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");
 
@@ -281,7 +281,7 @@ struct index<ColorClasses>::meta_differential_builder {
         }
 
         {
-            essentials::logger("step 6. permute u2c and k2u");
+            essentials::logger("step 6. build u2c and k2u");
             timer.start();
             
             const std::string permuted_unitigs_filename =
@@ -348,17 +348,17 @@ struct index<ColorClasses>::meta_differential_builder {
                 std::remove(permuted_unitigs_filename.c_str());
             } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
 
-            std::cout << "** copying u2c and k2u took " << timer.elapsed() << " seconds / "
+            std::cout << "** building u2c and k2u took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
 
         {
-            essentials::logger("step 7. building filenames");
+            essentials::logger("step 7. copying filenames");
             timer.start();
             idx.m_filenames = meta_index.get_filenames();
             timer.stop();
-            std::cout << "** building filenames took " << timer.elapsed() << " seconds / "
+            std::cout << "** copying filenames took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }

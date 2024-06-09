@@ -189,6 +189,7 @@ struct differential {
         void operator++() { next(); }
 
         uint32_t num_docs() const { return m_ptr->m_num_docs; }
+        uint64_t edit_list_size() const { return m_edit_list_size; }
 
     private:
         differential const* m_ptr;

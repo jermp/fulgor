@@ -281,11 +281,73 @@ struct index<ColorClasses>::meta_differential_builder {
         }
 
         {
-            essentials::logger("step 6. copy u2c and k2u");
+            essentials::logger("step 6. permute u2c and k2u");
             timer.start();
-            idx.m_u2c = meta_index.get_u2c();
-            idx.m_k2u = meta_index.get_k2u();
-            timer.stop();
+            
+            const std::string permuted_unitigs_filename =
+                m_build_config.tmp_dirname + "/permuted_unitigs.fa";
+            std::ofstream out(permuted_unitigs_filename.c_str());
+            if (!out.is_open()) throw std::runtime_error("cannot open output file");
+
+            pthash::darray1 d;  // for select_1 on index.u2c
+            d.build(meta_index.get_u2c());
+
+            const uint64_t num_unitigs = meta_index.get_u2c().size();
+            pthash::bit_vector_builder u2c_builder(num_unitigs+1, 0);
+
+            auto const& dict = meta_index.get_k2u();
+            const uint64_t k = dict.k();
+
+            uint64_t pos = 0;
+            for (uint64_t new_color_id = 0; new_color_id != num_color_classes; ++new_color_id) {
+                uint64_t old_color_id = permutation[new_color_id];
+                uint64_t old_unitig_id_end = num_unitigs;
+                if (old_color_id < num_color_classes -1 ){
+                    old_unitig_id_end = d.select(meta_index.get_u2c(), old_color_id) + 1;
+                }
+                uint64_t old_unitig_id_begin = 0;
+                if (old_color_id > 0) {
+                    old_unitig_id_begin = d.select(meta_index.get_u2c(), old_color_id - 1) + 1;
+                }
+
+                // num. unitigs that have the same color
+                pos += old_unitig_id_end - old_unitig_id_begin;
+                // cout << "[" << new_color_id << "] " << pos << "\n";
+                assert(pos-1 < u2c_builder.size());
+
+                u2c_builder.set(pos-1, 1);
+
+                for (uint64_t i = old_unitig_id_begin; i != old_unitig_id_end; ++i) {
+                    auto it = dict.at_contig_id(i);
+                    out << ">\n";
+                    auto [_, kmer] = it.next();
+                    out << kmer;
+                    while (it.has_next()) {
+                        auto [_, kmer] = it.next();
+                        out << kmer[k - 1];  // overlaps!
+                    }
+                    out << '\n';
+                }
+            }
+
+            assert(pos == num_unitigs);
+            out.close();
+            idx.m_u2c.build(&u2c_builder);
+
+            /* build a new sshash::dictionary on the permuted unitigs */
+            sshash::build_configuration sshash_config;
+            sshash_config.k = dict.k();
+            sshash_config.m = dict.m();
+            sshash_config.canonical_parsing = dict.canonicalized();
+            sshash_config.verbose = m_build_config.verbose;
+            sshash_config.tmp_dirname = m_build_config.tmp_dirname;
+            sshash_config.print();
+            idx.m_k2u.build(permuted_unitigs_filename, sshash_config);
+            assert(idx.get_k2u().size() == dict.size());
+            try {  // remove unitig file
+                std::remove(permuted_unitigs_filename.c_str());
+            } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
+
             std::cout << "** copying u2c and k2u took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
@@ -303,24 +365,62 @@ struct index<ColorClasses>::meta_differential_builder {
 
         if (m_build_config.check) {
             essentials::logger("step 8. check correctness...");
+            timer.start();
 
-            for (uint64_t i = 0; i < num_color_classes; i++){
-                auto exp_it = meta_index.colors(permutation[i]);
-                auto res_it = idx.colors(i);
-                uint64_t exp_size = exp_it.size();
-                uint64_t res_size = res_it.size();
-                if (exp_size != res_size){
-                    std::cout << "Size mismatch while checking color " << i << std::endl;
-                    continue;
-                }
-                for (uint64_t j = 0; j < exp_size; j++, ++exp_it, ++res_it){
-                    if (*res_it != *exp_it){
-                        std::cout << "Error while checking color " << i << ", mismatch at position " << j << std::endl;
-                        break;
+            uint64_t slice_size = ceil(idx.m_k2u.num_contigs() / m_build_config.num_threads);
+
+            auto exe = [&](uint64_t thread_id) {
+                uint64_t l = slice_size * thread_id;
+                uint64_t r = min(slice_size * (thread_id + 1), idx.m_k2u.num_contigs());
+
+                for (uint64_t unitig_id = l; unitig_id < r; ++unitig_id) {
+                    auto it = idx.get_k2u().at_contig_id(unitig_id);
+                    while (it.has_next()) {
+                        auto [_, kmer] = it.next();
+                        uint64_t new_contig_id = idx.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+                        if (new_contig_id != unitig_id) {
+                            std::cout << "expected " << unitig_id << " but found " << new_contig_id
+                                      << std::endl;
+                            continue;
+                        }
+                        uint64_t old_contig_id =
+                            meta_index.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+
+                        uint64_t new_color_id = idx.u2c(new_contig_id);
+                        uint64_t old_color_id = meta_index.u2c(old_contig_id);
+
+                        auto exp_it = meta_index.colors(old_color_id);
+                        auto res_it = idx.colors(new_color_id);
+                        if (res_it.size() != exp_it.size()) {
+                            std::cout << "Error while checking color " << new_color_id
+                                      << ", different sizes: expected " << exp_it.size() << " but got "
+                                      << res_it.size() << std::endl;
+                            continue;
+                        }
+                        for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
+                            auto exp = *exp_it;
+                            auto got = *res_it;
+                            if (exp != got) {
+                                std::cout << "Error while checking color " << new_color_id
+                                          << ", mismatch at position " << j << ": expected " << exp
+                                          << " but got " << got << std::endl;
+                            }
+                        }
                     }
                 }
+            };
+
+            std::vector<std::thread> threads(num_threads);
+            for (uint64_t thread_id = 0; thread_id != m_build_config.num_threads; ++thread_id) {
+                threads[thread_id] = std::thread(exe, thread_id);
+            }
+            for (auto& t : threads) {
+                if (t.joinable()) t.join();
             }
 
+            timer.stop();
+            std::cout << "** checking correctness took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
             essentials::logger("DONE!");
         }
     }

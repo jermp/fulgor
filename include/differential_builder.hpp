@@ -265,27 +265,50 @@ struct index<ColorClasses>::differential_builder {
         if (m_build_config.check) {
             essentials::logger("step 7. check correctness...");
 
+            /*
+            uint64_t num_big_edit_lists = 0; // the number of edit lists where their size is greater than the original color
+            uint64_t num_excess_numbers = 0;
+            uint64_t sum_original_sizes = 0;
+            uint64_t max_original_size = 0;
+            */
+
             for (uint64_t color_id = 0; color_id < num_color_classes; color_id++) {
                 auto exp_it = index.colors(permutation[color_id].second);
                 auto res_it = idx.colors(color_id);
                 if (res_it.size() != exp_it.size()) {
-                    cout << "Error while checking color " << color_id
+                    std::cout << "Error while checking color " << color_id
                          << ", different sizes: expected " << exp_it.size() << " but got "
-                         << res_it.size() << ")\n";
+                         << res_it.size() << ")" << std::endl;
                     continue;
                 }
+                /*
+                if (exp_it.size() < res_it.edit_list_size()){
+                    num_big_edit_lists++;
+                    num_excess_numbers += res_it.edit_list_size() - exp_it.size();
+                    sum_original_sizes += exp_it.size();
+                    max_original_size = max_original_size > exp_it.size() ? max_original_size : exp_it.size();
+                }*/
+
                 for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
                     auto exp = *exp_it;
                     auto got = *res_it;
                     if (exp != got) {
-                        cout << "Error while checking color " << color_id
+                        std::cout << "Error while checking color " << color_id
                              << ", mismatch at position " << j << ": expected " << exp
                              << " but got " << got << std::endl;
                     }
                 }
             }
-            cout << " COLORS DONE.\n";
 
+            std::cout << " COLORS DONE." << std::endl;
+            /*
+            std::cout << "Of " << num_color_classes << ", " << num_big_edit_lists 
+                << " edit_lists are greater than the original color_class (" << 
+                (100.0 * num_big_edit_lists / num_color_classes) << "%)" << std::endl;
+            std::cout << "\tNumber of excess colors: " << num_excess_numbers << std::endl;
+            std::cout << "\tMax original size: " << max_original_size << ", AVG: " << 1.*sum_original_sizes/num_big_edit_lists << std::endl;
+            */
+            
             for (uint64_t unitig_id = 0; unitig_id < idx.m_k2u.num_contigs(); ++unitig_id) {
                 auto it = idx.get_k2u().at_contig_id(unitig_id);
                 while (it.has_next()) {

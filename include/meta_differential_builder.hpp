@@ -410,7 +410,7 @@ struct index<ColorClasses>::meta_differential_builder {
                 }
             };
 
-            std::vector<std::thread> threads(num_threads);
+            std::vector<std::thread> threads(m_build_config.num_threads);
             for (uint64_t thread_id = 0; thread_id != m_build_config.num_threads; ++thread_id) {
                 threads[thread_id] = std::thread(exe, thread_id);
             }

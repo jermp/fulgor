@@ -380,21 +380,21 @@ struct hybrid {
                   << " bits/int" << std::endl;
     }
 
-    void dump(std::ofstream& os) const {
-        const uint64_t n = num_color_classes();
-        os << "num_lists_in_color_set " << n << '\n';
-        for (uint64_t i = 0; i != n; ++i) {
-            auto it = colors(i);
-            const uint32_t list_size = it.size();
-            os << "color_list_" << i << ' ' << list_size << ' ';
-            for (uint32_t j = 0; j != list_size; ++j) {
-                os << it.value();
-                it.next();
-                if (j != list_size - 1) os << ' ';
-            }
-            if (i != n - 1) os << '\n';
-        }
-    }
+    // void dump(std::ofstream& os) const {
+    //     const uint64_t n = num_color_classes();
+    //     os << "num_lists_in_color_set " << n << '\n';
+    //     for (uint64_t i = 0; i != n; ++i) {
+    //         auto it = colors(i);
+    //         const uint32_t list_size = it.size();
+    //         os << "color_list_" << i << ' ' << list_size << ' ';
+    //         for (uint32_t j = 0; j != list_size; ++j) {
+    //             os << it.value();
+    //             it.next();
+    //             if (j != list_size - 1) os << ' ';
+    //         }
+    //         if (i != n - 1) os << '\n';
+    //     }
+    // }
 
     template <typename Visitor>
     void visit(Visitor& visitor) {

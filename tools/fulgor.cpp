@@ -29,7 +29,8 @@ int help(char* arg0) {
         << "Advanced tools:\n"
         << "  permute            permute the reference names of a Fulgor index\n"
         << "  partition          partition a Fulgor index and build a meta-colored Fulgor index\n"
-        << "  dump-colors        write colors to an output file in text format" << std::endl;
+        << "  dump               write unitigs and colors to output files in text format\n";
+    // << "  dump-colors        write colors to an output file in text format" << std::endl;
 
     return 1;
 }
@@ -55,9 +56,12 @@ int main(int argc, char** argv) {
         return permute(argc - 1, argv + 1);
     } else if (tool == "partition") {
         return partition(argc - 1, argv + 1);
-    } else if (tool == "dump-colors") {
-        return dump_colors(argc - 1, argv + 1);
+    } else if (tool == "dump") {
+        return dump(argc - 1, argv + 1);
     }
+    // else if (tool == "dump-colors") {
+    //     return dump_colors(argc - 1, argv + 1);
+    // }
 
     std::cout << "Unsupported tool '" << tool << "'.\n" << std::endl;
 

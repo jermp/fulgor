@@ -36,9 +36,11 @@ struct index {
 
     void print_stats() const;
     void dump_colors(std::ofstream& os) const;
+    void dump(std::string const& basename) const;
 
     uint64_t k() const { return m_k2u.k(); }
     uint64_t num_docs() const { return m_ccs.num_docs(); }
+    uint64_t num_unitigs() const { return m_k2u.num_contigs(); }
     uint64_t num_color_classes() const { return m_ccs.num_color_classes(); }
 
     sshash::dictionary const& get_k2u() const { return m_k2u; }

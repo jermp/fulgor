@@ -168,7 +168,7 @@ struct differential {
             update_curr_val();
         }
 
-        uint32_t size() { return m_size; }
+        uint32_t size() const { return m_size; }
 
         uint64_t value() const { return m_curr_val; }
         uint64_t operator*() const { return value(); }
@@ -188,8 +188,16 @@ struct differential {
         }
         void operator++() { next(); }
 
+        void next_geq(const uint64_t lower_bound) {
+            assert(lower_bound <= num_docs());
+            while (value() < lower_bound) next();
+            assert(value() >= lower_bound);
+        }
+
         uint32_t num_docs() const { return m_ptr->m_num_docs; }
         uint64_t edit_list_size() const { return m_edit_list_size; }
+
+        int type() const { return list_type::differential_list; }
 
     private:
         differential const* m_ptr;

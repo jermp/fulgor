@@ -64,8 +64,8 @@ struct meta_differential {
                 uint64_t partition_id = base[i];
                 uint64_t relative_id = relative_colors[i];
 
-                uint64_t base_size = m_partition_endpoints[partition_id].num_lists;
-                m_relative_colors.append_bits(relative_id, msb(base_size));
+                uint64_t partition_size = m_partition_endpoints[partition_id].num_lists;
+                m_relative_colors.append_bits(relative_id, msb(partition_size));
             }
             m_relative_colors_offsets.push_back(m_relative_colors.num_bits());
         }
@@ -122,6 +122,7 @@ struct meta_differential {
         }
 
         void init() {
+            m_num_lists_before = 0;
             m_pos_in_meta_color = 0;
             m_pos_in_partial_color = 0;
             m_curr_partition_id = 0;
@@ -179,7 +180,11 @@ struct meta_differential {
         }
 
         void read_partition_id() {
-            m_curr_partition_id += util::read_delta(m_base_it);
+            uint64_t delta = util::read_delta(m_base_it);
+            for(uint64_t i = 0; i < delta; i++){
+                m_num_lists_before += m_ptr->m_partition_endpoints[m_curr_partition_id + i].num_lists;
+            }
+            m_curr_partition_id += delta;
             uint8_t relative_color_size = msb(m_ptr->m_partition_endpoints[m_curr_partition_id].num_lists);
             m_curr_relative_color = m_relative_colors_it.take(relative_color_size);
         }
@@ -219,11 +224,7 @@ struct meta_differential {
         uint32_t partition_id() const { return m_curr_partition_id; }
         uint32_t partition_upper_bound() const { return m_docid_lower_bound + m_curr_partition_it.num_docs(); }
         uint32_t meta_color() const {
-            uint32_t meta_color = 0;
-            for(uint64_t i = 0; i < m_curr_partition_id; i++){
-                meta_color += m_ptr->m_partition_endpoints[i].num_lists;
-            }
-            return meta_color + m_curr_relative_color;
+            return m_num_lists_before + m_curr_relative_color;
         }
         uint32_t num_docs() const { return m_ptr->num_docs(); }
         uint32_t num_partitions() const { return m_ptr->num_partitions(); }
@@ -240,6 +241,7 @@ struct meta_differential {
         uint64_t m_curr_partition_id, m_curr_partition_size;
         uint64_t m_curr_val;
         uint64_t m_docid_lower_bound;
+        uint64_t m_num_lists_before;
 
         void update_curr_val(){
             m_curr_val = m_docid_lower_bound + *m_curr_partition_it;

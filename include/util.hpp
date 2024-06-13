@@ -13,7 +13,7 @@
 
 namespace fulgor {
 
-enum list_type { delta_gaps, bitmap, complement_delta_gaps };
+enum list_type { delta_gaps, bitmap, complement_delta_gaps, differential_list };
 
 namespace constants {
 constexpr double invalid_threshold = -1.0;

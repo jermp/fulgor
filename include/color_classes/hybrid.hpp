@@ -4,6 +4,7 @@ namespace fulgor {
 
 struct hybrid {
     static const bool meta_colored = false;
+    static const bool differential_colored = false;
 
     struct builder {
         builder() {}

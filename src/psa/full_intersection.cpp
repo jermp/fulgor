@@ -89,6 +89,40 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
     }
 }
 
+
+template <typename Iterator>
+void diff_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
+               std::vector<uint32_t>& complement_set) {
+    assert(colors.empty());
+    assert(complement_set.empty());
+
+    if (iterators.empty()) return;
+
+    std::sort(iterators.begin(), iterators.end(),
+              [](auto const& x, auto const& y) { return x.size() < y.size(); });
+
+    const uint32_t num_docs = iterators[0].num_docs();
+    uint32_t candidate = iterators[0].value();
+    uint64_t i = 1;
+    while (candidate < num_docs) {
+        for (; i != iterators.size(); ++i) {
+            iterators[i].next_geq(candidate);
+            uint32_t val = iterators[i].value();
+            if (val != candidate) {
+                candidate = val;
+                i = 0;
+                break;
+            }
+        }
+        if (i == iterators.size()) {
+            colors.push_back(candidate);
+            iterators[0].next();
+            candidate = iterators[0].value();
+            i = 1;
+        }
+    }
+}
+
 template <typename Iterator>
 void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
                     std::vector<uint32_t>& partition_ids) {
@@ -233,6 +267,8 @@ void index<ColorClasses>::intersect_unitigs(std::vector<uint64_t>& unitig_ids,
     tmp.clear();  // don't need color class ids anymore
     if constexpr (ColorClasses::meta_colored) {
         meta_intersect(iterators, colors, tmp);
+    } else if constexpr (ColorClasses::differential_colored) {
+        diff_intersect(iterators, colors, tmp);
     } else {
         intersect(iterators, colors, tmp);
     }

@@ -9,16 +9,27 @@ struct differential_permuter {
 
     void permute(index_type const& index) {
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+        std::vector<float> density_thresholds = {0, 0.25, 0.5, 0.75, 1};
+        uint8_t num_thresholds = density_thresholds.size() - 1; 
 
         {
             essentials::logger("step 2. build sketches");
             timer.start();
 
             constexpr uint64_t p = 10;
+            for(uint8_t i = 0; i < num_thresholds; i++){
+                build_colors_sketches_partitioned(index, p, m_build_config.num_threads,
+                                                     m_build_config.tmp_dirname + "/sketches" + std::to_string(i) + ".bin", 
+                                                     density_thresholds[i], density_thresholds[i+1]);
+            }
+            /*
             build_colors_sketches_partitioned(index, p, m_build_config.num_threads,
-                                                 m_build_config.tmp_dirname + "/sketches.bin", 0.,
+                                                 m_build_config.tmp_dirname + "/sketches_dense.bin", 0.5,
                                                  1.);
-
+            build_colors_sketches_partitioned(index, p, m_build_config.num_threads,
+                                                 m_build_config.tmp_dirname + "/sketches_sparse.bin", 0.,
+                                                 .5);
+            */
             timer.stop();
             std::cout << "** building sketches took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
@@ -29,48 +40,43 @@ struct differential_permuter {
             essentials::logger("step 3. clustering sketches");
             timer.start();
 
-            std::ifstream in(m_build_config.tmp_dirname + "/sketches.bin", std::ios::binary);
-            if (!in.is_open()) throw std::runtime_error("error in opening file");
-
-            std::vector<kmeans::point> points;
             std::vector<uint64_t> color_ids;
-            uint64_t num_bytes_per_point = 0;
-            uint64_t num_points = 0;
-            uint64_t num_docs = 0;
-            in.read(reinterpret_cast<char*>(&num_bytes_per_point), sizeof(uint64_t));
-            in.read(reinterpret_cast<char*>(&num_docs), sizeof(uint64_t));
-            in.read(reinterpret_cast<char*>(&num_points), sizeof(uint64_t));
-            points.resize(num_points, kmeans::point(num_bytes_per_point));
-            color_ids.resize(num_points);
-            for (uint64_t i = 0; i != num_points; ++i) {
-                in.read(reinterpret_cast<char*>(&color_ids[i]), sizeof(uint64_t));
-            }
-            for (auto& point : points) {
-                in.read(reinterpret_cast<char*>(point.data()), num_bytes_per_point);
-            }
-            in.close();
+            std::vector<kmeans::cluster_data> clustering_data(num_thresholds);
+            std::vector<uint64_t> num_points(num_thresholds);
 
-            std::remove((m_build_config.tmp_dirname + "/sketches.bin").c_str());
+            for(uint8_t i = 0; i < num_thresholds; i++){
+                num_points[i] = cluster("/sketches" + std::to_string(i) + ".bin", clustering_data[i], color_ids);
+            }
 
-            kmeans::clustering_parameters params;
-            constexpr float min_delta = 0.0001;
-            constexpr float max_iteration = 10;
-            constexpr uint64_t min_cluster_size = 50;
-            constexpr uint64_t seed = 0;
-            params.set_min_delta(min_delta);
-            params.set_max_iteration(max_iteration);
-            params.set_min_cluster_size(min_cluster_size);
-            params.set_random_seed(seed);
-            auto clustering_data = kmeans::kmeans_divisive(points.begin(), points.end(), params);
+            /*
+            kmeans::cluster_data clustering_data_dense;
+            kmeans::cluster_data clustering_data_sparse;
+            const uint64_t num_dense_color_classes = cluster("/sketches_dense.bin", clustering_data_dense, color_ids);
+            const uint64_t num_sparse_color_classes = cluster("/sketches_sparse.bin", clustering_data_sparse, color_ids);
+            */
 
             timer.stop();
             std::cout << "** clustering sketches took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
 
-            m_num_partitions = clustering_data.num_clusters;
+            m_num_partitions = 0;
+            for(auto clustering : clustering_data){
+                m_num_partitions += clustering.num_clusters;
+            }
+            //m_num_partitions = clustering_data_dense.num_clusters + clustering_data_sparse.num_clusters;
+
             m_partition_size.resize(m_num_partitions + 1, 0);
-            for (auto c : clustering_data.clusters) { m_partition_size[c] += 1; }
+
+            uint64_t prev_num_clusters = 0;
+            for(uint8_t i = 0; i < num_thresholds; i++){
+                for (auto c : clustering_data[i].clusters) { m_partition_size[c + prev_num_clusters] += 1; }
+                prev_num_clusters += clustering_data[i].num_clusters;
+            }
+            /*
+            for (auto c : clustering_data_dense.clusters) { m_partition_size[c] += 1; }
+            for (auto c : clustering_data_sparse.clusters) { m_partition_size[c + clustering_data_dense.num_clusters] += 1; }
+            */
 
             /* prefix sum */
             {
@@ -82,18 +88,45 @@ struct differential_permuter {
                 }
             }
 
-            const uint64_t num_color_classes = num_points;
+            const uint64_t num_color_classes = index.num_color_classes();
+            const uint64_t num_docs = index.num_docs();
+            m_color_classes_ids.resize(num_color_classes);
 
             auto clusters_pos = m_partition_size;
+            uint64_t clusters_size = 0;
+            for(auto clustering : clustering_data){
+                clusters_size += clustering.clusters.size();
+            }
+            cout << clusters_size << " " << num_color_classes << endl;
+            assert(clusters_size == num_color_classes);
+
             std::vector<uint32_t> permutation(num_color_classes);
-            assert(clustering_data.clusters.size() == num_color_classes);
-            for (uint64_t i = 0; i != num_color_classes; ++i) {
-                uint64_t cluster_id = clustering_data.clusters[i];
+            prev_num_clusters = 0;
+            uint64_t prev_num_color_classes = 0;
+            for(uint8_t i = 0; i < num_thresholds; i++){
+                uint64_t num_cc = num_points[i];
+                for (uint64_t color_id = 0; color_id != num_cc; ++color_id) {
+                    uint64_t cluster_id = clustering_data[i].clusters[color_id] + prev_num_clusters;
+                    permutation[color_id + prev_num_color_classes] = clusters_pos[cluster_id];
+                    clusters_pos[cluster_id] += 1;
+                }
+                prev_num_clusters += clustering_data[i].num_clusters;
+                prev_num_color_classes += num_cc;
+            }
+
+            /*
+            for (uint64_t i = 0; i != num_dense_color_classes; ++i) {
+                uint64_t cluster_id = clustering_data_dense.clusters[i];
                 permutation[i] = clusters_pos[cluster_id];
                 clusters_pos[cluster_id] += 1;
             }
+            for (uint64_t i = 0; i != num_sparse_color_classes; ++i) {
+                uint64_t cluster_id = clustering_data_sparse.clusters[i] + clustering_data_dense.num_clusters;
+                permutation[i + num_dense_color_classes] = clusters_pos[cluster_id];
+                clusters_pos[cluster_id] += 1;
+            }
+            */
 
-            m_color_classes_ids.resize(num_color_classes);
             for (uint64_t i = 0; i != num_color_classes; ++i) {
                 m_color_classes_ids[permutation[i]] = color_ids[i];
             }
@@ -136,6 +169,46 @@ private:
     std::vector<std::vector<uint32_t>> m_references;
     std::vector<uint32_t> m_partition_size;
     std::vector<uint32_t> m_color_classes_ids;
+
+    uint64_t cluster(std::string filename, kmeans::cluster_data& clustering_data, std::vector<uint64_t>& color_ids) {
+        std::ifstream in(m_build_config.tmp_dirname + filename, std::ios::binary);
+        if (!in.is_open()) throw std::runtime_error("error in opening file");
+
+        std::vector<kmeans::point> points;
+        std::vector<uint64_t> group_color_ids;
+        uint64_t num_bytes_per_point = 0;
+        uint64_t num_points = 0;
+        uint64_t num_docs = 0;
+        in.read(reinterpret_cast<char*>(&num_bytes_per_point), sizeof(uint64_t));
+        in.read(reinterpret_cast<char*>(&num_docs), sizeof(uint64_t));
+        in.read(reinterpret_cast<char*>(&num_points), sizeof(uint64_t));
+        points.resize(num_points, kmeans::point(num_bytes_per_point));
+        group_color_ids.resize(num_points);
+        for (uint64_t i = 0; i != num_points; ++i) {
+            in.read(reinterpret_cast<char*>(&group_color_ids[i]), sizeof(uint64_t));
+        }
+        for (auto& point : points) {
+            in.read(reinterpret_cast<char*>(point.data()), num_bytes_per_point);
+        }
+        in.close();
+
+        std::remove((m_build_config.tmp_dirname + "/sketches.bin").c_str());
+
+        kmeans::clustering_parameters params;
+        constexpr float min_delta = 0.0001;
+        constexpr float max_iteration = 10;
+        constexpr uint64_t min_cluster_size = 50;
+        constexpr uint64_t seed = 0;
+        params.set_min_delta(min_delta);
+        params.set_max_iteration(max_iteration);
+        params.set_min_cluster_size(min_cluster_size);
+        params.set_random_seed(seed);
+
+        color_ids.insert(color_ids.end(), group_color_ids.begin(), group_color_ids.end());
+        
+        clustering_data = kmeans::kmeans_divisive(points.begin(), points.end(), params);
+        return num_points;
+    }
 };
 
 template <typename ColorClasses>
@@ -233,6 +306,7 @@ struct index<ColorClasses>::differential_builder {
                 }
             }
 
+            cout << pos << " " << num_unitigs << endl;
             assert(pos == num_unitigs);
             out.close();
             idx.m_u2c.build(&u2c_builder);

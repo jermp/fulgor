@@ -14,31 +14,25 @@ struct differential_permuter {
 
         {
             essentials::logger("step 2. build sketches");
-            timer.start();
 
             constexpr uint64_t p = 10;
             for(uint8_t i = 0; i < num_thresholds; i++){
-                build_colors_sketches_partitioned(index, p, m_build_config.num_threads,
-                                                     m_build_config.tmp_dirname + "/sketches" + std::to_string(i) + ".bin", 
-                                                     density_thresholds[i], density_thresholds[i+1]);
+                timer.start();
+                build_colors_sketches_sliced<hybrid::forward_iterator>(index.num_docs(), index.num_color_classes(), 
+                                             [&](uint64_t color_id) -> hybrid::forward_iterator {return index.colors(color_id);}, p, m_build_config.num_threads,
+                                             m_build_config.tmp_dirname + "/sketches" + std::to_string(i) + ".bin", 
+                                             density_thresholds[i], density_thresholds[i+1]);
+                timer.stop();
+                std::cout << "** building sketches took " << timer.elapsed() << " seconds / "
+                          << timer.elapsed() / 60 << " minutes" << std::endl;
+                timer.reset();
             }
-            /*
-            build_colors_sketches_partitioned(index, p, m_build_config.num_threads,
-                                                 m_build_config.tmp_dirname + "/sketches_dense.bin", 0.5,
-                                                 1.);
-            build_colors_sketches_partitioned(index, p, m_build_config.num_threads,
-                                                 m_build_config.tmp_dirname + "/sketches_sparse.bin", 0.,
-                                                 .5);
-            */
-            timer.stop();
-            std::cout << "** building sketches took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
-            timer.reset();
+
         }
 
         {
             essentials::logger("step 3. clustering sketches");
-            timer.start();
+            
 
             std::vector<uint64_t> color_ids;
             std::vector<kmeans::cluster_data> clustering_data(num_thresholds);
@@ -48,23 +42,10 @@ struct differential_permuter {
                 num_points[i] = cluster("/sketches" + std::to_string(i) + ".bin", clustering_data[i], color_ids);
             }
 
-            /*
-            kmeans::cluster_data clustering_data_dense;
-            kmeans::cluster_data clustering_data_sparse;
-            const uint64_t num_dense_color_classes = cluster("/sketches_dense.bin", clustering_data_dense, color_ids);
-            const uint64_t num_sparse_color_classes = cluster("/sketches_sparse.bin", clustering_data_sparse, color_ids);
-            */
-
-            timer.stop();
-            std::cout << "** clustering sketches took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
-            timer.reset();
-
             m_num_partitions = 0;
             for(auto clustering : clustering_data){
                 m_num_partitions += clustering.num_clusters;
             }
-            //m_num_partitions = clustering_data_dense.num_clusters + clustering_data_sparse.num_clusters;
 
             m_partition_size.resize(m_num_partitions + 1, 0);
 
@@ -73,10 +54,6 @@ struct differential_permuter {
                 for (auto c : clustering_data[i].clusters) { m_partition_size[c + prev_num_clusters] += 1; }
                 prev_num_clusters += clustering_data[i].num_clusters;
             }
-            /*
-            for (auto c : clustering_data_dense.clusters) { m_partition_size[c] += 1; }
-            for (auto c : clustering_data_sparse.clusters) { m_partition_size[c + clustering_data_dense.num_clusters] += 1; }
-            */
 
             /* prefix sum */
             {
@@ -97,7 +74,6 @@ struct differential_permuter {
             for(auto clustering : clustering_data){
                 clusters_size += clustering.clusters.size();
             }
-            cout << clusters_size << " " << num_color_classes << endl;
             assert(clusters_size == num_color_classes);
 
             std::vector<uint32_t> permutation(num_color_classes);
@@ -170,7 +146,10 @@ private:
     std::vector<uint32_t> m_partition_size;
     std::vector<uint32_t> m_color_classes_ids;
 
-    uint64_t cluster(std::string filename, kmeans::cluster_data& clustering_data, std::vector<uint64_t>& color_ids) {
+    uint64_t cluster(std::string filename, kmeans::cluster_data& clustering_data, std::vector<uint64_t>& color_ids){
+        essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+        timer.start();
+
         std::ifstream in(m_build_config.tmp_dirname + filename, std::ios::binary);
         if (!in.is_open()) throw std::runtime_error("error in opening file");
 
@@ -192,13 +171,13 @@ private:
         }
         in.close();
 
-        std::remove((m_build_config.tmp_dirname + "/sketches.bin").c_str());
+        std::remove((m_build_config.tmp_dirname + filename).c_str());
 
         kmeans::clustering_parameters params;
-        constexpr float min_delta = 0.0001;
-        constexpr float max_iteration = 10;
-        constexpr uint64_t min_cluster_size = 50;
-        constexpr uint64_t seed = 0;
+        float min_delta = 0.0001;
+        float max_iteration = 10;
+        uint64_t min_cluster_size = 0;
+        uint64_t seed = 0;
         params.set_min_delta(min_delta);
         params.set_max_iteration(max_iteration);
         params.set_min_cluster_size(min_cluster_size);
@@ -207,6 +186,12 @@ private:
         color_ids.insert(color_ids.end(), group_color_ids.begin(), group_color_ids.end());
         
         clustering_data = kmeans::kmeans_divisive(points.begin(), points.end(), params);
+
+        timer.stop();
+        std::cout << "** clustering sketches took " << timer.elapsed() << " seconds / "
+                  << timer.elapsed() / 60 << " minutes" << std::endl;
+        timer.reset();
+
         return num_points;
     }
 };
@@ -306,7 +291,6 @@ struct index<ColorClasses>::differential_builder {
                 }
             }
 
-            cout << pos << " " << num_unitigs << endl;
             assert(pos == num_unitigs);
             out.close();
             idx.m_u2c.build(&u2c_builder);

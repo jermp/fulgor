@@ -276,7 +276,8 @@ struct meta_differential {
         for (auto d: m_partial_colors){
             partial_colors_size += d.num_bits();
         }
-        return sizeof(m_num_docs) * 8 +
+        return sizeof(size_t) * 8 +
+	    sizeof(m_num_docs) * 8 +
             sizeof(m_num_bases) * 8 + 
             m_bases_offsets.num_bits() +
             m_relative_colors_offsets.num_bits() + 
@@ -284,7 +285,7 @@ struct meta_differential {
             partial_colors_size +
             essentials::vec_bytes(m_relative_colors) * 8 +
             essentials::vec_bytes(m_bases) * 8 +
-            m_bases_partitions.size();
+            m_bases_partitions.bytes() * 8;
     }
 
     void print_stats() const {

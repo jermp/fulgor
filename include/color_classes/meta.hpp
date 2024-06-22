@@ -241,10 +241,12 @@ struct meta {
     uint64_t num_partitions() const { return m_partition_endpoints.size() - 1; }
 
     uint64_t num_bits() const {
-        uint64_t colors_bits = 0;
+        uint64_t colors_bits = sizeof(size_t) * 8;  // for std::vector::size
         for (auto const& c : m_colors) colors_bits += c.num_bits();
-        return m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits() + colors_bits +
-               (essentials::vec_bytes(m_partition_endpoints) + sizeof(m_num_docs)) * 8;
+        return m_meta_colors_offsets.num_bits() + colors_bits +
+               (m_meta_colors.bytes() + essentials::vec_bytes(m_partition_endpoints) +
+                sizeof(m_num_docs)) *
+                   8;
     }
 
     uint64_t num_max_lists_in_partition() const{

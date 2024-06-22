@@ -177,7 +177,7 @@ struct index<ColorClasses>::meta_differential_builder {
             assert(pc.size() == num_partitions);
 
             for (uint64_t i = 0; i < num_partitions; i++) {
-                md_diff_permuter dp(m_build_config);
+                differential_permuter dp(m_build_config);
                 dp.permute(pc[i]);
 
                 differential::builder diff_builder;

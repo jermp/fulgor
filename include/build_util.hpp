@@ -420,8 +420,9 @@ void build_colors_sketches_sliced(
                 curr_load = 0;
             }
         }
-        assert(thread_slices.size() == num_threads);
+        assert(thread_slices.size() <= num_threads);
     }
+    num_threads = thread_slices.size();
 
     auto exe = [&](uint64_t thread_id) {
         assert(thread_id < thread_slices.size());
@@ -432,7 +433,8 @@ void build_colors_sketches_sliced(
         for (uint64_t color_id = s.begin; color_id != s.end; ++color_id) {
             auto it = filtered_colors[color_id];
             const uint64_t size = it.size();
-            for (uint64_t i = 0; i < size; ++i, ++it) {
+	    assert(size > 0); 
+	    for (uint64_t i = 0; i < size; ++i, ++it) {
                 uint64_t ref_id = *it;
                 assert(ref_id < num_docs);
                 sketches[color_id-s.begin].addh(ref_id);

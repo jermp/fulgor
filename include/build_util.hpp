@@ -52,6 +52,9 @@ void build_reference_sketches(index_type const& index,
     }
 
     const uint64_t load_per_thread = load / num_threads;
+    if (load_per_thread == 0) {
+        throw std::runtime_error("load is too small: reduce the number of threads");
+    }
 
     {
         uint64_t prev_pos = 0;
@@ -80,7 +83,7 @@ void build_reference_sketches(index_type const& index,
             }
         }
 
-        assert(thread_slices.size() == num_threads);
+        num_threads = thread_slices.size();
     }
 
     auto exe = [&](uint64_t thread_id) {
@@ -109,7 +112,6 @@ void build_reference_sketches(index_type const& index,
             prev_pos = curr_pos + 1;
             hashes.clear();
         }
-        // essentials::logger("thread-" + std::to_string(thread_id) + " DONE");
     };
 
     std::vector<std::thread> threads(num_threads);

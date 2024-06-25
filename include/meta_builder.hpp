@@ -6,7 +6,7 @@
 namespace fulgor {
 
 struct partition_endpoint {
-    uint64_t begin, end;
+    uint64_t begin, end;  // [..)
 };
 
 struct permuter {

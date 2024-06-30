@@ -116,8 +116,10 @@ int do_map(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::Rea
                 index.intersect_unitigs(unitig_ids, colors);
                 if (!colors.empty()) {
                     num_mapped_reads += 1;
-                    ss << record.name << '\t' << colors.size();
-                    write_output(colors, ss);
+                    ss << record.name << '\t' << colors.size() << '\t';
+                    for (auto c : colors) { ss << "\t" << c; }
+                    ss << '\n';
+                    // write_output(colors, ss);
                 } else {
                     ss << record.name << "\t0\n";
                 }
@@ -158,7 +160,9 @@ int do_map(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::Rea
                 if (!colors.empty()) {
                     num_mapped_reads += 1;
                     ss << record.name << '\t' << colors.size();
-                    write_output(colors, ss);
+                    for (auto c : colors) { ss << "\t" << c; }
+                    ss << '\n';
+                    // write_output(colors, ss);
                 } else {
                     ss << record.name << "\t0\n";
                 }

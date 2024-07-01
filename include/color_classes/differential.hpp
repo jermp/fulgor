@@ -315,11 +315,14 @@ struct differential {
 
                 prev_position = it.position();
             }
-
-            uint64_t q = size/(num_docs_tenth) > 10 ? 10 : size/(num_docs_tenth);
+	    uint64_t q = 0;
+	    if(num_docs_tenth != 0)  q = size/(num_docs_tenth) > 10 ? 10 : size/(num_docs_tenth);
 
             distribution[q]++;
         }
+
+	assert(num_bits() > 0);
+	assert(num_colors > 0);
 
         std::cout << "  reference offsets: " << num_reference_offsets / 8 << " bytes ("
                   << (num_reference_offsets * 100.0) / num_bits() << "%)" << std::endl;

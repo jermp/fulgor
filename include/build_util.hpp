@@ -376,8 +376,7 @@ void build_colors_sketches_sliced(
     assert(max_size <= num_docs);
 
     if (num_color_classes < num_threads) {
-        throw std::runtime_error("there are only " + std::to_string(num_color_classes) +
-                                 ": reduce the number of threads.");
+    	num_threads = num_color_classes;
     }
 
     std::vector<Iterator> filtered_colors;
@@ -391,8 +390,6 @@ void build_colors_sketches_sliced(
         }
     }
     const uint64_t partition_size = filtered_colors.size();
-
-    std::vector<std::vector<sketch::hll_t>> thread_sketches(num_threads);
 
     struct slice {
         uint64_t begin, end;  // [..)
@@ -423,6 +420,7 @@ void build_colors_sketches_sliced(
         assert(thread_slices.size() <= num_threads);
     }
     num_threads = thread_slices.size();
+    std::vector<std::vector<sketch::hll_t>> thread_sketches(num_threads);
 
     auto exe = [&](uint64_t thread_id) {
         assert(thread_id < thread_slices.size());

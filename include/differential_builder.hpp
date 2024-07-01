@@ -16,7 +16,7 @@ struct differential_permuter {
         {
             essentials::logger("step 2. build sketches");
 
-            constexpr uint64_t p = 8;
+            constexpr uint64_t p = 10;
             for(uint8_t i = 0; i < num_slices; i++){
                 timer.start();
                 build_colors_sketches_sliced<hybrid::forward_iterator>(index.num_docs(), index.num_color_classes(), 

@@ -194,8 +194,9 @@ struct meta {
         uint32_t num_partitions() const { return m_ptr->num_partitions(); }
         uint32_t partition_lower_bound() const { return m_partition_lower_bound; }
         uint32_t partition_upper_bound() const { return m_partition_upper_bound; }
-        uint32_t num_lists_before() const { return m_ptr->m_partition_endpoints[m_partition_id].num_lists_before; }
-
+        uint32_t num_lists_before() const {
+            return m_ptr->m_partition_endpoints[m_partition_id].num_lists_before;
+        }
 
     private:
         meta<ColorClasses> const* m_ptr;
@@ -247,14 +248,6 @@ struct meta {
                (m_meta_colors.bytes() + essentials::vec_bytes(m_partition_endpoints) +
                 sizeof(m_num_docs)) *
                    8;
-    }
-
-    uint64_t num_max_lists_in_partition() const{
-        uint64_t max_size = 0;
-        for(auto color: m_colors){
-            max_size = max(max_size, color.num_color_classes());
-        }
-        return max_size;
     }
 
     void print_stats() const {

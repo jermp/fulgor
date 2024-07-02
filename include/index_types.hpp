@@ -24,12 +24,12 @@ typedef meta_hybrid_colors_index_type meta_index_type;  // in use
 namespace fulgor {
 typedef index<differential> differential_colors_index_type;
 typedef differential_colors_index_type differential_index_type;  // in use
-}
+}  // namespace fulgor
 
 #include "color_classes/meta_differential.hpp"
 #include "meta_differential_builder.hpp"
 
 namespace fulgor {
 typedef index<meta_differential> meta_differential_colors_index_type;
-typedef meta_differential_colors_index_type meta_differential_index_type; // in use
+typedef meta_differential_colors_index_type meta_differential_index_type;  // in use
 }  // namespace fulgor

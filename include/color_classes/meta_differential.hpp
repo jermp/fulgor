@@ -17,7 +17,10 @@ struct meta_differential {
     };
 
     struct builder {
-        builder() : m_prev_docs(0), m_prev_base_id(0) { m_bases_offsets.push_back(0); m_relative_colors_offsets.push_back(0); }
+        builder() : m_prev_docs(0), m_prev_base_id(0) {
+            m_bases_offsets.push_back(0);
+            m_relative_colors_offsets.push_back(0);
+        }
 
         void init(uint64_t num_docs, uint64_t num_partitions) {
             m_num_docs = num_docs;
@@ -25,18 +28,18 @@ struct meta_differential {
             m_partial_colors.reserve(num_partitions);
         }
 
-        void init_meta_color_bases(uint64_t num_bases){
+        void init_meta_color_bases(uint64_t num_bases) {
             m_num_bases = num_bases;
             m_bases_offsets.reserve(num_bases);
         }
 
-        void process_meta_color_base(vector<uint64_t>& base){
+        void process_meta_color_base(vector<uint64_t>& base) {
             uint64_t size = base.size();
             uint64_t prev_val = base[0];
 
             util::write_delta(m_bases, size);
             util::write_delta(m_bases, prev_val);
-            for(uint64_t i = 1; i < size; i++){
+            for (uint64_t i = 1; i < size; i++) {
                 assert(prev_val < base[i]);
                 util::write_delta(m_bases, base[i] - prev_val);
                 prev_val = base[i];
@@ -45,13 +48,14 @@ struct meta_differential {
             m_bases_offsets.push_back(m_bases.num_bits());
         }
 
-        void process_partition(differential& d){
+        void process_partition(differential& d) {
             m_partial_colors.push_back(d);
             m_partition_endpoints.push_back({m_prev_docs, d.num_color_classes()});
             m_prev_docs += d.num_docs();
         }
 
-        void process_metacolors(uint64_t base_id, vector<uint64_t>& base, vector<uint64_t>& relative_colors){
+        void process_metacolors(uint64_t base_id, vector<uint64_t>& base,
+                                vector<uint64_t>& relative_colors) {
             assert(base.size() == relative_colors.size());
             if (base_id != m_prev_base_id) {
                 m_prev_base_id = base_id;
@@ -60,7 +64,7 @@ struct meta_differential {
             m_bases_partitions.push_back(false);
 
             uint64_t size = base.size();
-            for (uint64_t i = 0; i < size; i++){
+            for (uint64_t i = 0; i < size; i++) {
                 uint64_t partition_id = base[i];
                 uint64_t relative_id = relative_colors[i];
 
@@ -78,8 +82,7 @@ struct meta_differential {
             m.m_bases.swap(m_bases.bits());
 
             m.m_bases_partitions.build(&m_bases_partitions);
-            m.m_bases_offsets.encode(m_bases_offsets.begin(),
-                                     m_bases_offsets.size(),
+            m.m_bases_offsets.encode(m_bases_offsets.begin(), m_bases_offsets.size(),
                                      m_bases_offsets.back());
             m.m_relative_colors_offsets.encode(m_relative_colors_offsets.begin(),
                                                m_relative_colors_offsets.size(),
@@ -88,9 +91,7 @@ struct meta_differential {
         }
 
     private:
-        uint8_t msb(uint64_t n){
-            return 64 - __builtin_clzll(n);
-        } 
+        uint8_t msb(uint64_t n) { return 64 - __builtin_clzll(n); }
 
         std::vector<differential> m_partial_colors;
         bit_vector_builder m_relative_colors;
@@ -126,9 +127,10 @@ struct meta_differential {
             m_pos_in_meta_color = 0;
             m_pos_in_partial_color = 0;
             m_curr_partition_id = 0;
-            m_base_it = bit_vector_iterator((m_ptr->m_bases).data(), (m_ptr->m_bases).size(), m_begin_base);
-            m_relative_colors_it = bit_vector_iterator((m_ptr->m_relative_colors).data(), (m_ptr->m_relative_colors).size(),
-                                                 m_begin_rel);
+            m_base_it =
+                bit_vector_iterator((m_ptr->m_bases).data(), (m_ptr->m_bases).size(), m_begin_base);
+            m_relative_colors_it = bit_vector_iterator(
+                (m_ptr->m_relative_colors).data(), (m_ptr->m_relative_colors).size(), m_begin_rel);
             m_meta_color_list_size = util::read_delta(m_base_it);
         }
 
@@ -136,7 +138,7 @@ struct meta_differential {
         uint64_t operator*() const { return value(); }
 
         bool has_next() const { return m_pos_in_partial_color != m_curr_partition_size; }
- 
+
         void next() {
             if (m_pos_in_partial_color == m_curr_partition_size - 1) {
                 if (m_pos_in_meta_color == meta_color_list_size() - 1) {  // saturate
@@ -172,7 +174,7 @@ struct meta_differential {
 
         void next_partition_id() {
             m_pos_in_meta_color += 1;
-            if (m_pos_in_meta_color == meta_color_list_size()){
+            if (m_pos_in_meta_color == meta_color_list_size()) {
                 m_curr_partition_id = num_partitions();
                 return;
             }
@@ -181,11 +183,13 @@ struct meta_differential {
 
         void read_partition_id() {
             uint64_t delta = util::read_delta(m_base_it);
-            for(uint64_t i = 0; i < delta; i++){
-                m_num_lists_before += m_ptr->m_partition_endpoints[m_curr_partition_id + i].num_lists;
+            for (uint64_t i = 0; i < delta; i++) {
+                m_num_lists_before +=
+                    m_ptr->m_partition_endpoints[m_curr_partition_id + i].num_lists;
             }
             m_curr_partition_id += delta;
-            uint8_t relative_color_size = msb(m_ptr->m_partition_endpoints[m_curr_partition_id].num_lists);
+            uint8_t relative_color_size =
+                msb(m_ptr->m_partition_endpoints[m_curr_partition_id].num_lists);
             m_curr_relative_color = m_relative_colors_it.take(relative_color_size);
         }
 
@@ -196,36 +200,41 @@ struct meta_differential {
         }
 
         void update_partition() {
-            m_docid_lower_bound = m_ptr->m_partition_endpoints[m_curr_partition_id].docid_lower_bound;
-            
+            m_docid_lower_bound =
+                m_ptr->m_partition_endpoints[m_curr_partition_id].docid_lower_bound;
+
             m_pos_in_partial_color = 0;
-            m_curr_partition_it = m_ptr->m_partial_colors[m_curr_partition_id].colors(m_curr_relative_color);
+            m_curr_partition_it =
+                m_ptr->m_partial_colors[m_curr_partition_id].colors(m_curr_relative_color);
             m_curr_partition_size = m_curr_partition_it.size();
-            
+
             update_curr_val();
         }
 
-        uint64_t size() const { 
+        uint64_t size() const {
             uint64_t size = 0;
-            auto base_it = bit_vector_iterator((m_ptr->m_bases).data(), (m_ptr->m_bases).size(), m_begin_base);
-            auto rel_it = bit_vector_iterator((m_ptr->m_relative_colors).data(), (m_ptr->m_relative_colors).size(),
-                                                 m_begin_rel);
+            auto base_it =
+                bit_vector_iterator((m_ptr->m_bases).data(), (m_ptr->m_bases).size(), m_begin_base);
+            auto rel_it = bit_vector_iterator((m_ptr->m_relative_colors).data(),
+                                              (m_ptr->m_relative_colors).size(), m_begin_rel);
             uint64_t partition_id = 0;
-            util::read_delta(base_it); // remove size
-            for (uint64_t partial_color_id = 0; partial_color_id < m_meta_color_list_size; partial_color_id++){
+            util::read_delta(base_it);  // remove size
+            for (uint64_t partial_color_id = 0; partial_color_id < m_meta_color_list_size;
+                 partial_color_id++) {
                 partition_id += util::read_delta(base_it);
-                uint8_t relative_color_size = msb(m_ptr->m_partition_endpoints[partition_id].num_lists);
+                uint8_t relative_color_size =
+                    msb(m_ptr->m_partition_endpoints[partition_id].num_lists);
                 uint64_t relative_color = rel_it.take(relative_color_size);
                 size += m_ptr->m_partial_colors[partition_id].colors(relative_color).size();
             }
-            return size; 
+            return size;
         }
 
         uint32_t partition_id() const { return m_curr_partition_id; }
-        uint32_t partition_upper_bound() const { return m_docid_lower_bound + m_curr_partition_it.num_docs(); }
-        uint32_t meta_color() const {
-            return m_num_lists_before + m_curr_relative_color;
+        uint32_t partition_upper_bound() const {
+            return m_docid_lower_bound + m_curr_partition_it.num_docs();
         }
+        uint32_t meta_color() const { return m_num_lists_before + m_curr_relative_color; }
         uint32_t num_docs() const { return m_ptr->num_docs(); }
         uint32_t num_partitions() const { return m_ptr->num_partitions(); }
         uint64_t meta_color_list_size() const { return m_meta_color_list_size; }
@@ -243,13 +252,9 @@ struct meta_differential {
         uint64_t m_docid_lower_bound;
         uint64_t m_num_lists_before;
 
-        void update_curr_val(){
-            m_curr_val = m_docid_lower_bound + *m_curr_partition_it;
-        }
+        void update_curr_val() { m_curr_val = m_docid_lower_bound + *m_curr_partition_it; }
 
-        uint8_t msb(uint64_t n) const{
-            return 64 - __builtin_clzll(n);
-        } 
+        uint8_t msb(uint64_t n) const { return 64 - __builtin_clzll(n); }
     };
 
     typedef forward_iterator iterator_type;
@@ -273,19 +278,12 @@ struct meta_differential {
 
     uint64_t num_bits() const {
         uint64_t partial_colors_size = 0;
-        for (auto d: m_partial_colors){
-            partial_colors_size += d.num_bits();
-        }
-        return sizeof(size_t) * 8 +
-	    sizeof(m_num_docs) * 8 +
-            sizeof(m_num_bases) * 8 + 
-            m_bases_offsets.num_bits() +
-            m_relative_colors_offsets.num_bits() + 
-            essentials::vec_bytes(m_partition_endpoints) * 8 +
-            partial_colors_size +
-            essentials::vec_bytes(m_relative_colors) * 8 +
-            essentials::vec_bytes(m_bases) * 8 +
-            m_bases_partitions.bytes() * 8;
+        for (auto d : m_partial_colors) { partial_colors_size += d.num_bits(); }
+        return sizeof(size_t) * 8 + sizeof(m_num_docs) * 8 + sizeof(m_num_bases) * 8 +
+               m_bases_offsets.num_bits() + m_relative_colors_offsets.num_bits() +
+               essentials::vec_bytes(m_partition_endpoints) * 8 + partial_colors_size +
+               essentials::vec_bytes(m_relative_colors) * 8 + essentials::vec_bytes(m_bases) * 8 +
+               m_bases_partitions.bytes() * 8;
     }
 
     void print_stats() const {
@@ -294,29 +292,23 @@ struct meta_differential {
         std::cout << "  Number of bases: " << num_bases() << '\n';
         uint64_t colors_bits = 0;
 
-        uint64_t meta_colors_size = (m_relative_colors_offsets.num_bits() + m_bases_offsets.num_bits()) / 8 +
-            essentials::vec_bytes(m_relative_colors) + 
-            essentials::vec_bytes(m_bases) +
+        uint64_t meta_colors_size =
+            (m_relative_colors_offsets.num_bits() + m_bases_offsets.num_bits()) / 8 +
+            essentials::vec_bytes(m_relative_colors) + essentials::vec_bytes(m_bases) +
             m_bases_partitions.size();
 
-        for (auto const& c : m_partial_colors) {
-            colors_bits += c.num_bits();
-        }
+        for (auto const& c : m_partial_colors) { colors_bits += c.num_bits(); }
 
         std::cout << "  partial colors: " << colors_bits / 8 << " bytes ("
                   << (colors_bits * 100.0) / num_bits() << "%)\n";
-        std::cout << "  meta colors: "
-                  << meta_colors_size << " bytes ("
-                  << (meta_colors_size * 8 * 100.0) / num_bits()
-                  << "%)\n";
+        std::cout << "  meta colors: " << meta_colors_size << " bytes ("
+                  << (meta_colors_size * 8 * 100.0) / num_bits() << "%)\n";
         std::cout << "  other: " << essentials::vec_bytes(m_partition_endpoints) << " bytes ("
                   << ((essentials::vec_bytes(m_partition_endpoints) * 8) * 100.0) / num_bits()
                   << "%)\n";
     }
 
-    void dump(std::ofstream& os) const {
-
-    }
+    void dump(std::ofstream& os) const {}
 
     template <typename Visitor>
     void visit(Visitor& visitor) {
@@ -331,16 +323,15 @@ struct meta_differential {
         visitor.visit(m_bases_partitions);
     }
 
-    
 private:
     uint32_t m_num_docs;
-    uint32_t m_num_bases; 
+    uint32_t m_num_bases;
     sshash::ef_sequence<false> m_bases_offsets, m_relative_colors_offsets;
     std::vector<partition_endpoint> m_partition_endpoints;
-    std::vector<differential> m_partial_colors; 
-    std::vector<uint64_t> m_relative_colors; 
-    std::vector<uint64_t> m_bases; 
+    std::vector<differential> m_partial_colors;
+    std::vector<uint64_t> m_relative_colors;
+    std::vector<uint64_t> m_bases;
     ranked_bit_vector m_bases_partitions;
 };
 
-} // namespace fulgor
+}  // namespace fulgor

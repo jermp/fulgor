@@ -11,7 +11,7 @@
 #include "pseudoalign.cpp"
 
 int help(char* arg0) {
-    std::cout << "== Fulgor: a (meta-) colored compacted de Bruijn graph index "
+    std::cout << "== Fulgor: a colored de Bruijn graph index "
                  "============================="
               << std::endl
               << std::endl;
@@ -30,7 +30,8 @@ int help(char* arg0) {
         << "Advanced tools:\n"
         << "  permute            permute the reference names of a Fulgor index\n"
         << "  partition          partition a Fulgor index and build a meta-colored Fulgor index\n"
-        << "  differential       partition a Fulgor index and build a differential-colored Fulgor index\n"
+        << "  differential       partition a Fulgor index and build a differential-colored Fulgor "
+           "index\n"
         << "  dump-colors        write colors to an output file in text format" << std::endl;
 
     return 1;

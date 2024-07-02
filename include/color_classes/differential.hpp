@@ -39,12 +39,8 @@ struct differential {
             m_reference_offsets.push_back(m_bvb.num_bits());
         }
 
-        void encode_list(uint64_t cluster_id, 
-                         std::vector<uint32_t> const& reference, 
-                         uint64_t it_size,
-                         function<void()> next,
-                         function<uint64_t()> get
-                         ) {
+        void encode_list(uint64_t cluster_id, std::vector<uint32_t> const& reference,
+                         uint64_t it_size, function<void()> next, function<uint64_t()> get) {
             std::vector<uint32_t> edit_list;
             uint64_t ref_size = reference.size();
             edit_list.reserve(ref_size + it_size);
@@ -142,7 +138,7 @@ struct differential {
 
     struct forward_iterator {
         forward_iterator() {}
-        
+
         forward_iterator(differential const* ptr, uint64_t list_begin, uint64_t reference_begin)
             : m_ptr(ptr), m_edit_list_begin(list_begin), m_reference_begin(reference_begin) {
             rewind();
@@ -257,7 +253,7 @@ struct differential {
 
     uint64_t num_bits() const {
         return sizeof(m_num_docs) * 8 + m_reference_offsets.num_bits() + m_list_offsets.num_bits() +
-               essentials::vec_bytes(m_colors) * 8 + m_clusters.bytes()*8;
+               essentials::vec_bytes(m_colors) * 8 + m_clusters.bytes() * 8;
     }
 
     void print_stats() const {
@@ -273,7 +269,7 @@ struct differential {
         uint64_t num_edit_lists = 0;
         uint64_t num_metadata = 0;
 
-        uint64_t num_docs_tenth = num_docs()/10;
+        uint64_t num_docs_tenth = num_docs() / 10;
 
         std::vector<uint64_t> distribution(11, 0);
 
@@ -302,7 +298,7 @@ struct differential {
             num_metadata += it.position() - prev_position;
             prev_position = it.position();
 
-            util::read_delta(it); // original list size
+            util::read_delta(it);  // original list size
             num_metadata += it.position() - prev_position;
             prev_position = it.position();
 
@@ -315,14 +311,15 @@ struct differential {
 
                 prev_position = it.position();
             }
-	    uint64_t q = 0;
-	    if(num_docs_tenth != 0)  q = size/(num_docs_tenth) > 10 ? 10 : size/(num_docs_tenth);
+            uint64_t q = 0;
+            if (num_docs_tenth != 0)
+                q = size / (num_docs_tenth) > 10 ? 10 : size / (num_docs_tenth);
 
             distribution[q]++;
         }
 
-	assert(num_bits() > 0);
-	assert(num_colors > 0);
+        assert(num_bits() > 0);
+        assert(num_colors > 0);
 
         std::cout << "  reference offsets: " << num_reference_offsets / 8 << " bytes ("
                   << (num_reference_offsets * 100.0) / num_bits() << "%)" << std::endl;
@@ -339,7 +336,7 @@ struct differential {
         std::cout << "    metadata: " << num_metadata / 8 << " bytes ("
                   << (num_metadata * 100.0) / num_colors << "%)" << std::endl;
         std::cout << "  edit lists size distribution:" << std::endl;
-        for (uint64_t partition = 0; partition < 11; partition++){
+        for (uint64_t partition = 0; partition < 11; partition++) {
             std::cout << distribution[partition] << " ";
         }
         std::cout << std::endl;

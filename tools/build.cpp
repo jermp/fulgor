@@ -60,10 +60,11 @@ void meta_differential_coloring(build_configuration const& build_config) {
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
-    std::string output_filename = build_config.index_filename_to_partition.substr(
-                                      0, build_config.index_filename_to_partition.length() -
-                                             constants::meta_colored_fulgor_filename_extension.length() - 1) +
-                                  "." + constants::meta_diff_colored_fulgor_filename_extension;
+    std::string output_filename =
+        build_config.index_filename_to_partition.substr(
+            0, build_config.index_filename_to_partition.length() -
+                   constants::meta_colored_fulgor_filename_extension.length() - 1) +
+        "." + constants::meta_diff_colored_fulgor_filename_extension;
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");
@@ -156,12 +157,10 @@ int build(int argc, char** argv) {
     if (meta_colored && diff_colored) {
         build_config.index_filename_to_partition = output_filename;
         meta_differential_coloring(build_config);
-    }
-    else if (meta_colored) {
+    } else if (meta_colored) {
         build_config.index_filename_to_partition = output_filename;
         partition(build_config);
-    }
-    else if (diff_colored) {
+    } else if (diff_colored) {
         build_config.index_filename_to_partition = output_filename;
         differential_coloring(build_config);
     }
@@ -209,7 +208,6 @@ int partition(int argc, char** argv) {
     return 0;
 }
 
-
 int diff(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("index_filename", "The Fulgor index filename to partition.", "-i", true);
@@ -247,11 +245,10 @@ int diff(int argc, char** argv) {
 
     differential_coloring(build_config);
 
-
     return 0;
 }
 
-int meta_diff(int argc, char** argv){
+int meta_diff(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("index_filename", "The Fulgor index filename to partition.", "-i", true);
     parser.add(

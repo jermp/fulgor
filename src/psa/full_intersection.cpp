@@ -89,10 +89,9 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
     }
 }
 
-
 template <typename Iterator>
 void diff_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
-               std::vector<uint32_t>& complement_set) {
+                    std::vector<uint32_t>& complement_set) {
     assert(colors.empty());
     assert(complement_set.empty());
 

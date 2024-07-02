@@ -297,16 +297,16 @@ int pseudoalign(int argc, char** argv) {
 
     if (sshash::util::ends_with(index_filename,
                                 constants::meta_diff_colored_fulgor_filename_extension)) {
-        return pseudoalign<meta_differential_index_type>(index_filename, query_filename, output_filename,
-                                            num_threads, threshold, algo);
+        return pseudoalign<meta_differential_index_type>(
+            index_filename, query_filename, output_filename, num_threads, threshold, algo);
     } else if (sshash::util::ends_with(index_filename,
-                                constants::meta_colored_fulgor_filename_extension)) {
+                                       constants::meta_colored_fulgor_filename_extension)) {
         return pseudoalign<meta_index_type>(index_filename, query_filename, output_filename,
                                             num_threads, threshold, algo);
     } else if (sshash::util::ends_with(index_filename,
-                                constants::diff_colored_fulgor_filename_extension)) {
+                                       constants::diff_colored_fulgor_filename_extension)) {
         return pseudoalign<differential_index_type>(index_filename, query_filename, output_filename,
-                                            num_threads, threshold, algo);
+                                                    num_threads, threshold, algo);
     } else if (sshash::util::ends_with(index_filename, constants::fulgor_filename_extension)) {
         return pseudoalign<index_type>(index_filename, query_filename, output_filename, num_threads,
                                        threshold, algo);

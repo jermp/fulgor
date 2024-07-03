@@ -7,44 +7,47 @@ struct differential_permuter {
     differential_permuter(build_configuration const& build_config)
         : m_build_config(build_config), m_num_partitions(0) {}
 
-    template<typename Index>
+    template <typename Index>
     void permute(Index const& index) {
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-        std::vector<float> slices = {0, 0.25, 0.5, 0.75, 1};
-        uint8_t num_slices = slices.size() - 1; 
+        const std::vector<float> slices = {0, 0.25, 0.5, 0.75, 1};
+        const uint64_t num_slices = slices.size() - 1;
 
         {
             essentials::logger("step 2. build sketches");
 
             constexpr uint64_t p = 10;
-            for(uint8_t i = 0; i < num_slices; i++){
+            for (uint64_t i = 0; i < num_slices; i++) {
                 timer.start();
-                build_colors_sketches_sliced<hybrid::forward_iterator>(index.num_docs(), index.num_color_classes(), 
-                                             [&](uint64_t color_id) -> hybrid::forward_iterator {return index.colors(color_id);}, p, m_build_config.num_threads,
-                                             m_build_config.tmp_dirname + "/sketches" + std::to_string(i) + ".bin", 
-                                             slices[i], slices[i+1]);
+                build_colors_sketches_sliced<hybrid::forward_iterator>(
+                    index.num_docs(), index.num_color_sets(),
+                    [&](uint64_t color_id) -> hybrid::forward_iterator {
+                        return index.color_set(color_id);
+                    },
+                    p, m_build_config.num_threads,
+                    m_build_config.tmp_dirname + "/sketches" + std::to_string(i) + ".bin",
+                    slices[i], slices[i + 1]);
                 timer.stop();
                 std::cout << "** building sketches took " << timer.elapsed() << " seconds / "
                           << timer.elapsed() / 60 << " minutes" << std::endl;
                 timer.reset();
             }
-
         }
 
         {
             essentials::logger("step 3. clustering sketches");
-            
 
             std::vector<uint64_t> color_ids;
             std::vector<kmeans::cluster_data> clustering_data(num_slices);
             std::vector<uint64_t> num_points(num_slices);
 
-            for(uint8_t slice_id = 0; slice_id < num_slices; slice_id++){
-                num_points[slice_id] = cluster("/sketches" + std::to_string(slice_id) + ".bin", clustering_data[slice_id], color_ids);
+            for (uint64_t slice_id = 0; slice_id < num_slices; slice_id++) {
+                num_points[slice_id] = cluster("/sketches" + std::to_string(slice_id) + ".bin",
+                                               clustering_data[slice_id], color_ids);
             }
 
             m_num_partitions = 0;
-            for(uint8_t slice_id = 0; slice_id < num_slices; ++slice_id){
+            for (uint64_t slice_id = 0; slice_id < num_slices; ++slice_id) {
                 if (num_points[slice_id] == 0) continue;
                 m_num_partitions += clustering_data[slice_id].num_clusters;
             }
@@ -52,9 +55,11 @@ struct differential_permuter {
             m_partition_size.resize(m_num_partitions + 1, 0);
 
             uint64_t prev_num_clusters = 0;
-            for(uint8_t slice_id = 0; slice_id < num_slices; slice_id++){
-                if(num_points[slice_id] == 0) continue;
-                for (auto c : clustering_data[slice_id].clusters) { m_partition_size[c + prev_num_clusters] += 1; }
+            for (uint64_t slice_id = 0; slice_id < num_slices; slice_id++) {
+                if (num_points[slice_id] == 0) continue;
+                for (auto c : clustering_data[slice_id].clusters) {
+                    m_partition_size[c + prev_num_clusters] += 1;
+                }
                 prev_num_clusters += clustering_data[slice_id].num_clusters;
             }
 
@@ -68,43 +73,44 @@ struct differential_permuter {
                 }
             }
 
-            const uint64_t num_color_classes = index.num_color_classes();
+            const uint64_t num_color_sets = index.num_color_sets();
             m_num_docs = index.num_docs();
-            m_color_classes_ids.resize(num_color_classes);
+            m_color_sets_ids.resize(num_color_sets);
 
             auto clusters_pos = m_partition_size;
             uint64_t clusters_size = 0;
-            for(uint8_t slice_id = 0; slice_id < num_slices; ++slice_id){
+            for (uint64_t slice_id = 0; slice_id < num_slices; ++slice_id) {
                 if (num_points[slice_id] == 0) continue;
                 clusters_size += clustering_data[slice_id].clusters.size();
             }
-            assert(clusters_size == num_color_classes);
+            assert(clusters_size == num_color_sets);
 
-            std::vector<uint32_t> permutation(num_color_classes);
+            std::vector<uint32_t> permutation(num_color_sets);
             prev_num_clusters = 0;
-            uint64_t prev_num_color_classes = 0;
-            for(uint8_t slice_id = 0; slice_id < num_slices; slice_id++){
+            uint64_t prev_num_color_sets = 0;
+            for (uint64_t slice_id = 0; slice_id < num_slices; slice_id++) {
                 uint64_t num_cc = num_points[slice_id];
                 for (uint64_t color_id = 0; color_id != num_cc; ++color_id) {
-                    uint64_t cluster_id = clustering_data[slice_id].clusters[color_id] + prev_num_clusters;
-                    permutation[color_id + prev_num_color_classes] = clusters_pos[cluster_id];
+                    uint64_t cluster_id =
+                        clustering_data[slice_id].clusters[color_id] + prev_num_clusters;
+                    permutation[color_id + prev_num_color_sets] = clusters_pos[cluster_id];
                     clusters_pos[cluster_id] += 1;
                 }
                 prev_num_clusters += clustering_data[slice_id].num_clusters;
-                prev_num_color_classes += num_cc;
+                prev_num_color_sets += num_cc;
             }
 
-            for (uint64_t i = 0; i != num_color_classes; ++i) {
-                m_color_classes_ids[permutation[i]] = color_ids[i];
+            for (uint64_t i = 0; i != num_color_sets; ++i) {
+                m_color_sets_ids[permutation[i]] = color_ids[i];
             }
 
             std::cout << "Computed " << m_num_partitions << " partitions\n";
 
-            m_permutation.resize(num_color_classes);
+            m_permutation.resize(num_color_sets);
             m_references.resize(m_num_partitions);
             std::vector<uint32_t> distribution(m_num_docs, 0);
             uint64_t cluster_size = 0;
-            for (uint64_t color_id = 0, cluster_id = 0; color_id != num_color_classes + 1;
+            for (uint64_t color_id = 0, cluster_id = 0; color_id != num_color_sets + 1;
                  ++color_id, ++cluster_size) {
                 if (color_id == m_partition_size[cluster_id + 1]) {
                     auto& reference = m_references[cluster_id];
@@ -115,11 +121,11 @@ struct differential_permuter {
                     fill(distribution.begin(), distribution.end(), 0);
                     cluster_id++;
                     cluster_size = 0;
-                    if (color_id == num_color_classes) break;
+                    if (color_id == num_color_sets) break;
                 }
-                auto it = index.colors(m_color_classes_ids[color_id]);
+                auto it = index.color_set(m_color_sets_ids[color_id]);
                 for (uint32_t i = 0; i != it.size(); ++i, ++it) { distribution[*it]++; }
-                m_permutation[color_id] = {cluster_id, m_color_classes_ids[color_id]};
+                m_permutation[color_id] = {cluster_id, m_color_sets_ids[color_id]};
             }
         }
     }
@@ -127,7 +133,7 @@ struct differential_permuter {
     uint64_t num_partitions() const { return m_num_partitions; }
     uint64_t num_docs() const { return m_num_docs; }
     std::vector<std::pair<uint32_t, uint32_t>> permutation() const { return m_permutation; }
-    std::vector<uint32_t> color_classes_ids() const { return m_color_classes_ids; }
+    std::vector<uint32_t> color_sets_ids() const { return m_color_sets_ids; }
     std::vector<std::vector<uint32_t>> references() const { return m_references; }
 
 private:
@@ -136,9 +142,10 @@ private:
     std::vector<std::pair<uint32_t, uint32_t>> m_permutation;
     std::vector<std::vector<uint32_t>> m_references;
     std::vector<uint32_t> m_partition_size;
-    std::vector<uint32_t> m_color_classes_ids;
+    std::vector<uint32_t> m_color_sets_ids;
 
-    uint64_t cluster(std::string filename, kmeans::cluster_data& clustering_data, std::vector<uint64_t>& color_ids){
+    uint64_t cluster(std::string filename, kmeans::cluster_data& clustering_data,
+                     std::vector<uint64_t>& color_ids) {
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
         timer.start();
 
@@ -164,7 +171,7 @@ private:
         in.close();
         std::remove((m_build_config.tmp_dirname + filename).c_str());
 
-        if (num_points == 0){
+        if (num_points == 0) {
             std::cout << "Found empty partition" << endl;
             return 0;
         } else {
@@ -177,12 +184,12 @@ private:
             params.set_max_iteration(max_iteration);
             params.set_min_cluster_size(min_cluster_size);
             params.set_random_seed(seed);
-            
+
             clustering_data = kmeans::kmeans_divisive(points.begin(), points.end(), params);
         }
 
         color_ids.insert(color_ids.end(), group_color_ids.begin(), group_color_ids.end());
-        
+
         timer.stop();
         std::cout << "** clustering sketches took " << timer.elapsed() << " seconds / "
                   << timer.elapsed() / 60 << " minutes" << std::endl;
@@ -214,7 +221,7 @@ struct index<ColorClasses>::differential_builder {
         auto const& references = p.references();
 
         const uint64_t num_partitions = p.num_partitions();
-        const uint64_t num_color_classes = index.num_color_classes();
+        const uint64_t num_color_sets = index.num_color_sets();
         std::cout << "num_partitions = " << num_partitions << std::endl;
 
         {
@@ -224,16 +231,12 @@ struct index<ColorClasses>::differential_builder {
             typename ColorClasses::builder colors_builder;
             colors_builder.init_colors_builder(index.num_docs());
 
-            for (auto& reference : references) { colors_builder.encode_reference(reference); }
+            for (auto& reference : references) { colors_builder.encode_representative(reference); }
             for (auto& [cluster_id, color_id] : permutation) {
-                auto it = index.colors(color_id);
+                auto it = index.color_set(color_id);
                 colors_builder.encode_list(
-                    cluster_id, 
-                    references[cluster_id],
-                    it.size(), 
-                    [&it]() -> void {++it; },
-                    [&it]() -> uint64_t {return *it; }
-                );
+                    cluster_id, references[cluster_id], it.size(), [&it]() -> void { ++it; },
+                    [&it]() -> uint64_t { return *it; });
             }
             colors_builder.build(idx.m_ccs);
         }
@@ -250,16 +253,16 @@ struct index<ColorClasses>::differential_builder {
             d.build(index.get_u2c());
 
             const uint64_t num_unitigs = index.get_u2c().size();
-            pthash::bit_vector_builder u2c_builder(num_unitigs+1, 0);
+            pthash::bit_vector_builder u2c_builder(num_unitigs + 1, 0);
 
             auto const& dict = index.get_k2u();
             const uint64_t k = dict.k();
 
             uint64_t pos = 0;
-            for (uint64_t new_color_id = 0; new_color_id != num_color_classes; ++new_color_id) {
+            for (uint64_t new_color_id = 0; new_color_id != num_color_sets; ++new_color_id) {
                 auto [_, old_color_id] = permutation[new_color_id];
                 uint64_t old_unitig_id_end = num_unitigs;
-                if (old_color_id < num_color_classes -1 ){
+                if (old_color_id < num_color_sets - 1) {
                     old_unitig_id_end = d.select(index.get_u2c(), old_color_id) + 1;
                 }
                 uint64_t old_unitig_id_begin = 0;
@@ -269,10 +272,9 @@ struct index<ColorClasses>::differential_builder {
 
                 // num. unitigs that have the same color
                 pos += old_unitig_id_end - old_unitig_id_begin;
-                // cout << "[" << new_color_id << "] " << pos << "\n";
-                assert(pos-1 < u2c_builder.size());
+                assert(pos - 1 < u2c_builder.size());
 
-                u2c_builder.set(pos-1, 1);
+                u2c_builder.set(pos - 1, 1);
 
                 for (uint64_t i = old_unitig_id_begin; i != old_unitig_id_end; ++i) {
                     auto it = dict.at_contig_id(i);
@@ -319,50 +321,29 @@ struct index<ColorClasses>::differential_builder {
         if (m_build_config.check) {
             essentials::logger("step 7. check correctness...");
 
-            /*
-            uint64_t num_big_edit_lists = 0; // the number of edit lists where their size is greater than the original color
-            uint64_t num_excess_numbers = 0;
-            uint64_t sum_original_sizes = 0;
-            uint64_t max_original_size = 0;
-            */
-
-            for (uint64_t color_id = 0; color_id < num_color_classes; color_id++) {
-                auto exp_it = index.colors(permutation[color_id].second);
-                auto res_it = idx.colors(color_id);
+            for (uint64_t color_id = 0; color_id < num_color_sets; color_id++) {
+                auto exp_it = index.color_set(permutation[color_id].second);
+                auto res_it = idx.color_set(color_id);
                 if (res_it.size() != exp_it.size()) {
                     std::cout << "Error while checking color " << color_id
-                         << ", different sizes: expected " << exp_it.size() << " but got "
-                         << res_it.size() << ")" << std::endl;
+                              << ", different sizes: expected " << exp_it.size() << " but got "
+                              << res_it.size() << ")" << std::endl;
                     continue;
                 }
-                /*
-                if (exp_it.size() < res_it.edit_list_size()){
-                    num_big_edit_lists++;
-                    num_excess_numbers += res_it.edit_list_size() - exp_it.size();
-                    sum_original_sizes += exp_it.size();
-                    max_original_size = max_original_size > exp_it.size() ? max_original_size : exp_it.size();
-                }*/
 
                 for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
                     auto exp = *exp_it;
                     auto got = *res_it;
                     if (exp != got) {
                         std::cout << "Error while checking color " << color_id
-                             << ", mismatch at position " << j << ": expected " << exp
-                             << " but got " << got << std::endl;
+                                  << ", mismatch at position " << j << ": expected " << exp
+                                  << " but got " << got << std::endl;
                     }
                 }
             }
 
             std::cout << " COLORS DONE." << std::endl;
-            /*
-            std::cout << "Of " << num_color_classes << ", " << num_big_edit_lists 
-                << " edit_lists are greater than the original color_class (" << 
-                (100.0 * num_big_edit_lists / num_color_classes) << "%)" << std::endl;
-            std::cout << "\tNumber of excess colors: " << num_excess_numbers << std::endl;
-            std::cout << "\tMax original size: " << max_original_size << ", AVG: " << 1.*sum_original_sizes/num_big_edit_lists << std::endl;
-            */
-            
+
             for (uint64_t unitig_id = 0; unitig_id < idx.m_k2u.num_contigs(); ++unitig_id) {
                 auto it = idx.get_k2u().at_contig_id(unitig_id);
                 while (it.has_next()) {
@@ -378,10 +359,9 @@ struct index<ColorClasses>::differential_builder {
 
                     uint64_t new_color_id = idx.u2c(new_contig_id);
                     uint64_t old_color_id = index.u2c(old_contig_id);
-                    // cout << "[" << new_contig_id << "] " << new_color_id << " -> " << old_color_id << " (got: "<< permutation[new_color_id].second <<")\n";
 
-                    auto exp_it = index.colors(old_color_id);
-                    auto res_it = idx.colors(new_color_id);
+                    auto exp_it = index.color_set(old_color_id);
+                    auto res_it = idx.color_set(new_color_id);
                     if (res_it.size() != exp_it.size()) {
                         std::cout << "Error while checking color " << new_color_id
                                   << ", different sizes: expected " << exp_it.size() << " but got "

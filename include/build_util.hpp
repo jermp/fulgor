@@ -16,13 +16,13 @@ void build_reference_sketches(index_type const& index,
     const uint64_t num_docs = index.num_docs();
     typename sketch::hll_t::HashType hasher;
     auto const& u2c = index.get_u2c();
-    auto const& ccs = index.get_color_classes();
-    const uint64_t num_color_classes = ccs.num_color_classes();
+    auto const& ccs = index.get_color_sets();
+    const uint64_t num_color_sets = ccs.num_color_sets();
     const uint64_t num_ones = u2c.num_ones();
-    assert(num_color_classes == num_ones);
+    assert(num_color_sets == num_ones);
 
     if (num_ones < num_threads) {
-        throw std::runtime_error("there are only " + std::to_string(num_color_classes) +
+        throw std::runtime_error("there are only " + std::to_string(num_color_sets) +
                                  ": reduce the number of threads.");
     }
 
@@ -41,10 +41,10 @@ void build_reference_sketches(index_type const& index,
         uint64_t pop_count = 0;
         uint64_t prev_pos = 0;
         pthash::bit_vector::unary_iterator unary_it(u2c);
-        for (uint64_t color_id = 0; color_id != num_color_classes; ++color_id) {
+        for (uint64_t color_id = 0; color_id != num_color_sets; ++color_id) {
             uint64_t curr_pos = pop_count != num_ones ? unary_it.next() : (u2c.size() - 1);
             uint64_t num_unitigs = curr_pos - prev_pos + 1;
-            auto it = ccs.colors(color_id);
+            auto it = ccs.color_set(color_id);
             uint64_t size = it.size();
             load += size * num_unitigs;
             pop_count += 1;
@@ -65,17 +65,17 @@ void build_reference_sketches(index_type const& index,
         s.color_id_begin = 0;
         uint64_t cur_load = 0;
 
-        for (uint64_t color_id = 0; color_id != num_color_classes; ++color_id) {
+        for (uint64_t color_id = 0; color_id != num_color_sets; ++color_id) {
             uint64_t curr_pos =
-                color_id != num_color_classes - 1 ? unary_it.next() : (u2c.size() - 1);
+                color_id != num_color_sets - 1 ? unary_it.next() : (u2c.size() - 1);
 
             uint64_t num_unitigs = curr_pos - prev_pos + 1;
-            auto it = ccs.colors(color_id);
+            auto it = ccs.color_set(color_id);
             uint64_t size = it.size();
             cur_load += size * num_unitigs;
             prev_pos = curr_pos + 1;
 
-            if (cur_load >= load_per_thread or color_id == num_color_classes - 1) {
+            if (cur_load >= load_per_thread or color_id == num_color_sets - 1) {
                 s.color_id_end = color_id + 1;
                 thread_slices.push_back(s);
                 s.begin = prev_pos;
@@ -96,8 +96,8 @@ void build_reference_sketches(index_type const& index,
         pthash::bit_vector::unary_iterator unary_it(u2c, s.begin);
         for (uint64_t color_id = s.color_id_begin; color_id != s.color_id_end; ++color_id) {
             uint64_t curr_pos =
-                color_id != num_color_classes - 1 ? unary_it.next() : (u2c.size() - 1);
-            auto it = ccs.colors(color_id);
+                color_id != num_color_sets - 1 ? unary_it.next() : (u2c.size() - 1);
+            auto it = ccs.color_set(color_id);
             const uint64_t size = it.size();
             hashes.reserve(curr_pos - prev_pos + 1);
             for (uint64_t unitig_id = prev_pos; unitig_id <= curr_pos; ++unitig_id) {
@@ -147,7 +147,7 @@ void build_reference_sketches(index_type const& index,
 
 template <typename Iterator>
 void build_colors_sketches_sliced(
-    uint64_t num_docs, uint64_t num_color_classes, function<Iterator(uint64_t)> colors,
+    uint64_t num_docs, uint64_t num_color_sets, function<Iterator(uint64_t)> colors,
     uint64_t p,                   // use 2^p bytes per HLL sketch
     uint64_t num_threads,         // num. threads for construction
     std::string output_filename,  // where the sketches will be serialized
@@ -160,11 +160,11 @@ void build_colors_sketches_sliced(
     assert(min_size >= 0);
     assert(max_size <= num_docs);
 
-    if (num_color_classes < num_threads) { num_threads = num_color_classes; }
+    if (num_color_sets < num_threads) { num_threads = num_color_sets; }
 
     std::vector<Iterator> filtered_colors;
     std::vector<uint64_t> filtered_colors_ids;
-    for (uint64_t color_id = 0; color_id != num_color_classes; ++color_id) {
+    for (uint64_t color_id = 0; color_id != num_color_sets; ++color_id) {
         auto it = colors(color_id);
         uint64_t size = it.size();
         if (size > min_size && size <= max_size) {

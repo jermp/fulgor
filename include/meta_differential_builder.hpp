@@ -21,10 +21,10 @@ struct index<ColorClasses>::meta_differential_builder {
         essentials::load(meta_index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");
 
-        const uint64_t num_color_classes = meta_index.num_color_classes();
+        const uint64_t num_color_sets = meta_index.num_color_sets();
 
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-        uint64_t num_partitions = meta_index.get_color_classes().num_partitions();
+        uint64_t num_partitions = meta_index.get_color_sets().num_partitions();
 
         meta_differential::builder builder;
         builder.init(meta_index.num_docs(), num_partitions);
@@ -35,7 +35,7 @@ struct index<ColorClasses>::meta_differential_builder {
             essentials::logger("step 2. building differential partial/meta colors");
             timer.start();
 
-            std::vector<hybrid> pc = meta_index.get_color_classes().partial_colors();
+            std::vector<hybrid> pc = meta_index.get_color_sets().partial_colors();
             assert(pc.size() == num_partitions);
 
             for (uint64_t i = 0; i < num_partitions; i++) {
@@ -52,9 +52,10 @@ struct index<ColorClasses>::meta_differential_builder {
                 partial_permutations[i].resize(permutation.size());
                 uint64_t original_id = 0;
 
-                for (auto& reference : references) { diff_builder.encode_reference(reference); }
+                for (auto& reference : references) {
+                    diff_builder.encode_representative(reference); }
                 for (auto& [cluster_id, color_id] : permutation) {
-                    auto it = pc[i].colors(color_id);
+                    auto it = pc[i].color_set(color_id);
                     diff_builder.encode_list(
                         cluster_id, references[cluster_id], it.size(), [&it]() -> void { ++it; },
                         [&it]() -> uint64_t { return *it; });
@@ -72,7 +73,7 @@ struct index<ColorClasses>::meta_differential_builder {
             timer.reset();
         }
 
-        std::vector<uint64_t> permutation(num_color_classes);
+        std::vector<uint64_t> permutation(num_color_sets);
 
         {
             essentials::logger("step 5. build differential-meta colors");
@@ -80,11 +81,11 @@ struct index<ColorClasses>::meta_differential_builder {
 
             std::vector<uint32_t> counts;
             std::map<std::vector<uint64_t>, uint64_t> meta_partitions;
-            std::vector<std::vector<uint64_t>> partition_bases;
-            std::vector<uint64_t> color_class_to_base(num_color_classes);
-            uint64_t num_bases = 0;
-            for (uint64_t color_id = 0; color_id < num_color_classes; color_id++) {
-                auto it = meta_index.get_color_classes().colors(color_id);
+            std::vector<std::vector<uint64_t>> partition_sets;
+            std::vector<uint64_t> color_set_to_partition_set(num_color_sets);
+            uint64_t num_partition_sets = 0;
+            for (uint64_t color_id = 0; color_id < num_color_sets; color_id++) {
+                auto it = meta_index.get_color_sets().color_set(color_id);
                 uint64_t size = it.meta_color_list_size();
 
                 std::vector<uint64_t> partition_list(size);
@@ -92,17 +93,17 @@ struct index<ColorClasses>::meta_differential_builder {
                     partition_list[i] = it.partition_id();
                 }
                 if (meta_partitions.count(partition_list) == 0) {
-                    meta_partitions[partition_list] = num_bases++;
-                    partition_bases.push_back(partition_list);
+                    meta_partitions[partition_list] = num_partition_sets++;
+                    partition_sets.push_back(partition_list);
                     counts.push_back(0);
                 }
-                color_class_to_base[color_id] = meta_partitions[partition_list];
+                color_set_to_partition_set[color_id] = meta_partitions[partition_list];
                 counts[meta_partitions[partition_list]]++;
             }
 
-            builder.init_meta_color_bases(num_bases);
-            for (uint64_t base_id = 0; base_id < num_bases; base_id++) {
-                builder.process_meta_color_base(partition_bases[base_id]);
+            builder.init_meta_color_partition_sets(num_partition_sets);
+            for (uint64_t partition_set_id = 0; partition_set_id < num_partition_sets; partition_set_id++) {
+                builder.process_meta_color_partition_set(partition_sets[partition_set_id]);
             }
 
             std::vector<uint64_t> cum_sum = {0};
@@ -112,25 +113,25 @@ struct index<ColorClasses>::meta_differential_builder {
                 cum_sum.push_back(prev_val);
             }
 
-            for (uint64_t color_id = 0; color_id < num_color_classes; color_id++) {
-                permutation[cum_sum[color_class_to_base[color_id]]++] = color_id;
+            for (uint64_t color_id = 0; color_id < num_color_sets; color_id++) {
+                permutation[cum_sum[color_set_to_partition_set[color_id]]++] = color_id;
             }
-            for (uint64_t permuted_id = 0; permuted_id < num_color_classes; permuted_id++) {
+            for (uint64_t permuted_id = 0; permuted_id < num_color_sets; permuted_id++) {
                 uint64_t original_color_id = permutation[permuted_id];
-                uint64_t base_id = color_class_to_base[original_color_id];
-                auto it = meta_index.get_color_classes().colors(original_color_id);
+                uint64_t partition_set_id = color_set_to_partition_set[original_color_id];
+                auto it = meta_index.get_color_sets().color_set(original_color_id);
                 uint64_t size = it.meta_color_list_size();
                 std::vector<uint64_t> relative_colors;
                 relative_colors.reserve(size);
 
                 for (uint64_t i = 0; i < size; i++, it.next_partition_id()) {
                     it.update_partition();
-                    uint64_t partition_id = partition_bases[base_id][i];
+                    uint64_t partition_id = partition_sets[partition_set_id][i];
                     relative_colors.push_back(
                         partial_permutations[partition_id]
                                             [it.meta_color() - it.num_lists_before()]);
                 }
-                builder.process_metacolors(base_id, partition_bases[base_id], relative_colors);
+                builder.process_metacolors(partition_set_id, partition_sets[partition_set_id], relative_colors);
             }
 
             builder.build(idx.m_ccs);
@@ -160,10 +161,10 @@ struct index<ColorClasses>::meta_differential_builder {
             const uint64_t k = dict.k();
 
             uint64_t pos = 0;
-            for (uint64_t new_color_id = 0; new_color_id != num_color_classes; ++new_color_id) {
+            for (uint64_t new_color_id = 0; new_color_id != num_color_sets; ++new_color_id) {
                 uint64_t old_color_id = permutation[new_color_id];
                 uint64_t old_unitig_id_end = num_unitigs;
-                if (old_color_id < num_color_classes - 1) {
+                if (old_color_id < num_color_sets - 1) {
                     old_unitig_id_end = d.select(meta_index.get_u2c(), old_color_id) + 1;
                 }
                 uint64_t old_unitig_id_begin = 0;
@@ -251,8 +252,8 @@ struct index<ColorClasses>::meta_differential_builder {
                         uint64_t new_color_id = idx.u2c(new_contig_id);
                         uint64_t old_color_id = meta_index.u2c(old_contig_id);
 
-                        auto exp_it = meta_index.colors(old_color_id);
-                        auto res_it = idx.colors(new_color_id);
+                        auto exp_it = meta_index.color_set(old_color_id);
+                        auto res_it = idx.color_set(new_color_id);
                         if (res_it.size() != exp_it.size()) {
                             std::cout << "Error while checking color " << new_color_id
                                       << ", different sizes: expected " << exp_it.size()

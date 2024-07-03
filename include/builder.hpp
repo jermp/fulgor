@@ -141,7 +141,7 @@ struct index<ColorClasses>::builder {
                             return;
                         }
                     }
-                    auto fwd_it = idx.m_ccs.colors(color_id);
+                    auto fwd_it = idx.m_ccs.color_set(color_id);
                     const uint64_t size = fwd_it.size();
                     if (size != colors.size) {
                         std::cout << "got colors list of size " << size << " but expected "

@@ -83,7 +83,7 @@ void index<ColorClasses>::pseudoalign_threshold_union(std::string const& sequenc
            std::accumulate(unitig_ids.begin(), unitig_ids.end(), uint64_t(0),
                            [](uint64_t curr_sum, auto const& u) { return curr_sum + u.score; }));
 
-    std::vector<scored_id> color_class_ids;
+    std::vector<scored_id> color_set_ids;
     std::vector<scored<typename ColorClasses::iterator_type>> iterators;
 
     /* deduplicate unitig_ids */
@@ -93,28 +93,28 @@ void index<ColorClasses>::pseudoalign_threshold_union(std::string const& sequenc
     for (uint64_t i = 0; i != unitig_ids.size(); ++i) {
         uint32_t unitig_id = unitig_ids[i].item;
         if (unitig_id != prev_unitig_id) {
-            uint32_t color_class_id = u2c(unitig_id);
-            color_class_ids.push_back({color_class_id, unitig_ids[i].score});
+            uint32_t color_set_id = u2c(unitig_id);
+            color_set_ids.push_back({color_set_id, unitig_ids[i].score});
             prev_unitig_id = unitig_id;
         } else {
-            assert(!color_class_ids.empty());
-            color_class_ids.back().score += unitig_ids[i].score;
+            assert(!color_set_ids.empty());
+            color_set_ids.back().score += unitig_ids[i].score;
         }
     }
 
-    /* deduplicate color_class_ids */
-    std::sort(color_class_ids.begin(), color_class_ids.end(),
+    /* deduplicate color_set_ids */
+    std::sort(color_set_ids.begin(), color_set_ids.end(),
               [](auto const& x, auto const& y) { return x.item < y.item; });
-    uint32_t prev_color_class_id = -1;
-    for (uint64_t i = 0; i != color_class_ids.size(); ++i) {
-        uint64_t color_class_id = color_class_ids[i].item;
-        if (color_class_id != prev_color_class_id) {
-            auto fwd_it = m_ccs.colors(color_class_id);
-            iterators.push_back({fwd_it, color_class_ids[i].score});
-            prev_color_class_id = color_class_id;
+    uint32_t prev_color_set_id = -1;
+    for (uint64_t i = 0; i != color_set_ids.size(); ++i) {
+        uint64_t color_set_id = color_set_ids[i].item;
+        if (color_set_id != prev_color_set_id) {
+            auto fwd_it = m_ccs.color_set(color_set_id);
+            iterators.push_back({fwd_it, color_set_ids[i].score});
+            prev_color_set_id = color_set_id;
         } else {
             assert(!iterators.empty());
-            iterators.back().score += color_class_ids[i].score;
+            iterators.back().score += color_set_ids[i].score;
         }
     }
 

@@ -2,6 +2,7 @@
 
 #include "external/sketch/include/sketch/hll.h"
 #include "external/kmeans/include/kmeans.hpp"
+#include "color_classes/meta.hpp"
 
 namespace fulgor {
 
@@ -15,14 +16,14 @@ void build_reference_sketches(index_type const& index,
     const uint64_t num_docs = index.num_docs();
     typename sketch::hll_t::HashType hasher;
     auto const& u2c = index.get_u2c();
-    auto const& ccs = index.get_color_classes();
-    const uint64_t num_color_classes = ccs.num_color_classes();
+    auto const& ccs = index.get_color_sets();
+    const uint64_t num_color_sets = ccs.num_color_sets();
     const uint64_t num_ones = u2c.num_ones();
-    assert(num_color_classes == num_ones);
+    assert(num_color_sets == num_ones);
 
     if (num_ones < num_threads) {
-        throw std::runtime_error("there are only " + std::to_string(num_ones) +
-                                 " ones: reduce the number of threads.");
+        throw std::runtime_error("there are only " + std::to_string(num_color_sets) +
+                                 ": reduce the number of threads.");
     }
 
     std::vector<std::vector<sketch::hll_t>> thread_sketches(
@@ -40,10 +41,10 @@ void build_reference_sketches(index_type const& index,
         uint64_t pop_count = 0;
         uint64_t prev_pos = 0;
         pthash::bit_vector::unary_iterator unary_it(u2c);
-        for (uint64_t color_id = 0; color_id != num_color_classes; ++color_id) {
+        for (uint64_t color_id = 0; color_id != num_color_sets; ++color_id) {
             uint64_t curr_pos = pop_count != num_ones ? unary_it.next() : (u2c.size() - 1);
             uint64_t num_unitigs = curr_pos - prev_pos + 1;
-            auto it = ccs.colors(color_id);
+            auto it = ccs.color_set(color_id);
             uint64_t size = it.size();
             load += size * num_unitigs;
             pop_count += 1;
@@ -52,6 +53,9 @@ void build_reference_sketches(index_type const& index,
     }
 
     const uint64_t load_per_thread = load / num_threads;
+    if (load_per_thread == 0) {
+        throw std::runtime_error("load is too small: reduce the number of threads");
+    }
 
     {
         uint64_t prev_pos = 0;
@@ -61,17 +65,17 @@ void build_reference_sketches(index_type const& index,
         s.color_id_begin = 0;
         uint64_t cur_load = 0;
 
-        for (uint64_t color_id = 0; color_id != num_color_classes; ++color_id) {
+        for (uint64_t color_id = 0; color_id != num_color_sets; ++color_id) {
             uint64_t curr_pos =
-                color_id != num_color_classes - 1 ? unary_it.next() : (u2c.size() - 1);
+                color_id != num_color_sets - 1 ? unary_it.next() : (u2c.size() - 1);
 
             uint64_t num_unitigs = curr_pos - prev_pos + 1;
-            auto it = ccs.colors(color_id);
+            auto it = ccs.color_set(color_id);
             uint64_t size = it.size();
             cur_load += size * num_unitigs;
             prev_pos = curr_pos + 1;
 
-            if (cur_load >= load_per_thread or color_id == num_color_classes - 1) {
+            if (cur_load >= load_per_thread or color_id == num_color_sets - 1) {
                 s.color_id_end = color_id + 1;
                 thread_slices.push_back(s);
                 s.begin = prev_pos;
@@ -80,7 +84,7 @@ void build_reference_sketches(index_type const& index,
             }
         }
 
-        assert(thread_slices.size() == num_threads);
+        num_threads = thread_slices.size();
     }
 
     auto exe = [&](uint64_t thread_id) {
@@ -92,8 +96,8 @@ void build_reference_sketches(index_type const& index,
         pthash::bit_vector::unary_iterator unary_it(u2c, s.begin);
         for (uint64_t color_id = s.color_id_begin; color_id != s.color_id_end; ++color_id) {
             uint64_t curr_pos =
-                color_id != num_color_classes - 1 ? unary_it.next() : (u2c.size() - 1);
-            auto it = ccs.colors(color_id);
+                color_id != num_color_sets - 1 ? unary_it.next() : (u2c.size() - 1);
+            auto it = ccs.color_set(color_id);
             const uint64_t size = it.size();
             hashes.reserve(curr_pos - prev_pos + 1);
             for (uint64_t unitig_id = prev_pos; unitig_id <= curr_pos; ++unitig_id) {
@@ -109,7 +113,6 @@ void build_reference_sketches(index_type const& index,
             prev_pos = curr_pos + 1;
             hashes.clear();
         }
-        // essentials::logger("thread-" + std::to_string(thread_id) + " DONE");
     };
 
     std::vector<std::thread> threads(num_threads);
@@ -142,9 +145,9 @@ void build_reference_sketches(index_type const& index,
     out.close();
 }
 
-template <typename ColorClass>
-void build_reference_sketches_partitioned(
-    index<ColorClass> const& index,
+template <typename Iterator>
+void build_colors_sketches_sliced(
+    uint64_t num_docs, uint64_t num_color_sets, function<Iterator(uint64_t)> colors,
     uint64_t p,                   // use 2^p bytes per HLL sketch
     uint64_t num_threads,         // num. threads for construction
     std::string output_filename,  // where the sketches will be serialized
@@ -152,22 +155,17 @@ void build_reference_sketches_partitioned(
 {
     assert(num_threads > 0);
 
-    const uint64_t num_docs = index.num_docs();
-    const uint64_t num_color_classes = index.num_color_classes();
     const double min_size = left * num_docs;
     const double max_size = right * num_docs;
     assert(min_size >= 0);
     assert(max_size <= num_docs);
 
-    if (num_color_classes < num_threads) {
-        throw std::runtime_error("there are only " + std::to_string(num_color_classes) +
-                                 ": reduce the number of threads.");
-    }
+    if (num_color_sets < num_threads) { num_threads = num_color_sets; }
 
-    std::vector<typename ColorClass::forward_iterator> filtered_colors;
+    std::vector<Iterator> filtered_colors;
     std::vector<uint64_t> filtered_colors_ids;
-    for (uint64_t color_id = 0; color_id != num_color_classes; ++color_id) {
-        auto it = index.colors(color_id);
+    for (uint64_t color_id = 0; color_id != num_color_sets; ++color_id) {
+        auto it = colors(color_id);
         uint64_t size = it.size();
         if (size > min_size && size <= max_size) {
             filtered_colors.push_back(it);
@@ -175,9 +173,6 @@ void build_reference_sketches_partitioned(
         }
     }
     const uint64_t partition_size = filtered_colors.size();
-
-    std::vector<std::vector<sketch::hll_t>> thread_sketches(
-        num_threads, std::vector<sketch::hll_t>(partition_size, sketch::hll_t(p)));
 
     struct slice {
         uint64_t begin, end;  // [..)
@@ -205,21 +200,25 @@ void build_reference_sketches_partitioned(
                 curr_load = 0;
             }
         }
-        assert(thread_slices.size() == num_threads);
+        assert(thread_slices.size() <= num_threads);
     }
+    num_threads = thread_slices.size();
+    std::vector<std::vector<sketch::hll_t>> thread_sketches(num_threads);
 
     auto exe = [&](uint64_t thread_id) {
         assert(thread_id < thread_slices.size());
         auto& sketches = thread_sketches[thread_id];
         auto s = thread_slices[thread_id];
+        sketches = std::vector<sketch::hll_t>(s.end - s.begin, sketch::hll_t(p));
 
         for (uint64_t color_id = s.begin; color_id != s.end; ++color_id) {
             auto it = filtered_colors[color_id];
             const uint64_t size = it.size();
+            assert(size > 0);
             for (uint64_t i = 0; i < size; ++i, ++it) {
                 uint64_t ref_id = *it;
                 assert(ref_id < num_docs);
-                sketches[color_id].addh(ref_id);
+                sketches[color_id - s.begin].addh(ref_id);
             }
         }
     };
@@ -232,14 +231,6 @@ void build_reference_sketches_partitioned(
         if (t.joinable()) t.join();
     }
 
-    /* merge sketches into thread_sketches[0] */
-    for (uint64_t i = 0; i != partition_size; ++i) {
-        auto& sketch = thread_sketches[0][i];
-        for (uint64_t thread_id = 1; thread_id != num_threads; ++thread_id) {
-            sketch += thread_sketches[thread_id][i];
-        }
-    }
-
     std::ofstream out(output_filename, std::ios::binary);
     if (!out.is_open()) throw std::runtime_error("cannot open file");
     const uint64_t num_bytes = 1ULL << p;
@@ -249,11 +240,13 @@ void build_reference_sketches_partitioned(
     for (auto const color_id : filtered_colors_ids) {
         out.write(reinterpret_cast<char const*>(&color_id), 8);
     }
-    for (auto const& x : thread_sketches[0]) {
-        assert(x.m() == num_bytes);
-        assert(x.m() == x.core().size());
-        uint8_t const* data = x.data();
-        out.write(reinterpret_cast<char const*>(data), num_bytes);
+    for (auto const& sketch : thread_sketches) {
+        for (auto const& x : sketch) {
+            assert(x.m() == num_bytes);
+            assert(x.m() == x.core().size());
+            uint8_t const* data = x.data();
+            out.write(reinterpret_cast<char const*>(data), num_bytes);
+        }
     }
     out.close();
 }

@@ -13,7 +13,7 @@
 
 namespace fulgor {
 
-enum list_type { delta_gaps, bitmap, complement_delta_gaps };
+enum list_type { delta_gaps, bitmap, complement_delta_gaps, differential_list };
 
 namespace constants {
 constexpr double invalid_threshold = -1.0;
@@ -22,6 +22,7 @@ static const std::string default_tmp_dirname(".");
 static const std::string fulgor_filename_extension("fur");
 static const std::string meta_colored_fulgor_filename_extension("mfur");
 static const std::string diff_colored_fulgor_filename_extension("dfur");
+static const std::string meta_diff_colored_fulgor_filename_extension("mdfur");
 }  // namespace constants
 
 struct build_configuration {
@@ -47,7 +48,6 @@ struct build_configuration {
     std::string filenames_list;
 
     std::string index_filename_to_partition;
-    std::string index_filename_to_differentiate;
 
     bool verbose;
     bool canonical_parsing;

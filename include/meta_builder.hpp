@@ -135,7 +135,7 @@ struct index<ColorClasses>::meta_builder {
         essentials::logger("DONE");
 
         const uint64_t num_docs = index.num_docs();
-        const uint64_t num_color_classes = index.num_color_classes();
+        const uint64_t num_color_sets = index.num_color_sets();
 
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
 
@@ -211,11 +211,11 @@ struct index<ColorClasses>::meta_builder {
                 meta_color_list_size += 1;
             };
 
-            for (uint64_t color_class_id = 0; color_class_id != num_color_classes;
-                 ++color_class_id) {
+            for (uint64_t color_set_id = 0; color_set_id != num_color_sets;
+                 ++color_set_id) {
                 /* permute list */
                 permuted_list.clear();
-                auto it = index.colors(color_class_id);
+                auto it = index.color_set(color_set_id);
                 uint64_t list_size = it.size();
                 for (uint64_t i = 0; i != list_size; ++i, ++it) {
                     uint32_t ref_id = *it;
@@ -277,7 +277,7 @@ struct index<ColorClasses>::meta_builder {
 
             std::cout << "total num. partial colors = " << num_partial_colors << std::endl;
 
-            colors_builder.init_meta_colors_builder(num_integers_in_metacolors + num_color_classes,
+            colors_builder.init_meta_colors_builder(num_integers_in_metacolors + num_color_sets,
                                                     num_partial_colors, p.partition_size(),
                                                     num_lists_in_partition);
 
@@ -288,8 +288,8 @@ struct index<ColorClasses>::meta_builder {
                                         std::ios::binary);
             if (!metacolors_in.is_open()) throw std::runtime_error("error in opening file");
 
-            for (uint64_t color_class_id = 0; color_class_id != num_color_classes;
-                 ++color_class_id) {
+            for (uint64_t color_set_id = 0; color_set_id != num_color_sets;
+                 ++color_set_id) {
                 assert(metacolors.empty());
                 uint32_t meta_color_list_size = 0;
                 metacolors_in.read(reinterpret_cast<char*>(&meta_color_list_size),
@@ -345,10 +345,10 @@ struct index<ColorClasses>::meta_builder {
             std::vector<uint32_t> permuted_list;
             permuted_list.reserve(num_docs);
 
-            for (uint64_t color_class_id = 0; color_class_id != num_color_classes;
-                 ++color_class_id) {
-                auto it_exp = index.colors(color_class_id);
-                auto it_got = idx.colors(color_class_id);
+            for (uint64_t color_set_id = 0; color_set_id != num_color_sets;
+                 ++color_set_id) {
+                auto it_exp = index.color_set(color_set_id);
+                auto it_got = idx.color_set(color_set_id);
                 const uint64_t exp_size = it_exp.size();
                 const uint64_t got_size = it_got.size();
 

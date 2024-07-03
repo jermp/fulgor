@@ -42,6 +42,9 @@ int stats(int argc, char** argv) {
                                 constants::meta_colored_fulgor_filename_extension)) {
         print_stats<meta_index_type>(index_filename);
     } else if (sshash::util::ends_with(index_filename,
+                                       constants::meta_diff_colored_fulgor_filename_extension)) {
+        print_stats<meta_differential_index_type>(index_filename);
+    } else if (sshash::util::ends_with(index_filename,
                                        constants::diff_colored_fulgor_filename_extension)) {
         print_stats<differential_index_type>(index_filename);
     } else if (sshash::util::ends_with(index_filename, constants::fulgor_filename_extension)) {

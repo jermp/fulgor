@@ -4,7 +4,6 @@
 #include "include/index_types.hpp"
 #include "src/index.cpp"
 #include "external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
-#include "include/cluster_builder.hpp"
 
 #include "util.cpp"
 #include "build.cpp"
@@ -12,7 +11,7 @@
 #include "pseudoalign.cpp"
 
 int help(char* arg0) {
-    std::cout << "== Fulgor: a (meta-) colored compacted de Bruijn graph index "
+    std::cout << "== Fulgor: a colored de Bruijn graph index "
                  "============================="
               << std::endl
               << std::endl;
@@ -31,7 +30,8 @@ int help(char* arg0) {
         << "Advanced tools:\n"
         << "  permute            permute the reference names of a Fulgor index\n"
         << "  partition          partition a Fulgor index and build a meta-colored Fulgor index\n"
-        << "  differential       partition a Fulgor index and build a differential-colored Fulgor index\n"
+        << "  differential       partition a Fulgor index and build a differential-colored Fulgor "
+           "index\n"
         << "  dump-colors        write colors to an output file in text format" << std::endl;
 
     return 1;
@@ -60,6 +60,8 @@ int main(int argc, char** argv) {
         return partition(argc - 1, argv + 1);
     } else if (tool == "differential") {
         return diff(argc - 1, argv + 1);
+    } else if (tool == "meta-differential") {
+        return meta_diff(argc - 1, argv + 1);
     } else if (tool == "dump-colors") {
         return dump_colors(argc - 1, argv + 1);
     }

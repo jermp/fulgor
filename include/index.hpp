@@ -14,13 +14,14 @@ struct index {
     struct builder;
     struct meta_builder;
     struct differential_builder;
+    struct meta_differential_builder;
 
-    typename color_classes_type::iterator_type colors(uint64_t color_class_id) const {
-        assert(color_class_id < num_color_classes());
-        return m_ccs.colors(color_class_id);
+    typename color_classes_type::iterator_type color_set(uint64_t color_set_id) const {
+        assert(color_set_id < num_color_sets());
+        return m_ccs.color_set(color_set_id);
     }
 
-    /* from unitig_id to color_class_id */
+    /* from unitig_id to color_set_id */
     uint64_t u2c(uint64_t unitig_id) const { return m_u2c.rank(unitig_id); }
 
     void pseudoalign_full_intersection(std::string const& sequence,
@@ -28,7 +29,7 @@ struct index {
     void pseudoalign_threshold_union(std::string const& sequence, std::vector<uint32_t>& results,
                                      const double threshold) const;
 
-    void intersect_unitigs(std::vector<uint64_t>& unitig_ids, std::vector<uint32_t>& colors) const;
+    void intersect_unitigs(std::vector<uint64_t>& unitig_ids, std::vector<uint32_t>& color_set) const;
 
     std::string_view filename(uint64_t doc_id) const {
         assert(doc_id < num_docs());
@@ -40,11 +41,11 @@ struct index {
 
     uint64_t k() const { return m_k2u.k(); }
     uint64_t num_docs() const { return m_ccs.num_docs(); }
-    uint64_t num_color_classes() const { return m_ccs.num_color_classes(); }
+    uint64_t num_color_sets() const { return m_ccs.num_color_sets(); }
 
     sshash::dictionary const& get_k2u() const { return m_k2u; }
     ranked_bit_vector const& get_u2c() const { return m_u2c; }
-    ColorClasses const& get_color_classes() const { return m_ccs; }
+    ColorClasses const& get_color_sets() const { return m_ccs; }
     filenames const& get_filenames() const { return m_filenames; }
 
     template <typename Visitor>

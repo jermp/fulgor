@@ -29,10 +29,11 @@ int help(char* arg0) {
     std::cout
         << "Advanced tools:\n"
         << "  permute            permute the reference names of a Fulgor index\n"
-        << "  partition          partition a Fulgor index and build a meta-colored Fulgor index\n"
-        << "  differential       partition a Fulgor index and build a differential-colored Fulgor "
-           "index\n"
-        << "  dump-colors        write colors to an output file in text format" << std::endl;
+        << "  meta               partition a Fulgor index and build a meta-colored Fulgor index\n"
+        << "  differential       partition a Fulgor index and build a differential-colored Fulgor index\n"
+        << "  meta-differential  partition a Fulgor index and build a meta-differential-colored Fulgor index\n"
+        << "  dump               write unitigs and colors to output files in text format\n";
+    // << "  dump-colors        write colors to an output file in text format" << std::endl;
 
     return 1;
 }
@@ -56,15 +57,18 @@ int main(int argc, char** argv) {
     /* advanced tools */
     else if (tool == "permute") {
         return permute(argc - 1, argv + 1);
-    } else if (tool == "partition") {
+    } else if (tool == "meta") {
         return partition(argc - 1, argv + 1);
     } else if (tool == "differential") {
         return diff(argc - 1, argv + 1);
     } else if (tool == "meta-differential") {
         return meta_diff(argc - 1, argv + 1);
-    } else if (tool == "dump-colors") {
-        return dump_colors(argc - 1, argv + 1);
+    } else if (tool == "dump") {
+        return dump(argc - 1, argv + 1);
     }
+    // else if (tool == "dump-colors") {
+    //     return dump_colors(argc - 1, argv + 1);
+    // }
 
     std::cout << "Unsupported tool '" << tool << "'.\n" << std::endl;
 

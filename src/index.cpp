@@ -49,11 +49,59 @@ void index<ColorClasses>::print_stats() const {
     ccs.print_stats();
 }
 
+// template <typename ColorClasses>
+// void index<ColorClasses>::dump_colors(std::ofstream& os) const {
+//     os << "num_references " << num_docs() << '\n';
+//     auto const& ccs = get_color_classes();
+//     ccs.dump(os);
+// }
+
 template <typename ColorClasses>
-void index<ColorClasses>::dump_colors(std::ofstream& os) const {
-    os << "num_references " << num_docs() << '\n';
+void index<ColorClasses>::dump(std::string const& basename) const {
+    /* metadata file */
+    std::ofstream metadata(basename + ".metadata.txt");
+    if (!metadata.is_open()) throw std::runtime_error("cannot open output file");
+    metadata << "num_references=" << num_docs() << '\n';
+    metadata << "num_unitigs=" << num_unitigs() << '\n';
+    metadata << "num_color_classes=" << num_color_sets() << '\n';
+    metadata.close();
+
+    /* unitigs file */
+    std::ofstream unitigs(basename + ".unitigs.fa");
+    if (!unitigs.is_open()) throw std::runtime_error("cannot open output file");
+    const uint64_t u = num_unitigs();
+    const uint64_t kmer_length = k();
+    for (uint64_t unitig_id = 0; unitig_id != u; ++unitig_id) {
+        auto it = m_k2u.at_contig_id(unitig_id);
+        const uint64_t color_id = u2c(unitig_id);
+        unitigs << "> unitig_id=" << unitig_id << " color_id=" << color_id << '\n';
+        auto [_, kmer] = it.next();
+        unitigs << kmer;
+        while (it.has_next()) {
+            auto [_, kmer] = it.next();
+            unitigs << kmer[kmer_length - 1];  // overlaps!
+        }
+        unitigs << '\n';
+    }
+    unitigs.close();
+
+    /* colors file */
+    std::ofstream colors(basename + ".colors.txt");
+    if (!colors.is_open()) throw std::runtime_error("cannot open output file");
     auto const& ccs = get_color_sets();
-    ccs.dump(os);
+    const uint64_t n = num_color_sets();
+    for (uint64_t color_id = 0; color_id != n; ++color_id) {
+        auto it = ccs.color_set(color_id);
+        const uint32_t size = it.size();
+        colors << "color_id=" << color_id << " size=" << size << ' ';
+        for (uint32_t j = 0; j != size; ++j) {
+            colors << it.value();
+            it.next();
+            if (j != size - 1) colors << ' ';
+        }
+        colors << '\n';
+    }
+    colors.close();
 }
 
 }  // namespace fulgor

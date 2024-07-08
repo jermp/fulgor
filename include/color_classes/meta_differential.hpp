@@ -310,47 +310,47 @@ struct meta_differential {
                   << "%)\n";
     }
 
-    void dump(std::ofstream& os) const {
-        /* header info */
-        const uint64_t num_partial_color_sets = num_partitions();
-        const uint64_t num_partitions_sets = num_partition_sets();
-        const uint64_t num_meta_color_lists = num_color_sets();
-        os << "num_partial_color_sets " << num_partial_color_sets << '\n';
-        os << "num_partition_sets " << num_partitions_sets << '\n';
-        os << "num_meta_color_lists " << num_meta_color_lists << '\n';
+    // void dump(std::ofstream& os) const {
+    //     /* header info */
+    //     const uint64_t num_partial_color_sets = num_partitions();
+    //     const uint64_t num_partitions_sets = num_partition_sets();
+    //     const uint64_t num_meta_color_lists = num_color_sets();
+    //     os << "num_partial_color_sets " << num_partial_color_sets << '\n';
+    //     os << "num_partition_sets " << num_partitions_sets << '\n';
+    //     os << "num_meta_color_lists " << num_meta_color_lists << '\n';
 
-        /* meta-colors boundaries */
-        os << "meta_colors_boundaries ";
-        for (uint64_t partition_id = 0; partition_id != num_partitions(); ++partition_id) {
-            const uint64_t partition_lower_bound =
-                m_partition_endpoints[partition_id].docid_lower_bound;
-            const uint64_t partition_upper_bound =
-                m_partition_endpoints[partition_id + 1].docid_lower_bound;
-            os << '[' << partition_lower_bound << ',' << partition_upper_bound << ')';
-        }
-        os << '\n';
+    //     /* meta-colors boundaries */
+    //     os << "meta_colors_boundaries ";
+    //     for (uint64_t partition_id = 0; partition_id != num_partitions(); ++partition_id) {
+    //         const uint64_t partition_lower_bound =
+    //             m_partition_endpoints[partition_id].docid_lower_bound;
+    //         const uint64_t partition_upper_bound =
+    //             m_partition_endpoints[partition_id + 1].docid_lower_bound;
+    //         os << '[' << partition_lower_bound << ',' << partition_upper_bound << ')';
+    //     }
+    //     os << '\n';
 
-        /* dump meta-color lists */
-        for (uint64_t color_set_id = 0; color_set_id != num_meta_color_lists;
-             ++color_set_id) {
-            auto it = color_set(color_set_id);
-            const uint32_t list_size = it.meta_color_list_size();
-            os << "meta_color_list_" << color_set_id << ' ' << list_size << ' ';
-            for (uint32_t i = 0; i != list_size; ++i) {
-                os << it.meta_color();
-                it.next_partition_id();
-                if (i != list_size - 1) os << ' ';
-            }
-            os << '\n';
-        }
+    //     /* dump meta-color lists */
+    //     for (uint64_t color_set_id = 0; color_set_id != num_meta_color_lists;
+    //          ++color_set_id) {
+    //         auto it = color_set(color_set_id);
+    //         const uint32_t list_size = it.meta_color_list_size();
+    //         os << "meta_color_list_" << color_set_id << ' ' << list_size << ' ';
+    //         for (uint32_t i = 0; i != list_size; ++i) {
+    //             os << it.meta_color();
+    //             it.next_partition_id();
+    //             if (i != list_size - 1) os << ' ';
+    //         }
+    //         os << '\n';
+    //     }
 
-        /* dump partial-color sets */
-        for (uint64_t i = 0; i != num_partial_color_sets; ++i) {
-            os << "partial_color_set_" << i << '\n';
-            m_partial_colors[i].dump(os);
-            if (i != num_partial_color_sets - 1) os << '\n';
-        }
-    }
+    //     /* dump partial-color sets */
+    //     for (uint64_t i = 0; i != num_partial_color_sets; ++i) {
+    //         os << "partial_color_set_" << i << '\n';
+    //         m_partial_colors[i].dump(os);
+    //         if (i != num_partial_color_sets - 1) os << '\n';
+    //     }
+    // }
 
     template <typename Visitor>
     void visit(Visitor& visitor) {

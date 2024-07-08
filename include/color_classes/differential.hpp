@@ -339,46 +339,46 @@ struct differential {
         std::cout << std::endl;
     }
 
-    void dump(std::ofstream& os) const {
-        /* header info */
-        const uint64_t num_differential_color_sets = num_partitions();
-        const uint64_t num_color_lists = num_color_sets();
-        os << "num_differential_color_sets " << num_differential_color_sets << '\n';
-        os << "num_color_sets " << num_color_lists << '\n';
+    // void dump(std::ofstream& os) const {
+    //     /* header info */
+    //     const uint64_t num_differential_color_sets = num_partitions();
+    //     const uint64_t num_color_lists = num_color_sets();
+    //     os << "num_differential_color_sets " << num_differential_color_sets << '\n';
+    //     os << "num_color_sets " << num_color_lists << '\n';
 
-        uint64_t last_representative = m_representative_offsets.access(num_partitions());
+    //     uint64_t last_representative = m_representative_offsets.access(num_partitions());
 
-        /* dump meta-color lists */
-        uint64_t old_representative_begin = num_partitions();
-        for (uint64_t representative_id = 0, color_set_id = 0; color_set_id != num_color_lists; ++color_set_id) {
+    //     /* dump meta-color lists */
+    //     uint64_t old_representative_begin = num_partitions();
+    //     for (uint64_t representative_id = 0, color_set_id = 0; color_set_id != num_color_lists; ++color_set_id) {
 
-            const uint64_t representative_begin = m_representative_offsets.access(m_clusters.rank(color_set_id));
-            if (representative_begin != old_representative_begin){
-                const std::vector<uint64_t> representative_set = read_representative_set(representative_begin);
-                const uint64_t list_size = representative_set.size();
-                os << "representative_color_list_" << representative_id++ << ' ' << list_size << ' ';
+    //         const uint64_t representative_begin = m_representative_offsets.access(m_clusters.rank(color_set_id));
+    //         if (representative_begin != old_representative_begin){
+    //             const std::vector<uint64_t> representative_set = read_representative_set(representative_begin);
+    //             const uint64_t list_size = representative_set.size();
+    //             os << "representative_color_list_" << representative_id++ << ' ' << list_size << ' ';
 
-                for (uint64_t i = 0; i != list_size; ++i) {
-                    os << representative_set[i];
-                    if (i != list_size - 1) os << ' ';
-                }
-                os << '\n';
+    //             for (uint64_t i = 0; i != list_size; ++i) {
+    //                 os << representative_set[i];
+    //                 if (i != list_size - 1) os << ' ';
+    //             }
+    //             os << '\n';
 
-                old_representative_begin = representative_begin;
-            }
+    //             old_representative_begin = representative_begin;
+    //         }
 
-            const uint64_t differential_begin = m_list_offsets.access(color_set_id) + last_representative;
-            const std::vector<uint64_t> differential_set = read_differential_set(differential_begin);
-            const uint64_t list_size = differential_set.size();
-            os << "differential_color_list_" << color_set_id << ' ' << list_size << ' ';
+    //         const uint64_t differential_begin = m_list_offsets.access(color_set_id) + last_representative;
+    //         const std::vector<uint64_t> differential_set = read_differential_set(differential_begin);
+    //         const uint64_t list_size = differential_set.size();
+    //         os << "differential_color_list_" << color_set_id << ' ' << list_size << ' ';
             
-            for (uint64_t i = 0; i != list_size; ++i) {
-                os << differential_set[i];
-                if (i != list_size - 1) os << ' ';
-            }
-            os << '\n';
-        }
-    }
+    //         for (uint64_t i = 0; i != list_size; ++i) {
+    //             os << differential_set[i];
+    //             if (i != list_size - 1) os << ' ';
+    //         }
+    //         os << '\n';
+    //     }
+    // }
 
     template <typename Visitor>
     void visit(Visitor& visitor) {

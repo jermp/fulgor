@@ -14,6 +14,22 @@
 
 using namespace fulgor;
 
+// See https://github.com/jermp/experiments/tree/master/bin_to_char_conversion.
+void write_output(std::vector<uint32_t> const& vec, std::ostream& os) {
+    static char buffer[32];
+    for (uint32_t x : vec) {
+        int len = 1;
+        do {
+            buffer[len++] = '0' + (x % 10);
+            x /= 10;
+        } while (x > 0);
+        std::reverse(buffer + 1, buffer + len);
+        buffer[0] = '\t';
+        os.write(buffer, len);
+    }
+    os << '\n';
+}
+
 enum class pseudoalignment_algorithm : uint8_t {
     FULL_INTERSECTION,
     THRESHOLD_UNION,
@@ -100,9 +116,10 @@ int do_map(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::Rea
                 index.intersect_unitigs(unitig_ids, colors);
                 if (!colors.empty()) {
                     num_mapped_reads += 1;
-                    ss << record.name << "\t" << colors.size();
+                    ss << record.name << '\t' << colors.size() << '\t';
                     for (auto c : colors) { ss << "\t" << c; }
-                    ss << "\n";
+                    ss << '\n';
+                    // write_output(colors, ss);
                 } else {
                     ss << record.name << "\t0\n";
                 }
@@ -142,9 +159,10 @@ int do_map(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::Rea
                 buff_size += 1;
                 if (!colors.empty()) {
                     num_mapped_reads += 1;
-                    ss << record.name << "\t" << colors.size();
+                    ss << record.name << '\t' << colors.size();
                     for (auto c : colors) { ss << "\t" << c; }
-                    ss << "\n";
+                    ss << '\n';
+                    // write_output(colors, ss);
                 } else {
                     ss << record.name << "\t0\n";
                 }

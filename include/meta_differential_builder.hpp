@@ -210,6 +210,7 @@ struct index<ColorClasses>::meta_differential_builder {
                 std::remove(permuted_unitigs_filename.c_str());
             } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
 
+            timer.stop();
             std::cout << "** building u2c and k2u took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();

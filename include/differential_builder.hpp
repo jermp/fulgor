@@ -173,6 +173,8 @@ private:
 
         if (num_points == 0) {
             std::cout << "Found empty partition" << endl;
+	    clustering_data.num_clusters = 0;
+            clustering_data.clusters = {};
             return 0;
         } else {
             kmeans::clustering_parameters params;

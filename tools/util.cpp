@@ -85,6 +85,12 @@ int dump_colors(int argc, char** argv) {
     if (sshash::util::ends_with(index_filename,
                                 constants::meta_colored_fulgor_filename_extension)) {
         dump_colors<meta_index_type>(index_filename, output_filename);
+    } else if (sshash::util::ends_with(index_filename,
+                                       constants::meta_diff_colored_fulgor_filename_extension)) {
+        dump_colors<meta_differential_index_type>(index_filename, output_filename);
+    } else if (sshash::util::ends_with(index_filename,
+                                       constants::diff_colored_fulgor_filename_extension)) {
+        dump_colors<differential_index_type>(index_filename, output_filename);
     } else if (sshash::util::ends_with(index_filename, constants::fulgor_filename_extension)) {
         dump_colors<index_type>(index_filename, output_filename);
     } else {

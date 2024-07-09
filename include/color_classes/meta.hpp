@@ -140,7 +140,8 @@ struct meta {
                 partition_id = update_partition_id(meta_color, partition_id);
                 uint32_t num_lists_before =
                     (m_ptr->m_partition_endpoints)[partition_id].num_lists_before;
-                n += (m_ptr->m_colors)[partition_id].color_set(meta_color - num_lists_before).size();
+                n +=
+                    (m_ptr->m_colors)[partition_id].color_set(meta_color - num_lists_before).size();
             }
             return n;
         }
@@ -303,55 +304,7 @@ struct meta {
         std::cout << "  other: " << essentials::vec_bytes(m_partition_endpoints) << " bytes ("
                   << ((essentials::vec_bytes(m_partition_endpoints) * 8) * 100.0) / num_bits()
                   << "%)\n";
-        // std::cout << "  colors: "
-        //           << ((m_meta_colors.bytes() * 8) * 100.0) /
-        //                  (m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits())
-        //           << "%\n";
-        // std::cout << "  offsets: "
-        //           << (m_meta_colors_offsets.num_bits() * 100.0) /
-        //                  (m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits())
-        //           << "%\n";
     }
-
-    // void dump(std::ofstream& os) const {
-    //     /* header info */
-    //     const uint64_t num_partial_color_sets = num_partitions();
-    //     const uint64_t num_meta_color_lists = num_color_classes();
-    //     os << "num_partial_color_sets " << num_partial_color_sets << '\n';
-    //     os << "num_meta_color_lists " << num_meta_color_lists << '\n';
-
-    //     /* meta-colors boundaries */
-    //     os << "meta_colors_boundaries ";
-    //     for (uint64_t partition_id = 0; partition_id != num_partitions(); ++partition_id) {
-    //         const uint64_t partition_lower_bound =
-    //             m_partition_endpoints[partition_id].docid_lower_bound;
-    //         const uint64_t partition_upper_bound =
-    //             m_partition_endpoints[partition_id + 1].docid_lower_bound;
-    //         os << '[' << partition_lower_bound << ',' << partition_upper_bound << ')';
-    //     }
-    //     os << '\n';
-
-    //     /* dump meta-color lists */
-    //     for (uint64_t color_class_id = 0; color_class_id != num_meta_color_lists;
-    //          ++color_class_id) {
-    //         auto it = colors(color_class_id);
-    //         const uint32_t list_size = it.meta_color_list_size();
-    //         os << "meta_color_list_" << color_class_id << ' ' << list_size << ' ';
-    //         for (uint32_t i = 0; i != list_size; ++i) {
-    //             os << it.meta_color();
-    //             it.next_partition_id();
-    //             if (i != list_size - 1) os << ' ';
-    //         }
-    //         os << '\n';
-    //     }
-
-    //     /* dump partial-color sets */
-    //     for (uint64_t i = 0; i != num_partial_color_sets; ++i) {
-    //         os << "partial_color_set_" << i << '\n';
-    //         m_colors[i].dump(os);
-    //         if (i != num_partial_color_sets - 1) os << '\n';
-    //     }
-    // }
 
     template <typename Visitor>
     void visit(Visitor& visitor) {

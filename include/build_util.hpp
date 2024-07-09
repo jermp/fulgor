@@ -66,8 +66,7 @@ void build_reference_sketches(index_type const& index,
         uint64_t cur_load = 0;
 
         for (uint64_t color_id = 0; color_id != num_color_sets; ++color_id) {
-            uint64_t curr_pos =
-                color_id != num_color_sets - 1 ? unary_it.next() : (u2c.size() - 1);
+            uint64_t curr_pos = color_id != num_color_sets - 1 ? unary_it.next() : (u2c.size() - 1);
 
             uint64_t num_unitigs = curr_pos - prev_pos + 1;
             auto it = ccs.color_set(color_id);
@@ -95,8 +94,7 @@ void build_reference_sketches(index_type const& index,
         std::vector<uint64_t> hashes;
         pthash::bit_vector::unary_iterator unary_it(u2c, s.begin);
         for (uint64_t color_id = s.color_id_begin; color_id != s.color_id_end; ++color_id) {
-            uint64_t curr_pos =
-                color_id != num_color_sets - 1 ? unary_it.next() : (u2c.size() - 1);
+            uint64_t curr_pos = color_id != num_color_sets - 1 ? unary_it.next() : (u2c.size() - 1);
             auto it = ccs.color_set(color_id);
             const uint64_t size = it.size();
             hashes.reserve(curr_pos - prev_pos + 1);

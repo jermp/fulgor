@@ -53,7 +53,8 @@ struct index<ColorClasses>::meta_differential_builder {
                 uint64_t original_id = 0;
 
                 for (auto& reference : references) {
-                    diff_builder.encode_representative(reference); }
+                    diff_builder.encode_representative(reference);
+                }
                 for (auto& [cluster_id, color_id] : permutation) {
                     auto it = pc[i].color_set(color_id);
                     diff_builder.encode_list(
@@ -102,7 +103,8 @@ struct index<ColorClasses>::meta_differential_builder {
             }
 
             builder.init_meta_color_partition_sets(num_partition_sets);
-            for (uint64_t partition_set_id = 0; partition_set_id < num_partition_sets; partition_set_id++) {
+            for (uint64_t partition_set_id = 0; partition_set_id < num_partition_sets;
+                 partition_set_id++) {
                 builder.process_meta_color_partition_set(partition_sets[partition_set_id]);
             }
 
@@ -131,7 +133,8 @@ struct index<ColorClasses>::meta_differential_builder {
                         partial_permutations[partition_id]
                                             [it.meta_color() - it.num_lists_before()]);
                 }
-                builder.process_metacolors(partition_set_id, partition_sets[partition_set_id], relative_colors);
+                builder.process_metacolors(partition_set_id, partition_sets[partition_set_id],
+                                           relative_colors);
             }
 
             builder.build(idx.m_ccs);

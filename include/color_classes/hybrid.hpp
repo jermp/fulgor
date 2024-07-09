@@ -324,8 +324,7 @@ struct hybrid {
 
         const uint64_t num_lists = num_color_sets();
         uint64_t num_total_integers = 0;
-        for (uint64_t color_set_id = 0; color_set_id != m_offsets.size() - 1;
-             ++color_set_id) {
+        for (uint64_t color_set_id = 0; color_set_id != m_offsets.size() - 1; ++color_set_id) {
             uint64_t offset = m_offsets.access(color_set_id);
             bit_vector_iterator it(m_colors.data(), m_colors.size(), offset);
             uint32_t list_size = util::read_delta(it);
@@ -380,22 +379,6 @@ struct hybrid {
                          integers
                   << " bits/int" << std::endl;
     }
-
-    // void dump(std::ofstream& os) const {
-    //     const uint64_t n = num_color_sets();
-    //     os << "num_lists_in_color_set " << n << '\n';
-    //     for (uint64_t i = 0; i != n; ++i) {
-    //         auto it = color_set(i);
-    //         const uint32_t list_size = it.size();
-    //         os << "color_list_" << i << ' ' << list_size << ' ';
-    //         for (uint32_t j = 0; j != list_size; ++j) {
-    //             os << it.value();
-    //             it.next();
-    //             if (j != list_size - 1) os << ' ';
-    //         }
-    //         if (i != n - 1) os << '\n';
-    //     }
-    // }
 
     template <typename Visitor>
     void visit(Visitor& visitor) {

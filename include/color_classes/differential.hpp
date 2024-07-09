@@ -78,7 +78,8 @@ struct differential {
             uint64_t size = differential_list.size();
             util::write_delta(m_bvb, size);
             util::write_delta(m_bvb, it_size);
-            m_num_total_integers += size + 2;  // size plus differential_list size plus original list size
+            m_num_total_integers +=
+                size + 2;  // size plus differential_list size plus original list size
             m_num_lists += 1;
 
             if (size > 0) {
@@ -102,8 +103,9 @@ struct differential {
             d.m_colors.swap(m_bvb.bits());
             d.m_clusters.build(&m_clusters);
 
-            d.m_representative_offsets.encode(m_representative_offsets.begin(), m_representative_offsets.size(),
-                                         m_representative_offsets.back());
+            d.m_representative_offsets.encode(m_representative_offsets.begin(),
+                                              m_representative_offsets.size(),
+                                              m_representative_offsets.back());
             d.m_list_offsets.encode(m_list_offsets.begin(), m_list_offsets.size(),
                                     m_list_offsets.back());
 
@@ -138,21 +140,26 @@ struct differential {
     struct forward_iterator {
         forward_iterator() {}
 
-        forward_iterator(differential const* ptr, uint64_t list_begin, uint64_t representative_begin)
-            : m_ptr(ptr), m_differential_list_begin(list_begin), m_representative_begin(representative_begin) {
+        forward_iterator(differential const* ptr, uint64_t list_begin,
+                         uint64_t representative_begin)
+            : m_ptr(ptr)
+            , m_differential_list_begin(list_begin)
+            , m_representative_begin(representative_begin) {
             rewind();
         }
 
         void rewind() {
-            m_differential_list_it = bit_vector_iterator((m_ptr->m_colors).data(), (m_ptr->m_colors).size(),
-                                                 m_differential_list_begin);
-            m_representative_it = bit_vector_iterator((m_ptr->m_colors).data(), (m_ptr->m_colors).size(),
-                                                 m_representative_begin);
+            m_differential_list_it = bit_vector_iterator(
+                (m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_differential_list_begin);
+            m_representative_it = bit_vector_iterator(
+                (m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_representative_begin);
             m_differential_list_size = util::read_delta(m_differential_list_it);
             m_representative_size = util::read_delta(m_representative_it);
             m_size = util::read_delta(m_differential_list_it);
 
-            m_curr_differential_val = m_differential_list_size == 0 ? num_docs() : util::read_delta(m_differential_list_it);
+            m_curr_differential_val = m_differential_list_size == 0
+                                          ? num_docs()
+                                          : util::read_delta(m_differential_list_it);
             m_prev_differential_val = 0;
             m_curr_representative_val =
                 m_representative_size == 0 ? num_docs() : util::read_delta(m_representative_it);
@@ -169,11 +176,13 @@ struct differential {
         uint64_t operator*() const { return value(); }
 
         void next() {
-            if (m_pos_in_representative >= m_representative_size && m_pos_in_differential_list >= m_differential_list_size) {
+            if (m_pos_in_representative >= m_representative_size &&
+                m_pos_in_differential_list >= m_differential_list_size) {
                 m_curr_val = num_docs();
                 return;
             }
-            if (m_pos_in_representative >= m_representative_size || m_curr_differential_val < m_curr_representative_val) {
+            if (m_pos_in_representative >= m_representative_size ||
+                m_curr_differential_val < m_curr_representative_val) {
                 next_differential_val();
             } else if (m_pos_in_differential_list >= m_differential_list_size ||
                        m_curr_representative_val < m_curr_differential_val) {
@@ -209,7 +218,8 @@ struct differential {
             m_pos_in_representative += 1;
             m_prev_representative_val = m_curr_representative_val;
             if (m_pos_in_representative < m_representative_size) {
-                m_curr_representative_val = m_prev_representative_val + util::read_delta(m_representative_it) + 1;
+                m_curr_representative_val =
+                    m_prev_representative_val + util::read_delta(m_representative_it) + 1;
             } else {
                 m_curr_representative_val = num_docs();
             }
@@ -219,7 +229,8 @@ struct differential {
             m_pos_in_differential_list += 1;
             m_prev_differential_val = m_curr_differential_val;
             if (m_pos_in_differential_list < m_differential_list_size) {
-                m_curr_differential_val = m_prev_differential_val + util::read_delta(m_differential_list_it) + 1;
+                m_curr_differential_val =
+                    m_prev_differential_val + util::read_delta(m_differential_list_it) + 1;
             } else {
                 m_curr_differential_val = num_docs();
             }
@@ -251,8 +262,9 @@ struct differential {
     uint64_t num_docs() const { return m_num_docs; }
 
     uint64_t num_bits() const {
-        return sizeof(m_num_docs) * 8 + m_representative_offsets.num_bits() + m_list_offsets.num_bits() +
-               essentials::vec_bytes(m_colors) * 8 + m_clusters.bytes() * 8;
+        return sizeof(m_num_docs) * 8 + m_representative_offsets.num_bits() +
+               m_list_offsets.num_bits() + essentials::vec_bytes(m_colors) * 8 +
+               m_clusters.bytes() * 8;
     }
 
     void print_stats() const {
@@ -272,7 +284,8 @@ struct differential {
 
         std::vector<uint64_t> distribution(11, 0);
 
-        for (uint64_t representative_id = 0; representative_id < num_partitions(); representative_id++) {
+        for (uint64_t representative_id = 0; representative_id < num_partitions();
+             representative_id++) {
             uint64_t representative_begin = m_representative_offsets.access(representative_id);
             auto it = bit_vector_iterator(m_colors.data(), m_colors.size(), representative_begin);
             uint64_t prev_position = it.position();
@@ -339,47 +352,6 @@ struct differential {
         std::cout << std::endl;
     }
 
-    // void dump(std::ofstream& os) const {
-    //     /* header info */
-    //     const uint64_t num_differential_color_sets = num_partitions();
-    //     const uint64_t num_color_lists = num_color_sets();
-    //     os << "num_differential_color_sets " << num_differential_color_sets << '\n';
-    //     os << "num_color_sets " << num_color_lists << '\n';
-
-    //     uint64_t last_representative = m_representative_offsets.access(num_partitions());
-
-    //     /* dump meta-color lists */
-    //     uint64_t old_representative_begin = num_partitions();
-    //     for (uint64_t representative_id = 0, color_set_id = 0; color_set_id != num_color_lists; ++color_set_id) {
-
-    //         const uint64_t representative_begin = m_representative_offsets.access(m_clusters.rank(color_set_id));
-    //         if (representative_begin != old_representative_begin){
-    //             const std::vector<uint64_t> representative_set = read_representative_set(representative_begin);
-    //             const uint64_t list_size = representative_set.size();
-    //             os << "representative_color_list_" << representative_id++ << ' ' << list_size << ' ';
-
-    //             for (uint64_t i = 0; i != list_size; ++i) {
-    //                 os << representative_set[i];
-    //                 if (i != list_size - 1) os << ' ';
-    //             }
-    //             os << '\n';
-
-    //             old_representative_begin = representative_begin;
-    //         }
-
-    //         const uint64_t differential_begin = m_list_offsets.access(color_set_id) + last_representative;
-    //         const std::vector<uint64_t> differential_set = read_differential_set(differential_begin);
-    //         const uint64_t list_size = differential_set.size();
-    //         os << "differential_color_list_" << color_set_id << ' ' << list_size << ' ';
-            
-    //         for (uint64_t i = 0; i != list_size; ++i) {
-    //             os << differential_set[i];
-    //             if (i != list_size - 1) os << ' ';
-    //         }
-    //         os << '\n';
-    //     }
-    // }
-
     template <typename Visitor>
     void visit(Visitor& visitor) {
         visitor.visit(m_num_docs);
@@ -405,24 +377,20 @@ private:
 
         std::vector<uint64_t> set(size);
         set[0] = util::read_delta(it);
-        for(uint64_t i = 1; i != size; ++i){
-            set[i] = set[i-1] + util::read_delta(it) + 1;
-        }
+        for (uint64_t i = 1; i != size; ++i) { set[i] = set[i - 1] + util::read_delta(it) + 1; }
         return set;
     }
 
     std::vector<uint64_t> read_differential_set(uint64_t begin) const {
         auto it = bit_vector_iterator(m_colors.data(), m_colors.size(), begin);
         uint64_t size = util::read_delta(it);
-        util::read_delta(it); // skip color_set size
+        util::read_delta(it);  // skip color_set size
 
         if (size == 0) return {};
 
         std::vector<uint64_t> set(size);
         set[0] = util::read_delta(it);
-        for(uint64_t i = 1; i != size; ++i){
-            set[i] = set[i-1] + util::read_delta(it) + 1;
-        }
+        for (uint64_t i = 1; i != size; ++i) { set[i] = set[i - 1] + util::read_delta(it) + 1; }
         return set;
     }
 };

@@ -29,7 +29,8 @@ struct index {
     void pseudoalign_threshold_union(std::string const& sequence, std::vector<uint32_t>& results,
                                      const double threshold) const;
 
-    void intersect_unitigs(std::vector<uint64_t>& unitig_ids, std::vector<uint32_t>& color_set) const;
+    void intersect_unitigs(std::vector<uint64_t>& unitig_ids,
+                           std::vector<uint32_t>& color_set) const;
 
     std::string_view filename(uint64_t doc_id) const {
         assert(doc_id < num_docs());
@@ -38,10 +39,6 @@ struct index {
 
     void print_stats() const;
     void dump(std::string const& basename) const;
-
-    /* this dumps the colors in a custom format: useful for internal analysis,
-       but commented out for the public API */
-    // void dump_colors(std::ofstream& os) const;
 
     uint64_t k() const { return m_k2u.k(); }
     uint64_t num_docs() const { return m_ccs.num_docs(); }

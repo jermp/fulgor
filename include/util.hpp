@@ -33,9 +33,14 @@ struct build_configuration {
         , ram_limit_in_GiB(constants::default_ram_limit_in_GiB)
         , num_docs(0)
         , tmp_dirname(constants::default_tmp_dirname)
+        //
         , verbose(false)
         , canonical_parsing(true)
-        , check(false) {}
+        , check(false)
+        //
+        , meta_colored(false)
+        , diff_colored(false)  //
+    {}
 
     uint32_t k;            // kmer length
     uint32_t m;            // minimizer length
@@ -52,6 +57,9 @@ struct build_configuration {
     bool verbose;
     bool canonical_parsing;
     bool check;
+
+    bool meta_colored;
+    bool diff_colored;
 };
 
 namespace util {

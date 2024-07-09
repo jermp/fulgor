@@ -85,14 +85,16 @@ Run `./fulgor` to see a list of available tools.
 	Usage: ./fulgor <tool> ...
 
 	Tools:
-	  build              build a Fulgor index
-	  pseudoalign        pseudoalign reads to references
-	  stats              print index statistics
-	  print-filenames    print all reference filenames
+	  build                  build a Fulgor index
+	  pseudoalign            pseudoalign reads to references
+	  stats                  print index statistics
+	  print-filenames        print all reference filenames
 
 	Advanced tools:
-	  partition          partition a Fulgor index and build a meta-colored Fulgor index
-	  dump-colors        write colors to an output file in text format
+	  meta                   partition a Fulgor index and build a meta-colored Fulgor index
+	  differential           partition a Fulgor index and build a differential-colored Fulgor index
+	  meta-differential      partition a meta-Fulgor index and build a meta-differential-colored Fulgor index
+	  dump                   write colors to an output file in text format
 
 For large-scale indexing, it could be necessary to increase the number of file descriptors that can be opened simultaneously:
 
@@ -154,10 +156,17 @@ using 8 parallel threads and writing the mapping output to `/dev/null`.
 
 To partition the index to obtain a meta-colored Fulgor index, then do:
 
-	./fulgor partition -i ~/Salmonella_enterica/salmonella_4546.fur -d tmp_dir --check
+	./fulgor meta -i ~/Salmonella_enterica/salmonella_4546.fur -d tmp_dir --check
+We can change the first argument from `meta` to `differential` or `meta-differential` to create a differential-colored or a meta-differential-colored index, respectively.
 
-The meta-colored index will be serialized to the file `~/Salmonella_enterica/salmonella_4546.mfur`
-and will take 0.104 GB (2.55X smaller than the `.fur` index).
+See the table below for some additional data on the different indexes
+
+| command             | output file             | size (GB) | compression factor |
+|:--------------------|:------------------------|-----------|--------------------|
+| `meta`              | `salmonella_4546.mfur`  | 0.11769   | 2.26               |
+| `differential`      | `salmonella_4546.dfur`  | 0.11076   | 2.40               |
+| `meta-differential` | `salmonella_4546.mdfur` | 0.11076   | 2.84               |
+
 
 Pseudoalignment output format
 -----------------------------

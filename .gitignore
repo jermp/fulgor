@@ -1,2 +1,5 @@
 .DS_Store
 build
+debug_build
+test_data
+.idea

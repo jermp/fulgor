@@ -90,6 +90,39 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
 }
 
 template <typename Iterator>
+void diff_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
+                    std::vector<uint32_t>& complement_set) {
+    assert(colors.empty());
+    assert(complement_set.empty());
+
+    if (iterators.empty()) return;
+
+    std::sort(iterators.begin(), iterators.end(),
+              [](auto const& x, auto const& y) { return x.size() < y.size(); });
+
+    const uint32_t num_docs = iterators[0].num_docs();
+    uint32_t candidate = iterators[0].value();
+    uint64_t i = 1;
+    while (candidate < num_docs) {
+        for (; i != iterators.size(); ++i) {
+            iterators[i].next_geq(candidate);
+            uint32_t val = iterators[i].value();
+            if (val != candidate) {
+                candidate = val;
+                i = 0;
+                break;
+            }
+        }
+        if (i == iterators.size()) {
+            colors.push_back(candidate);
+            iterators[0].next();
+            candidate = iterators[0].value();
+            i = 1;
+        }
+    }
+}
+
+template <typename Iterator>
 void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
                     std::vector<uint32_t>& partition_ids) {
     assert(colors.empty());
@@ -216,8 +249,8 @@ void index<ColorClasses>::intersect_unitigs(std::vector<uint64_t>& unitig_ids,
     tmp.reserve(end_unitigs - unitig_ids.begin());
     for (auto it = unitig_ids.begin(); it != end_unitigs; ++it) {
         uint32_t unitig_id = *it;
-        uint32_t color_class_id = u2c(unitig_id);
-        tmp.push_back(color_class_id);
+        uint32_t color_set_id = u2c(unitig_id);
+        tmp.push_back(color_set_id);
     }
 
     /* deduplicate color class ids */
@@ -225,14 +258,16 @@ void index<ColorClasses>::intersect_unitigs(std::vector<uint64_t>& unitig_ids,
     auto end_tmp = std::unique(tmp.begin(), tmp.end());
     iterators.reserve(end_tmp - tmp.begin());
     for (auto it = tmp.begin(); it != end_tmp; ++it) {
-        uint64_t color_class_id = *it;
-        auto fwd_it = m_ccs.colors(color_class_id);
+        uint64_t color_set_id = *it;
+        auto fwd_it = m_ccs.color_set(color_set_id);
         iterators.push_back(fwd_it);
     }
 
     tmp.clear();  // don't need color class ids anymore
     if constexpr (ColorClasses::meta_colored) {
         meta_intersect(iterators, colors, tmp);
+    } else if constexpr (ColorClasses::differential_colored) {
+        diff_intersect(iterators, colors, tmp);
     } else {
         intersect(iterators, colors, tmp);
     }

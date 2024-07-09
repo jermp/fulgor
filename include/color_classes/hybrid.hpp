@@ -4,6 +4,7 @@ namespace fulgor {
 
 struct hybrid {
     static const bool meta_colored = false;
+    static const bool differential_colored = false;
 
     struct builder {
         builder() {}
@@ -287,14 +288,14 @@ struct hybrid {
 
     typedef forward_iterator iterator_type;
 
-    forward_iterator colors(uint64_t color_class_id) const {
-        assert(color_class_id < num_color_classes());
-        uint64_t begin = m_offsets.access(color_class_id);
+    forward_iterator color_set(uint64_t color_set_id) const {
+        assert(color_set_id < num_color_sets());
+        uint64_t begin = m_offsets.access(color_set_id);
         return forward_iterator(this, begin);
     }
 
     uint32_t num_docs() const { return m_num_docs; }
-    uint64_t num_color_classes() const { return m_offsets.size() - 1; }
+    uint64_t num_color_sets() const { return m_offsets.size() - 1; }
 
     uint64_t num_bits() const {
         return (sizeof(m_num_docs) + sizeof(m_sparse_set_threshold_size) +
@@ -321,14 +322,14 @@ struct hybrid {
         num_lists_per_bucket.resize(num_buckets, 0);
         num_ints_per_bucket.resize(num_buckets, 0);
 
-        const uint64_t num_lists = num_color_classes();
+        const uint64_t num_lists = num_color_sets();
         uint64_t num_total_integers = 0;
-        for (uint64_t color_class_id = 0; color_class_id != m_offsets.size() - 1;
-             ++color_class_id) {
-            uint64_t offset = m_offsets.access(color_class_id);
+        for (uint64_t color_set_id = 0; color_set_id != m_offsets.size() - 1;
+             ++color_set_id) {
+            uint64_t offset = m_offsets.access(color_set_id);
             bit_vector_iterator it(m_colors.data(), m_colors.size(), offset);
             uint32_t list_size = util::read_delta(it);
-            uint64_t num_bits = m_offsets.access(color_class_id + 1) - offset;
+            uint64_t num_bits = m_offsets.access(color_set_id + 1) - offset;
             auto bucket_it = std::upper_bound(list_size_upperbounds.begin(),
                                               list_size_upperbounds.end(), list_size);
             if (bucket_it != list_size_upperbounds.begin() and *(bucket_it - 1) == list_size) {
@@ -381,10 +382,10 @@ struct hybrid {
     }
 
     // void dump(std::ofstream& os) const {
-    //     const uint64_t n = num_color_classes();
+    //     const uint64_t n = num_color_sets();
     //     os << "num_lists_in_color_set " << n << '\n';
     //     for (uint64_t i = 0; i != n; ++i) {
-    //         auto it = colors(i);
+    //         auto it = color_set(i);
     //         const uint32_t list_size = it.size();
     //         os << "color_list_" << i << ' ' << list_size << ' ';
     //         for (uint32_t j = 0; j != list_size; ++j) {

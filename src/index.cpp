@@ -7,7 +7,7 @@ void index<ColorClasses>::print_stats() const {
     const uint64_t total_bits = num_bits();
     auto const& k2u = get_k2u();
     auto const& u2c = get_u2c();
-    auto const& ccs = get_color_classes();
+    auto const& ccs = get_color_sets();
     auto const& filenames = get_filenames();
 
     std::cout << "total index size: " << total_bits / 8 << " [B] -- "
@@ -31,11 +31,11 @@ void index<ColorClasses>::print_stats() const {
               << (filenames.num_bits() * 100.0) / total_bits << "%)\n";
 
     uint64_t num_ints_in_ccs = 0;
-    uint64_t num_ccs = ccs.num_color_classes();
+    uint64_t num_ccs = ccs.num_color_sets();
     std::cout << "Color id range 0.." << num_docs() - 1 << '\n';
     std::cout << "Number of distinct color classes: " << num_ccs << '\n';
-    for (uint64_t color_class_id = 0; color_class_id != num_ccs; ++color_class_id) {
-        uint64_t list_size = ccs.colors(color_class_id).size();
+    for (uint64_t color_set_id = 0; color_set_id != num_ccs; ++color_set_id) {
+        uint64_t list_size = ccs.color_set(color_set_id).size();
         num_ints_in_ccs += list_size;
     }
     std::cout << "Number of ints in distinct color classes: " << num_ints_in_ccs << " ("
@@ -63,7 +63,7 @@ void index<ColorClasses>::dump(std::string const& basename) const {
     if (!metadata.is_open()) throw std::runtime_error("cannot open output file");
     metadata << "num_references=" << num_docs() << '\n';
     metadata << "num_unitigs=" << num_unitigs() << '\n';
-    metadata << "num_color_classes=" << num_color_classes() << '\n';
+    metadata << "num_color_classes=" << num_color_sets() << '\n';
     metadata.close();
 
     /* unitigs file */
@@ -88,10 +88,10 @@ void index<ColorClasses>::dump(std::string const& basename) const {
     /* colors file */
     std::ofstream colors(basename + ".colors.txt");
     if (!colors.is_open()) throw std::runtime_error("cannot open output file");
-    auto const& ccs = get_color_classes();
-    const uint64_t n = num_color_classes();
+    auto const& ccs = get_color_sets();
+    const uint64_t n = num_color_sets();
     for (uint64_t color_id = 0; color_id != n; ++color_id) {
-        auto it = ccs.colors(color_id);
+        auto it = ccs.color_set(color_id);
         const uint32_t size = it.size();
         colors << "color_id=" << color_id << " size=" << size << ' ';
         for (uint32_t j = 0; j != size; ++j) {

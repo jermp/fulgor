@@ -140,7 +140,7 @@ struct meta {
                 partition_id = update_partition_id(meta_color, partition_id);
                 uint32_t num_lists_before =
                     (m_ptr->m_partition_endpoints)[partition_id].num_lists_before;
-                n += (m_ptr->m_colors)[partition_id].colors(meta_color - num_lists_before).size();
+                n += (m_ptr->m_colors)[partition_id].color_set(meta_color - num_lists_before).size();
             }
             return n;
         }
@@ -175,7 +175,7 @@ struct meta {
 
             uint32_t num_lists_before = endpoints[m_partition_id].num_lists_before;
             m_curr_partition_it =
-                (m_ptr->m_colors)[m_partition_id].colors(m_curr_meta_color - num_lists_before);
+                (m_ptr->m_colors)[m_partition_id].color_set(m_curr_meta_color - num_lists_before);
             m_curr_partition_size = m_curr_partition_it.size();
             assert(m_curr_partition_size > 0);
             m_pos_in_curr_partition = 0;
@@ -194,6 +194,9 @@ struct meta {
         uint32_t num_partitions() const { return m_ptr->num_partitions(); }
         uint32_t partition_lower_bound() const { return m_partition_lower_bound; }
         uint32_t partition_upper_bound() const { return m_partition_upper_bound; }
+        uint32_t num_lists_before() const {
+            return m_ptr->m_partition_endpoints[m_partition_id].num_lists_before;
+        }
 
     private:
         meta<ColorClasses> const* m_ptr;
@@ -222,16 +225,18 @@ struct meta {
 
     typedef forward_iterator iterator_type;
 
-    forward_iterator colors(uint64_t color_class_id) const {
-        assert(color_class_id < num_color_classes());
-        uint64_t begin = m_meta_colors_offsets.access(color_class_id);
+    forward_iterator color_set(uint64_t color_set_id) const {
+        assert(color_set_id < num_color_sets());
+        uint64_t begin = m_meta_colors_offsets.access(color_set_id);
         return forward_iterator(this, begin);
     }
+
+    std::vector<ColorClasses> partial_colors() const { return m_colors; }
 
     uint32_t num_docs() const { return m_num_docs; }
 
     /* num. meta color lists */
-    uint64_t num_color_classes() const { return m_meta_colors_offsets.size() - 1; }
+    uint64_t num_color_sets() const { return m_meta_colors_offsets.size() - 1; }
 
     /* num. partial color sets */
     uint64_t num_partitions() const { return m_partition_endpoints.size() - 1; }
@@ -258,10 +263,10 @@ struct meta {
         for (auto const& c : m_colors) {
             // c.print_stats();
 
-            uint64_t n = c.num_color_classes();
+            uint64_t n = c.num_color_sets();
             num_total_partial_colors += n;
             for (uint64_t i = 0; i != n; ++i) {
-                auto it = c.colors(i);
+                auto it = c.color_set(i);
                 if (it.type() == list_type::complement_delta_gaps) {
                     ++num_partial_colors_very_dense;
                 } else if (it.type() == list_type::bitmap) {

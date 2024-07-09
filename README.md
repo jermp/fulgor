@@ -165,7 +165,7 @@ See the table below for some additional data on the different indexes
 |:--------------------|:------------------------|-----------|--------------------|
 | `meta`              | `salmonella_4546.mfur`  | 0.11769   | 2.26               |
 | `differential`      | `salmonella_4546.dfur`  | 0.11076   | 2.40               |
-| `meta-differential` | `salmonella_4546.mdfur` | 0.11076   | 2.84               |
+| `meta-differential` | `salmonella_4546.mdfur` | 0.09389   | 2.84               |
 
 
 Pseudoalignment output format

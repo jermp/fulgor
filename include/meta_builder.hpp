@@ -120,8 +120,8 @@ private:
     std::vector<std::string> m_filenames;
 };
 
-template <typename ColorClasses>
-struct index<ColorClasses>::meta_builder {
+template <typename ColorSets>
+struct index<ColorSets>::meta_builder {
     meta_builder() {}
 
     meta_builder(build_configuration const& build_config) : m_build_config(build_config) {}
@@ -164,7 +164,7 @@ struct index<ColorClasses>::meta_builder {
             partial_color.reserve(max_partition_size);
             permuted_list.reserve(num_docs);
 
-            typename ColorClasses::builder colors_builder;
+            typename ColorSets::builder colors_builder;
 
             colors_builder.init_colors_builder(num_docs, num_partitions);
             for (uint64_t partition_id = 0; partition_id != num_partitions; ++partition_id) {
@@ -308,7 +308,7 @@ struct index<ColorClasses>::meta_builder {
 
             metacolors_in.close();
             std::remove((m_build_config.tmp_dirname + "/metacolors.bin").c_str());
-            colors_builder.build(idx.m_ccs);
+            colors_builder.build(idx.m_color_sets);
 
             timer.stop();
             std::cout << "** building partial/meta colors took " << timer.elapsed() << " seconds / "

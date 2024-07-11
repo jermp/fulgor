@@ -4,14 +4,17 @@ bool is_meta(std::string index_filename) {
     return sshash::util::ends_with(index_filename,
                                    constants::meta_colored_fulgor_filename_extension);
 }
+
 bool is_meta_diff(std::string index_filename) {
     return sshash::util::ends_with(index_filename,
                                    constants::meta_diff_colored_fulgor_filename_extension);
 }
+
 bool is_diff(std::string index_filename) {
     return sshash::util::ends_with(index_filename,
                                    constants::diff_colored_fulgor_filename_extension);
 }
+
 bool is_hybrid(std::string index_filename) {
     return sshash::util::ends_with(index_filename, constants::fulgor_filename_extension);
 }

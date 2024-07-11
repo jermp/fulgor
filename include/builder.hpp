@@ -5,8 +5,8 @@
 
 namespace fulgor {
 
-template <typename ColorClasses>
-struct index<ColorClasses>::builder {
+template <typename ColorSets>
+struct index<ColorSets>::builder {
     builder() {}
 
     builder(build_configuration const& build_config) : m_build_config(build_config) {}
@@ -28,7 +28,7 @@ struct index<ColorClasses>::builder {
         }
 
         {
-            essentials::logger("step 2. build m_u2c and m_ccs");
+            essentials::logger("step 2. build m_u2c and m_color_sets");
             timer.start();
 
             uint64_t num_unitigs = 0;
@@ -40,7 +40,7 @@ struct index<ColorClasses>::builder {
             std::ofstream out((m_build_config.file_base_name + ".fa").c_str());
             if (!out.is_open()) throw std::runtime_error("cannot open output file");
 
-            typename ColorClasses::builder colors_builder(m_build_config.num_docs);
+            typename ColorSets::builder colors_builder(m_build_config.num_docs);
 
             m_ccdbg.loop_through_unitigs([&](ggcat::Slice<char> const unitig,
                                              ggcat::Slice<uint32_t> const colors, bool same_color) {
@@ -83,11 +83,11 @@ struct index<ColorClasses>::builder {
             std::cout << "m_u2c.num_ones() " << idx.m_u2c.num_ones() << std::endl;
             std::cout << "m_u2c.num_zeros() " << idx.m_u2c.num_zeros() << std::endl;
 
-            colors_builder.build(idx.m_ccs);
+            colors_builder.build(idx.m_color_sets);
 
             timer.stop();
-            std::cout << "** building m_u2c and m_ccs took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            std::cout << "** building m_u2c and m_color_sets took " << timer.elapsed()
+                      << " seconds / " << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
 
@@ -141,7 +141,7 @@ struct index<ColorClasses>::builder {
                             return;
                         }
                     }
-                    auto fwd_it = idx.m_ccs.color_set(color_id);
+                    auto fwd_it = idx.m_color_sets.color_set(color_id);
                     const uint64_t size = fwd_it.size();
                     if (size != colors.size) {
                         std::cout << "got colors list of size " << size << " but expected "

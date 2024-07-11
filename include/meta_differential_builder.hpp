@@ -6,8 +6,8 @@
 
 namespace fulgor {
 
-template <typename ColorClasses>
-struct index<ColorClasses>::meta_differential_builder {
+template <typename ColorSets>
+struct index<ColorSets>::meta_differential_builder {
     meta_differential_builder() {}
 
     meta_differential_builder(build_configuration const& build_config)
@@ -137,7 +137,7 @@ struct index<ColorClasses>::meta_differential_builder {
                                            relative_colors);
             }
 
-            builder.build(idx.m_ccs);
+            builder.build(idx.m_color_sets);
 
             timer.stop();
             std::cout << "** building differential-meta colors took " << timer.elapsed()

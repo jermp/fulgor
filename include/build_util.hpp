@@ -2,7 +2,7 @@
 
 #include "external/sketch/include/sketch/hll.h"
 #include "external/kmeans/include/kmeans.hpp"
-#include "color_classes/meta.hpp"
+#include "color_sets/meta.hpp"
 
 namespace fulgor {
 

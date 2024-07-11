@@ -7,18 +7,18 @@
 
 namespace fulgor {
 
-template <typename ColorClasses>
+template <typename ColorSets>
 struct index {
-    typedef ColorClasses color_classes_type;
+    typedef ColorSets color_sets_type;
 
     struct builder;
     struct meta_builder;
     struct differential_builder;
     struct meta_differential_builder;
 
-    typename color_classes_type::iterator_type color_set(uint64_t color_set_id) const {
+    typename color_sets_type::iterator_type color_set(uint64_t color_set_id) const {
         assert(color_set_id < num_color_sets());
-        return m_ccs.color_set(color_set_id);
+        return m_color_sets.color_set(color_set_id);
     }
 
     /* from unitig_id to color_set_id */
@@ -41,31 +41,32 @@ struct index {
     void dump(std::string const& basename) const;
 
     uint64_t k() const { return m_k2u.k(); }
-    uint64_t num_docs() const { return m_ccs.num_docs(); }
+    uint64_t num_docs() const { return m_color_sets.num_docs(); }
     uint64_t num_unitigs() const { return m_k2u.num_contigs(); }
-    uint64_t num_color_sets() const { return m_ccs.num_color_sets(); }
+    uint64_t num_color_sets() const { return m_color_sets.num_color_sets(); }
 
     sshash::dictionary const& get_k2u() const { return m_k2u; }
     ranked_bit_vector const& get_u2c() const { return m_u2c; }
-    ColorClasses const& get_color_sets() const { return m_ccs; }
+    ColorSets const& get_color_sets() const { return m_color_sets; }
     filenames const& get_filenames() const { return m_filenames; }
 
     template <typename Visitor>
     void visit(Visitor& visitor) {
         visitor.visit(m_k2u);
         visitor.visit(m_u2c);
-        visitor.visit(m_ccs);
+        visitor.visit(m_color_sets);
         visitor.visit(m_filenames);
     }
 
     uint64_t num_bits() const {
-        return m_k2u.num_bits() + m_u2c.bytes() * 8 + m_ccs.num_bits() + m_filenames.num_bits();
+        return m_k2u.num_bits() + m_u2c.bytes() * 8 + m_color_sets.num_bits() +
+               m_filenames.num_bits();
     }
 
 private:
     sshash::dictionary m_k2u;  // map: kmer to unitig-id
     ranked_bit_vector m_u2c;   // map: unitig-id to color-class-id
-    ColorClasses m_ccs;
+    ColorSets m_color_sets;
     filenames m_filenames;
 };
 

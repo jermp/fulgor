@@ -67,10 +67,10 @@ uint64_t stream_through_with_multiplicities(sshash::dictionary const& k2u,
     return num_positive_kmers_in_sequence;
 }
 
-template <typename ColorClasses>
-void index<ColorClasses>::pseudoalign_threshold_union(std::string const& sequence,
-                                                      std::vector<uint32_t>& colors,
-                                                      const double threshold) const {
+template <typename ColorSets>
+void index<ColorSets>::pseudoalign_threshold_union(std::string const& sequence,
+                                                   std::vector<uint32_t>& colors,
+                                                   const double threshold) const {
     if (sequence.length() < m_k2u.k()) return;
     colors.clear();
 
@@ -84,7 +84,7 @@ void index<ColorClasses>::pseudoalign_threshold_union(std::string const& sequenc
                            [](uint64_t curr_sum, auto const& u) { return curr_sum + u.score; }));
 
     std::vector<scored_id> color_set_ids;
-    std::vector<scored<typename ColorClasses::iterator_type>> iterators;
+    std::vector<scored<typename ColorSets::iterator_type>> iterators;
 
     /* deduplicate unitig_ids */
     std::sort(unitig_ids.begin(), unitig_ids.end(),
@@ -109,7 +109,7 @@ void index<ColorClasses>::pseudoalign_threshold_union(std::string const& sequenc
     for (uint64_t i = 0; i != color_set_ids.size(); ++i) {
         uint64_t color_set_id = color_set_ids[i].item;
         if (color_set_id != prev_color_set_id) {
-            auto fwd_it = m_ccs.color_set(color_set_id);
+            auto fwd_it = m_color_sets.color_set(color_set_id);
             iterators.push_back({fwd_it, color_set_ids[i].score});
             prev_color_set_id = color_set_id;
         } else {

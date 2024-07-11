@@ -164,8 +164,8 @@ We can change the option `--meta` to `--diff` to create a differential-colored i
 both options, `--meta --diff`, to create a meta-differential-colored index.
 See the table below.
 
-| command             | output file             | size (GB) | compression factor |
-|:--------------------|:------------------------|:---------:|:------------------:|
+| command               | output file             | size (GB) | compression factor |
+|:----------------------|:------------------------|:---------:|:------------------:|
 | `color --meta`        | `salmonella_4546.mfur`  | 0.11769   | 2.26               |
 | `color --diff`        | `salmonella_4546.dfur`  | 0.11076   | 2.40               |
 | `color --meta --diff` | `salmonella_4546.mdfur` | 0.09389   | 2.84               |

@@ -84,6 +84,7 @@ struct differential_permuter {
                 clusters_size += clustering_data[slice_id].clusters.size();
             }
             assert(clusters_size == num_color_sets);
+            (void)clusters_size;
 
             std::vector<uint32_t> permutation(num_color_sets);
             prev_num_clusters = 0;
@@ -201,8 +202,8 @@ private:
     }
 };
 
-template <typename ColorClasses>
-struct index<ColorClasses>::differential_builder {
+template <typename ColorSets>
+struct index<ColorSets>::differential_builder {
     differential_builder() {}
 
     differential_builder(build_configuration const& build_config) : m_build_config(build_config) {}
@@ -230,7 +231,7 @@ struct index<ColorClasses>::differential_builder {
             essentials::logger("step 4. building differential colors");
             timer.start();
 
-            typename ColorClasses::builder colors_builder;
+            typename ColorSets::builder colors_builder;
             colors_builder.init_colors_builder(index.num_docs());
 
             for (auto& reference : references) { colors_builder.encode_representative(reference); }
@@ -240,7 +241,7 @@ struct index<ColorClasses>::differential_builder {
                     cluster_id, references[cluster_id], it.size(), [&it]() -> void { ++it; },
                     [&it]() -> uint64_t { return *it; });
             }
-            colors_builder.build(idx.m_ccs);
+            colors_builder.build(idx.m_color_sets);
         }
 
         {

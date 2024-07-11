@@ -2,9 +2,10 @@
 
 namespace fulgor {
 
-template <typename ColorClasses>
+template <typename ColorSets>
 struct meta {
     static const bool meta_colored = true;
+    static const bool differential_colored = false;
 
     struct partition_endpoint {
         template <typename Visitor>
@@ -73,7 +74,7 @@ struct meta {
 
     private:
         pthash::compact_vector::builder m_meta_colors_builder;
-        std::vector<typename ColorClasses::builder> m_colors_builders;
+        std::vector<typename ColorSets::builder> m_colors_builders;
 
         uint64_t m_num_docs;
         uint64_t m_offset;
@@ -83,7 +84,7 @@ struct meta {
     };
 
     struct forward_iterator {
-        forward_iterator(meta<ColorClasses> const* ptr, uint64_t begin)
+        forward_iterator(meta<ColorSets> const* ptr, uint64_t begin)
             : m_ptr(ptr), m_begin(begin), m_meta_color_list_size((m_ptr->m_meta_colors)[m_begin]) {
             rewind();
         }
@@ -200,8 +201,8 @@ struct meta {
         }
 
     private:
-        meta<ColorClasses> const* m_ptr;
-        typename ColorClasses::iterator_type m_curr_partition_it;
+        meta<ColorSets> const* m_ptr;
+        typename ColorSets::iterator_type m_curr_partition_it;
         uint64_t m_begin;
         uint32_t m_curr_meta_color, m_curr_val;
         uint32_t m_meta_color_list_size, m_pos_in_meta_color_list;
@@ -232,7 +233,7 @@ struct meta {
         return forward_iterator(this, begin);
     }
 
-    std::vector<ColorClasses> partial_colors() const { return m_colors; }
+    std::vector<ColorSets> partial_colors() const { return m_colors; }
 
     uint32_t num_docs() const { return m_num_docs; }
 
@@ -319,7 +320,7 @@ private:
     uint32_t m_num_docs;
     pthash::compact_vector m_meta_colors;
     sshash::ef_sequence<false> m_meta_colors_offsets;
-    std::vector<ColorClasses> m_colors;
+    std::vector<ColorSets> m_colors;
     std::vector<partition_endpoint> m_partition_endpoints;
 };
 

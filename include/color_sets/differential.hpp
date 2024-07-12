@@ -354,14 +354,24 @@ struct differential {
 
     template <typename Visitor>
     void visit(Visitor& visitor) {
-        visitor.visit(m_num_docs);
-        visitor.visit(m_representative_offsets);
-        visitor.visit(m_list_offsets);
-        visitor.visit(m_colors);
-        visitor.visit(m_clusters);
+        visit_impl(visitor, *this);
+    }
+
+    template <typename Visitor>
+    void visit(Visitor& visitor) const {
+        visit_impl(visitor, *this);
     }
 
 private:
+    template <typename Visitor, typename T>
+    static void visit_impl(Visitor& visitor, T&& t) {
+        visitor.visit(t.m_num_docs);
+        visitor.visit(t.m_representative_offsets);
+        visitor.visit(t.m_list_offsets);
+        visitor.visit(t.m_colors);
+        visitor.visit(t.m_clusters);
+    }
+
     uint32_t m_num_docs;
 
     sshash::ef_sequence<false> m_representative_offsets, m_list_offsets;

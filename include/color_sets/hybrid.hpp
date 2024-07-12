@@ -382,14 +382,24 @@ struct hybrid {
 
     template <typename Visitor>
     void visit(Visitor& visitor) {
-        visitor.visit(m_num_docs);
-        visitor.visit(m_sparse_set_threshold_size);
-        visitor.visit(m_very_dense_set_threshold_size);
-        visitor.visit(m_offsets);
-        visitor.visit(m_colors);
+        visit_impl(visitor, *this);
+    }
+
+    template <typename Visitor>
+    void visit(Visitor& visitor) const {
+        visit_impl(visitor, *this);
     }
 
 private:
+    template <typename Visitor, typename T>
+    static void visit_impl(Visitor& visitor, T&& t) {
+        visitor.visit(t.m_num_docs);
+        visitor.visit(t.m_sparse_set_threshold_size);
+        visitor.visit(t.m_very_dense_set_threshold_size);
+        visitor.visit(t.m_offsets);
+        visitor.visit(t.m_colors);
+    }
+
     uint32_t m_num_docs;
     uint32_t m_sparse_set_threshold_size;
     uint32_t m_very_dense_set_threshold_size;

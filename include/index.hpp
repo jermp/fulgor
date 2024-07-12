@@ -52,10 +52,12 @@ struct index {
 
     template <typename Visitor>
     void visit(Visitor& visitor) {
-        visitor.visit(m_k2u);
-        visitor.visit(m_u2c);
-        visitor.visit(m_color_sets);
-        visitor.visit(m_filenames);
+        visit_impl(visitor, *this);
+    }
+
+    template <typename Visitor>
+    void visit(Visitor& visitor) const {
+        visit_impl(visitor, *this);
     }
 
     uint64_t num_bits() const {
@@ -64,6 +66,14 @@ struct index {
     }
 
 private:
+    template <typename Visitor, typename T>
+    static void visit_impl(Visitor& visitor, T&& t) {
+        visitor.visit(t.m_k2u);
+        visitor.visit(t.m_u2c);
+        visitor.visit(t.m_color_sets);
+        visitor.visit(t.m_filenames);
+    }
+
     sshash::dictionary m_k2u;  // map: kmer to unitig-id
     ranked_bit_vector m_u2c;   // map: unitig-id to color-class-id
     ColorSets m_color_sets;

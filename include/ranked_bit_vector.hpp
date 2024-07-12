@@ -36,10 +36,21 @@ struct ranked_bit_vector : public pthash::bit_vector {
     template <typename Visitor>
     void visit(Visitor& visitor) {
         pthash::bit_vector::visit(visitor);
-        visitor.visit(m_block_rank_pairs);
+        visit_impl(visitor, *this);
+    }
+
+    template <typename Visitor>
+    void visit(Visitor& visitor) const {
+        pthash::bit_vector::visit(visitor);
+        visit_impl(visitor, *this);
     }
 
 protected:
+    template <typename Visitor, typename T>
+    static void visit_impl(Visitor& visitor, T&& t) {
+        visitor.visit(t.m_block_rank_pairs);
+    }
+
     inline uint64_t block_rank(uint64_t block) const { return m_block_rank_pairs[block * 2]; }
 
     inline uint64_t sub_block_rank(uint64_t sub_block) const {

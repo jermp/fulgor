@@ -19,13 +19,6 @@ struct filenames {
         return {m_chars.data() + begin, end - begin};
     }
 
-    // void print() const {
-    //     for (uint64_t i = 0; i != num_docs(); ++i) {
-    //         auto const& s = filename(i);
-    //         std::cout << s << std::endl;
-    //     }
-    // }
-
     uint32_t num_docs() const {
         assert(m_offsets.size() > 0);
         return m_offsets.size() - 1;
@@ -37,11 +30,21 @@ struct filenames {
 
     template <typename Visitor>
     void visit(Visitor& visitor) {
-        visitor.visit(m_offsets);
-        visitor.visit(m_chars);
+        visit_impl(visitor, *this);
+    }
+
+    template <typename Visitor>
+    void visit(Visitor& visitor) const {
+        visit_impl(visitor, *this);
     }
 
 private:
+    template <typename Visitor, typename T>
+    static void visit_impl(Visitor& visitor, T&& t) {
+        visitor.visit(t.m_offsets);
+        visitor.visit(t.m_chars);
+    }
+
     std::vector<uint32_t> m_offsets;
     std::vector<char> m_chars;
 };

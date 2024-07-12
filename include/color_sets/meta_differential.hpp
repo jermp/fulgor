@@ -316,18 +316,28 @@ struct meta_differential {
 
     template <typename Visitor>
     void visit(Visitor& visitor) {
-        visitor.visit(m_num_docs);
-        visitor.visit(m_num_partition_sets);
-        visitor.visit(m_partition_sets_offsets);
-        visitor.visit(m_relative_colors_offsets);
-        visitor.visit(m_partition_endpoints);
-        visitor.visit(m_partial_colors);
-        visitor.visit(m_relative_colors);
-        visitor.visit(m_partition_sets);
-        visitor.visit(m_partition_sets_partitions);
+        visit_impl(visitor, *this);
+    }
+
+    template <typename Visitor>
+    void visit(Visitor& visitor) const {
+        visit_impl(visitor, *this);
     }
 
 private:
+    template <typename Visitor, typename T>
+    static void visit_impl(Visitor& visitor, T&& t) {
+        visitor.visit(t.m_num_docs);
+        visitor.visit(t.m_num_partition_sets);
+        visitor.visit(t.m_partition_sets_offsets);
+        visitor.visit(t.m_relative_colors_offsets);
+        visitor.visit(t.m_partition_endpoints);
+        visitor.visit(t.m_partial_colors);
+        visitor.visit(t.m_relative_colors);
+        visitor.visit(t.m_partition_sets);
+        visitor.visit(t.m_partition_sets_partitions);
+    }
+
     uint32_t m_num_docs;
     uint32_t m_num_partition_sets;
     sshash::ef_sequence<false> m_partition_sets_offsets, m_relative_colors_offsets;

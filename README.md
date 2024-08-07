@@ -7,9 +7,9 @@ The Fulgor index is described in the following papers:
 
 - [**Fulgor: A Fast and Compact k-mer Index for Large-Scale Matching and Color Queries**](https://almob.biomedcentral.com/articles/10.1186/s13015-024-00251-9) (Algorithms for Molecular Biology, ALMOB 2024), and
 
-- [**Meta-colored compacted de Bruijn graphs**](https://www.biorxiv.org/content/10.1101/2023.07.21.550101v2.full.pdf) (International Conference on Research in Computational Molecular Biology, RECOMB 2024).
+- [**Meta-colored compacted de Bruijn graphs**](https://link.springer.com/chapter/10.1007/978-1-0716-3989-4_9) (International Conference on Research in Computational Molecular Biology, RECOMB 2024).
 
-- [**Where the patters are: repetition-aware compression for colored de Bruijn graphs**](https://www.biorxiv.org/content/10.1101/2024.07.09.602727v1) (BioRxiv 2024).
+- [**Where the patters are: repetition-aware compression for colored de Bruijn graphs**](https://jermp.github.io/assets/pdf/papers/JCB2024.pdf) (Journal of Computational Biology, JCB 2024). To appear.
 
 Please, cite these papers if you use Fulgor.
 

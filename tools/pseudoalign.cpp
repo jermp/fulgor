@@ -15,20 +15,20 @@
 using namespace fulgor;
 
 // See https://github.com/jermp/experiments/tree/master/bin_to_char_conversion.
-void write_output(std::vector<uint32_t> const& vec, std::ostream& os) {
-    static char buffer[32];
-    for (uint32_t x : vec) {
-        int len = 1;
-        do {
-            buffer[len++] = '0' + (x % 10);
-            x /= 10;
-        } while (x > 0);
-        std::reverse(buffer + 1, buffer + len);
-        buffer[0] = '\t';
-        os.write(buffer, len);
-    }
-    os << '\n';
-}
+// void write_output(std::vector<uint32_t> const& vec, std::ostream& os) {
+//     static char buffer[32];
+//     for (uint32_t x : vec) {
+//         int len = 1;
+//         do {
+//             buffer[len++] = '0' + (x % 10);
+//             x /= 10;
+//         } while (x > 0);
+//         std::reverse(buffer + 1, buffer + len);
+//         buffer[0] = '\t';
+//         os.write(buffer, len);
+//     }
+//     os << '\n';
+// }
 
 enum class pseudoalignment_algorithm : uint8_t {
     FULL_INTERSECTION,

@@ -27,7 +27,7 @@ struct index<ColorSets>::meta_differential_builder {
         uint64_t num_partitions = meta_index.get_color_sets().num_partitions();
 
         meta_differential::builder builder;
-        builder.init(meta_index.num_docs(), num_partitions);
+        builder.init(meta_index.num_colors(), num_partitions);
 
         std::vector<std::vector<uint64_t>> partial_permutations(num_partitions);
 
@@ -44,7 +44,7 @@ struct index<ColorSets>::meta_differential_builder {
                 dp.permute(pc[i]);
 
                 differential::builder diff_builder;
-                diff_builder.init_colors_builder(dp.num_docs());
+                diff_builder.init_colors_builder(dp.num_colors());
 
                 auto const& permutation = dp.permutation();
                 auto const& references = dp.references();

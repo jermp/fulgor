@@ -5,6 +5,7 @@ namespace fulgor {
 template <typename ColorSets>
 void index<ColorSets>::print_stats() const {
     const uint64_t total_bits = num_bits();
+    assert(total_bits > 0);
     auto const& k2u = get_k2u();
     auto const& u2c = get_u2c();
     auto const& color_sets = get_color_sets();
@@ -32,7 +33,7 @@ void index<ColorSets>::print_stats() const {
 
     uint64_t num_ints_in_color_sets = 0;
     uint64_t num_color_sets = color_sets.num_color_sets();
-    std::cout << "Color id range 0.." << num_docs() - 1 << '\n';
+    std::cout << "Color id range 0.." << num_colors() - 1 << '\n';
     std::cout << "Number of distinct color sets: " << num_color_sets << '\n';
     for (uint64_t color_set_id = 0; color_set_id != num_color_sets; ++color_set_id) {
         uint64_t list_size = color_sets.color_set(color_set_id).size();
@@ -55,7 +56,8 @@ void index<ColorSets>::dump(std::string const& basename) const {
     /* metadata file */
     std::ofstream metadata_file(basename + ".metadata.txt");
     if (!metadata_file.is_open()) throw std::runtime_error("cannot open output file");
-    metadata_file << "num_colors=" << num_docs() << '\n';
+    metadata_file << "k=" << k() << '\n';
+    metadata_file << "num_colors=" << num_colors() << '\n';
     metadata_file << "num_unitigs=" << num_unitigs() << '\n';
     metadata_file << "num_color_sets=" << num_color_sets() << '\n';
     metadata_file.close();

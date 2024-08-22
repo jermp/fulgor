@@ -13,7 +13,7 @@ void build_reference_sketches(index_type const& index,
 ) {
     assert(num_threads > 0);
 
-    const uint64_t num_docs = index.num_docs();
+    const uint64_t num_colors = index.num_colors();
     typename sketch::hll_t::HashType hasher;
     auto const& u2c = index.get_u2c();
     auto const& ccs = index.get_color_sets();
@@ -27,7 +27,7 @@ void build_reference_sketches(index_type const& index,
     }
 
     std::vector<std::vector<sketch::hll_t>> thread_sketches(
-        num_threads, std::vector<sketch::hll_t>(num_docs, sketch::hll_t(p)));
+        num_threads, std::vector<sketch::hll_t>(num_colors, sketch::hll_t(p)));
 
     struct slice {
         uint64_t begin;                         // start position in u2c
@@ -105,7 +105,7 @@ void build_reference_sketches(index_type const& index,
             }
             for (uint64_t i = 0; i != size; ++i, ++it) {
                 uint32_t ref_id = *it;
-                assert(ref_id < num_docs);
+                assert(ref_id < num_colors);
                 for (auto hash : hashes) sketches[ref_id].add(hash);
             }
             prev_pos = curr_pos + 1;
@@ -122,7 +122,7 @@ void build_reference_sketches(index_type const& index,
     }
 
     /* merge sketches into thread_sketches[0] */
-    for (uint64_t i = 0; i != num_docs; ++i) {
+    for (uint64_t i = 0; i != num_colors; ++i) {
         auto& sketch = thread_sketches[0][i];
         for (uint64_t thread_id = 1; thread_id != num_threads; ++thread_id) {
             sketch += thread_sketches[thread_id][i];
@@ -133,7 +133,7 @@ void build_reference_sketches(index_type const& index,
     if (!out.is_open()) throw std::runtime_error("cannot open file");
     const uint64_t num_bytes = 1ULL << p;
     out.write(reinterpret_cast<char const*>(&num_bytes), 8);
-    out.write(reinterpret_cast<char const*>(&num_docs), 8);
+    out.write(reinterpret_cast<char const*>(&num_colors), 8);
     for (auto const& x : thread_sketches[0]) {
         assert(x.m() == num_bytes);
         assert(x.m() == x.core().size());
@@ -145,7 +145,7 @@ void build_reference_sketches(index_type const& index,
 
 template <typename Iterator>
 void build_colors_sketches_sliced(
-    uint64_t num_docs, uint64_t num_color_sets, function<Iterator(uint64_t)> colors,
+    uint64_t num_colors, uint64_t num_color_sets, function<Iterator(uint64_t)> colors,
     uint64_t p,                   // use 2^p bytes per HLL sketch
     uint64_t num_threads,         // num. threads for construction
     std::string output_filename,  // where the sketches will be serialized
@@ -153,10 +153,10 @@ void build_colors_sketches_sliced(
 {
     assert(num_threads > 0);
 
-    const double min_size = left * num_docs;
-    const double max_size = right * num_docs;
+    const double min_size = left * num_colors;
+    const double max_size = right * num_colors;
     assert(min_size >= 0);
-    assert(max_size <= num_docs);
+    assert(max_size <= num_colors);
 
     if (num_color_sets < num_threads) { num_threads = num_color_sets; }
 
@@ -215,7 +215,7 @@ void build_colors_sketches_sliced(
             assert(size > 0);
             for (uint64_t i = 0; i < size; ++i, ++it) {
                 uint64_t ref_id = *it;
-                assert(ref_id < num_docs);
+                assert(ref_id < num_colors);
                 sketches[color_id - s.begin].addh(ref_id);
             }
         }
@@ -233,7 +233,7 @@ void build_colors_sketches_sliced(
     if (!out.is_open()) throw std::runtime_error("cannot open file");
     const uint64_t num_bytes = 1ULL << p;
     out.write(reinterpret_cast<char const*>(&num_bytes), 8);
-    out.write(reinterpret_cast<char const*>(&num_docs), 8);
+    out.write(reinterpret_cast<char const*>(&num_colors), 8);
     out.write(reinterpret_cast<char const*>(&partition_size), 8);
     for (auto const color_id : filtered_colors_ids) {
         out.write(reinterpret_cast<char const*>(&color_id), 8);

@@ -20,7 +20,7 @@ struct differential_permuter {
             for (uint64_t i = 0; i < num_slices; i++) {
                 timer.start();
                 build_colors_sketches_sliced<hybrid::forward_iterator>(
-                    index.num_docs(), index.num_color_sets(),
+                    index.num_colors(), index.num_color_sets(),
                     [&](uint64_t color_id) -> hybrid::forward_iterator {
                         return index.color_set(color_id);
                     },
@@ -74,7 +74,7 @@ struct differential_permuter {
             }
 
             const uint64_t num_color_sets = index.num_color_sets();
-            m_num_docs = index.num_docs();
+            m_num_colors = index.num_colors();
             m_color_sets_ids.resize(num_color_sets);
 
             auto clusters_pos = m_partition_size;
@@ -109,13 +109,13 @@ struct differential_permuter {
 
             m_permutation.resize(num_color_sets);
             m_references.resize(m_num_partitions);
-            std::vector<uint32_t> distribution(m_num_docs, 0);
+            std::vector<uint32_t> distribution(m_num_colors, 0);
             uint64_t cluster_size = 0;
             for (uint64_t color_id = 0, cluster_id = 0; color_id != num_color_sets + 1;
                  ++color_id, ++cluster_size) {
                 if (color_id == m_partition_size[cluster_id + 1]) {
                     auto& reference = m_references[cluster_id];
-                    for (uint32_t i = 0; i != m_num_docs; ++i) {
+                    for (uint32_t i = 0; i != m_num_colors; ++i) {
                         if (distribution[i] >= ceil(1. * cluster_size / 2.))
                             reference.emplace_back(i);
                     }
@@ -132,14 +132,14 @@ struct differential_permuter {
     }
 
     uint64_t num_partitions() const { return m_num_partitions; }
-    uint64_t num_docs() const { return m_num_docs; }
+    uint64_t num_colors() const { return m_num_colors; }
     std::vector<std::pair<uint32_t, uint32_t>> permutation() const { return m_permutation; }
     std::vector<uint32_t> color_sets_ids() const { return m_color_sets_ids; }
     std::vector<std::vector<uint32_t>> references() const { return m_references; }
 
 private:
     build_configuration m_build_config;
-    uint64_t m_num_partitions, m_num_docs;
+    uint64_t m_num_partitions, m_num_colors;
     std::vector<std::pair<uint32_t, uint32_t>> m_permutation;
     std::vector<std::vector<uint32_t>> m_references;
     std::vector<uint32_t> m_partition_size;
@@ -157,9 +157,9 @@ private:
         std::vector<uint64_t> group_color_ids;
         uint64_t num_bytes_per_point = 0;
         uint64_t num_points = 0;
-        uint64_t num_docs = 0;
+        uint64_t num_colors = 0;
         in.read(reinterpret_cast<char*>(&num_bytes_per_point), sizeof(uint64_t));
-        in.read(reinterpret_cast<char*>(&num_docs), sizeof(uint64_t));
+        in.read(reinterpret_cast<char*>(&num_colors), sizeof(uint64_t));
         in.read(reinterpret_cast<char*>(&num_points), sizeof(uint64_t));
         points.resize(num_points, kmeans::point(num_bytes_per_point));
         group_color_ids.resize(num_points);
@@ -232,7 +232,7 @@ struct index<ColorSets>::differential_builder {
             timer.start();
 
             typename ColorSets::builder colors_builder;
-            colors_builder.init_colors_builder(index.num_docs());
+            colors_builder.init_colors_builder(index.num_colors());
 
             for (auto& reference : references) { colors_builder.encode_representative(reference); }
             for (auto& [cluster_id, color_id] : permutation) {

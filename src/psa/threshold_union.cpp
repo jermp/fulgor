@@ -23,9 +23,9 @@ void merge(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
             return x.item.value() < y.item.value();
         })).item.value();
 
-    const uint32_t num_docs = iterators[0].item.num_docs();
-    while (candidate < num_docs) {
-        uint32_t next_candidate = num_docs;
+    const uint32_t num_colors = iterators[0].item.num_colors();
+    while (candidate < num_colors) {
+        uint32_t next_candidate = num_colors;
         uint32_t score = 0;
         for (uint64_t i = 0; i != iterators.size(); ++i) {
             if (iterators[i].item.value() == candidate) {

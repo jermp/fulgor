@@ -8,20 +8,20 @@ struct hybrid {
 
     struct builder {
         builder() {}
-        builder(uint64_t num_docs) { init(num_docs); }
+        builder(uint64_t num_colors) { init(num_colors); }
 
-        void init(uint64_t num_docs) {
-            m_num_docs = num_docs;
+        void init(uint64_t num_colors) {
+            m_num_colors = num_colors;
 
             /* if list contains < sparse_set_threshold_size ints, code it with gaps+delta */
-            m_sparse_set_threshold_size = 0.25 * m_num_docs;
+            m_sparse_set_threshold_size = 0.25 * m_num_colors;
 
             /* if list contains > very_dense_set_threshold_size ints, code it as a complementary set
                with gaps+delta */
-            m_very_dense_set_threshold_size = 0.75 * m_num_docs;
-            /* otherwise: code it as a bitmap of m_num_docs bits */
+            m_very_dense_set_threshold_size = 0.75 * m_num_colors;
+            /* otherwise: code it as a bitmap of m_num_colors bits */
 
-            std::cout << "m_num_docs: " << m_num_docs << std::endl;
+            std::cout << "m_num_colors: " << m_num_colors << std::endl;
             std::cout << "m_sparse_set_threshold_size " << m_sparse_set_threshold_size << std::endl;
             std::cout << "m_very_dense_set_threshold_size " << m_very_dense_set_threshold_size
                       << std::endl;
@@ -47,7 +47,7 @@ struct hybrid {
                 }
             } else if (list_size < m_very_dense_set_threshold_size) {
                 bit_vector_builder bvb_ints;
-                bvb_ints.resize(m_num_docs);
+                bvb_ints.resize(m_num_colors);
                 for (uint64_t i = 0; i != list_size; ++i) bvb_ints.set(colors[i]);
                 m_bvb.append(bvb_ints);
             } else {
@@ -73,17 +73,17 @@ struct hybrid {
                     assert(val == x);
                     val++;  // skip x
                 }
-                while (val < m_num_docs) {
+                while (val < m_num_colors) {
                     assert(val >= prev_val + 1);
                     util::write_delta(m_bvb, val - (prev_val + 1));
                     prev_val = val;
                     ++val;
                     ++written;
                 }
-                assert(val == m_num_docs);
-                /* complementary_list_size = m_num_docs - list_size */
-                assert(m_num_docs - list_size <= m_num_docs);
-                assert(written == m_num_docs - list_size);
+                assert(val == m_num_colors);
+                /* complementary_list_size = m_num_colors - list_size */
+                assert(m_num_colors - list_size <= m_num_colors);
+                assert(written == m_num_colors - list_size);
             }
             m_offsets.push_back(m_bvb.num_bits());
             m_num_total_integers += list_size;
@@ -94,7 +94,7 @@ struct hybrid {
         }
 
         void build(hybrid& h) {
-            h.m_num_docs = m_num_docs;
+            h.m_num_colors = m_num_colors;
             h.m_sparse_set_threshold_size = m_sparse_set_threshold_size;
             h.m_very_dense_set_threshold_size = m_very_dense_set_threshold_size;
 
@@ -118,7 +118,7 @@ struct hybrid {
         }
 
     private:
-        uint32_t m_num_docs;
+        uint32_t m_num_colors;
         uint32_t m_sparse_set_threshold_size;
         uint32_t m_very_dense_set_threshold_size;
         uint64_t m_num_lists;
@@ -135,7 +135,7 @@ struct hybrid {
             : m_ptr(ptr)
             , m_bitmap_begin(begin)
             , m_colors_begin(begin)
-            , m_num_docs(ptr->m_num_docs) {
+            , m_num_colors(ptr->m_num_colors) {
             rewind();
         }
 
@@ -162,7 +162,7 @@ struct hybrid {
                 m_curr_val = pos - m_bitmap_begin;
             } else {
                 m_type = list_type::complement_delta_gaps;
-                m_comp_list_size = m_num_docs - m_size;
+                m_comp_list_size = m_num_colors - m_size;
                 if (m_comp_list_size > 0) m_comp_val = util::read_delta(m_it);
                 next_comp_val();
             }
@@ -181,7 +181,7 @@ struct hybrid {
             if (m_comp_list_size > 0) {
                 m_comp_val = util::read_delta(m_it);
             } else {
-                m_comp_val = m_num_docs;
+                m_comp_val = m_num_colors;
             }
         }
 
@@ -192,15 +192,15 @@ struct hybrid {
         void next() {
             if (m_type == list_type::complement_delta_gaps) {
                 ++m_curr_val;
-                if (m_curr_val >= m_num_docs) {  // saturate
-                    m_curr_val = m_num_docs;
+                if (m_curr_val >= m_num_colors) {  // saturate
+                    m_curr_val = m_num_colors;
                     return;
                 }
                 next_comp_val();
             } else if (m_type == list_type::delta_gaps) {
                 m_pos_in_list += 1;
                 if (m_pos_in_list >= m_size) {  // saturate
-                    m_curr_val = m_num_docs;
+                    m_curr_val = m_num_colors;
                     return;
                 }
                 m_prev_val = m_curr_val;
@@ -209,7 +209,7 @@ struct hybrid {
                 assert(m_type == list_type::bitmap);
                 m_pos_in_list += 1;
                 if (m_pos_in_list >= m_size) {  // saturate
-                    m_curr_val = m_num_docs;
+                    m_curr_val = m_num_colors;
                     return;
                 }
                 uint64_t pos = m_it.next();
@@ -221,7 +221,7 @@ struct hybrid {
         void next_comp() {
             ++m_pos_in_comp_list;
             if (m_pos_in_comp_list >= m_comp_list_size) {  // saturate
-                m_comp_val = m_num_docs;
+                m_comp_val = m_num_colors;
                 return;
             }
             m_prev_val = m_comp_val;
@@ -233,7 +233,7 @@ struct hybrid {
         /* update the state of the iterator to the element
            which is greater-than or equal-to lower_bound */
         void next_geq(const uint64_t lower_bound) {
-            assert(lower_bound <= num_docs());
+            assert(lower_bound <= num_colors());
             if (m_type == list_type::complement_delta_gaps) {
                 if (value() > lower_bound) return;
                 next_geq_comp_val(lower_bound);
@@ -245,14 +245,14 @@ struct hybrid {
         }
 
         uint32_t size() const { return m_size; }
-        uint32_t num_docs() const { return m_num_docs; }
+        uint32_t num_colors() const { return m_num_colors; }
         int type() const { return m_type; }
 
     private:
         hybrid const* m_ptr;
         uint64_t m_bitmap_begin;
         uint64_t m_colors_begin;
-        uint32_t m_num_docs;
+        uint32_t m_num_colors;
         int m_type;
 
         bit_vector_iterator m_it;
@@ -294,11 +294,11 @@ struct hybrid {
         return forward_iterator(this, begin);
     }
 
-    uint32_t num_docs() const { return m_num_docs; }
+    uint32_t num_colors() const { return m_num_colors; }
     uint64_t num_color_sets() const { return m_offsets.size() - 1; }
 
     uint64_t num_bits() const {
-        return (sizeof(m_num_docs) + sizeof(m_sparse_set_threshold_size) +
+        return (sizeof(m_num_colors) + sizeof(m_sparse_set_threshold_size) +
                 sizeof(m_very_dense_set_threshold_size)) *
                    8 +
                m_offsets.num_bits() + essentials::vec_bytes(m_colors) * 8;
@@ -307,11 +307,11 @@ struct hybrid {
     void print_stats() const {
         uint64_t num_buckets = 10;
         assert(num_buckets > 0);
-        uint64_t bucket_size = m_num_docs / num_buckets;
+        uint64_t bucket_size = m_num_colors / num_buckets;
         std::vector<uint32_t> list_size_upperbounds;
         for (uint64_t i = 0, curr_list_size_upper_bound = bucket_size; i != num_buckets;
              ++i, curr_list_size_upper_bound += bucket_size) {
-            if (i == num_buckets - 1) curr_list_size_upper_bound = m_num_docs;
+            if (i == num_buckets - 1) curr_list_size_upper_bound = m_num_colors;
             list_size_upperbounds.push_back(curr_list_size_upper_bound);
         }
 
@@ -347,7 +347,7 @@ struct hybrid {
         const uint64_t total_bits = num_bits();
         for (uint64_t i = 0, curr_list_size_upper_bound = 0; i != num_buckets; ++i) {
             if (i == num_buckets - 1) {
-                curr_list_size_upper_bound = m_num_docs;
+                curr_list_size_upper_bound = m_num_colors;
             } else {
                 curr_list_size_upper_bound += bucket_size;
             }
@@ -372,7 +372,8 @@ struct hybrid {
         std::cout << "  colors: " << static_cast<double>(bits) / integers << " bits/int"
                   << std::endl;
         std::cout << "  offsets: "
-                  << static_cast<double>((sizeof(m_num_docs) + sizeof(m_sparse_set_threshold_size) +
+                  << static_cast<double>((sizeof(m_num_colors) +
+                                          sizeof(m_sparse_set_threshold_size) +
                                           sizeof(m_very_dense_set_threshold_size)) *
                                              8 +
                                          m_offsets.num_bits()) /
@@ -393,14 +394,14 @@ struct hybrid {
 private:
     template <typename Visitor, typename T>
     static void visit_impl(Visitor& visitor, T&& t) {
-        visitor.visit(t.m_num_docs);
+        visitor.visit(t.m_num_colors);
         visitor.visit(t.m_sparse_set_threshold_size);
         visitor.visit(t.m_very_dense_set_threshold_size);
         visitor.visit(t.m_offsets);
         visitor.visit(t.m_colors);
     }
 
-    uint32_t m_num_docs;
+    uint32_t m_num_colors;
     uint32_t m_sparse_set_threshold_size;
     uint32_t m_very_dense_set_threshold_size;
     sshash::ef_sequence<false> m_offsets;

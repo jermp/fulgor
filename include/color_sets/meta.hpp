@@ -34,14 +34,14 @@ struct meta {
             }
         }
 
-        void init_colors_builder(uint64_t num_docs, uint64_t num_partitions) {
-            m_num_docs = num_docs;
+        void init_colors_builder(uint64_t num_colors, uint64_t num_partitions) {
+            m_num_colors = num_colors;
             m_colors_builders.resize(num_partitions);
         }
 
-        void init_color_partition(uint64_t partition_id, uint64_t num_docs_in_partition) {
+        void init_color_partition(uint64_t partition_id, uint64_t num_colors_in_partition) {
             assert(partition_id < m_colors_builders.size());
-            m_colors_builders[partition_id].init(num_docs_in_partition);
+            m_colors_builders[partition_id].init(num_colors_in_partition);
         }
 
         void process_colors(uint64_t partition_id, uint32_t const* colors, uint64_t list_size) {
@@ -60,7 +60,7 @@ struct meta {
         }
 
         void build(meta& m) {
-            m.m_num_docs = m_num_docs;
+            m.m_num_colors = m_num_colors;
             m_meta_colors_builder.build(m.m_meta_colors);
             m.m_colors.resize(m_colors_builders.size());
             for (uint64_t i = 0; i != m_colors_builders.size(); ++i) {
@@ -76,7 +76,7 @@ struct meta {
         pthash::compact_vector::builder m_meta_colors_builder;
         std::vector<typename ColorSets::builder> m_colors_builders;
 
-        uint64_t m_num_docs;
+        uint64_t m_num_colors;
         uint64_t m_offset;
         std::vector<uint64_t> m_meta_colors_offsets;
 
@@ -114,7 +114,7 @@ struct meta {
         void next() {
             if (m_pos_in_curr_partition == m_curr_partition_size - 1) {
                 if (m_pos_in_meta_color_list == meta_color_list_size() - 1) {  // saturate
-                    m_curr_val = num_docs();
+                    m_curr_val = num_colors();
                     return;
                 }
                 m_pos_in_meta_color_list += 1;
@@ -128,7 +128,7 @@ struct meta {
         /* update the state of the iterator to the element
            which is greater-than or equal-to lower_bound */
         void next_geq(const uint64_t lower_bound) {
-            assert(lower_bound <= num_docs());
+            assert(lower_bound <= num_colors());
             while (value() < lower_bound) next();
             assert(value() >= lower_bound);
         }
@@ -192,7 +192,7 @@ struct meta {
 
         uint32_t partition_id() const { return m_partition_id; }
         uint32_t meta_color_list_size() const { return m_meta_color_list_size; }
-        uint32_t num_docs() const { return m_ptr->num_docs(); }
+        uint32_t num_colors() const { return m_ptr->num_colors(); }
         uint32_t num_partitions() const { return m_ptr->num_partitions(); }
         uint32_t partition_lower_bound() const { return m_partition_lower_bound; }
         uint32_t partition_upper_bound() const { return m_partition_upper_bound; }
@@ -235,7 +235,7 @@ struct meta {
 
     std::vector<ColorSets> partial_colors() const { return m_colors; }
 
-    uint32_t num_docs() const { return m_num_docs; }
+    uint32_t num_colors() const { return m_num_colors; }
 
     /* num. meta color lists */
     uint64_t num_color_sets() const { return m_meta_colors_offsets.size() - 1; }
@@ -244,18 +244,18 @@ struct meta {
     uint64_t num_partitions() const { return m_partition_endpoints.size() - 1; }
 
     uint64_t num_bits() const {
-        uint64_t colors_bits = sizeof(size_t) * 8;  // for std::vector::size
-        for (auto const& c : m_colors) colors_bits += c.num_bits();
-        return m_meta_colors_offsets.num_bits() + colors_bits +
+        uint64_t num_bits_colors = sizeof(size_t) * 8;  // for std::vector::size
+        for (auto const& c : m_colors) num_bits_colors += c.num_bits();
+        return m_meta_colors_offsets.num_bits() + num_bits_colors +
                (m_meta_colors.bytes() + essentials::vec_bytes(m_partition_endpoints) +
-                sizeof(m_num_docs)) *
+                sizeof(m_num_colors)) *
                    8;
     }
 
     void print_stats() const {
         std::cout << "Color statistics:\n";
         std::cout << "  Number of partitions: " << num_partitions() << '\n';
-        uint64_t colors_bits = 0;
+        uint64_t num_bits_colors = 0;
 
         uint64_t num_partial_colors_very_dense = 0;
         uint64_t num_partial_colors_dense = 0;
@@ -279,8 +279,11 @@ struct meta {
                 }
             }
 
-            colors_bits += c.num_bits();
+            num_bits_colors += c.num_bits();
         }
+
+        assert(num_total_partial_colors > 0);
+        assert(num_bits() > 0);
 
         std::cout << "  num_partial_colors_very_dense = " << num_partial_colors_very_dense << " / "
                   << num_total_partial_colors << " ("
@@ -295,8 +298,8 @@ struct meta {
                   << (num_partial_colors_sparse * 100.0) / num_total_partial_colors << "%)"
                   << std::endl;
 
-        std::cout << "  partial colors: " << colors_bits / 8 << " bytes ("
-                  << (colors_bits * 100.0) / num_bits() << "%)\n";
+        std::cout << "  partial colors: " << num_bits_colors / 8 << " bytes ("
+                  << (num_bits_colors * 100.0) / num_bits() << "%)\n";
         std::cout << "  meta colors: "
                   << m_meta_colors.bytes() + m_meta_colors_offsets.num_bits() / 8 << " bytes ("
                   << ((m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits()) * 100.0) /
@@ -320,14 +323,14 @@ struct meta {
 private:
     template <typename Visitor, typename T>
     static void visit_impl(Visitor& visitor, T&& t) {
-        visitor.visit(t.m_num_docs);
+        visitor.visit(t.m_num_colors);
         visitor.visit(t.m_meta_colors);
         visitor.visit(t.m_meta_colors_offsets);
         visitor.visit(t.m_colors);
         visitor.visit(t.m_partition_endpoints);
     }
 
-    uint32_t m_num_docs;
+    uint32_t m_num_colors;
     pthash::compact_vector m_meta_colors;
     sshash::ef_sequence<false> m_meta_colors_offsets;
     std::vector<ColorSets> m_colors;

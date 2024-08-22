@@ -31,7 +31,7 @@ struct build_configuration {
         , m(20)
         , num_threads(1)
         , ram_limit_in_GiB(constants::default_ram_limit_in_GiB)
-        , num_docs(0)
+        , num_colors(0)
         , tmp_dirname(constants::default_tmp_dirname)
         //
         , verbose(false)
@@ -46,7 +46,7 @@ struct build_configuration {
     uint32_t m;            // minimizer length
     uint32_t num_threads;  // for building and checking correctness
     uint32_t ram_limit_in_GiB;
-    uint64_t num_docs;
+    uint64_t num_colors;
 
     std::string tmp_dirname;
     std::string file_base_name;
@@ -78,12 +78,12 @@ bool check_intersection(std::vector<ForwardIterator>& iterators, std::vector<uin
 
     for (auto& it : iterators) it.rewind();
 
-    const uint32_t num_docs = iterators[0].num_docs();
+    const uint32_t num_colors = iterators[0].num_colors();
     std::vector<std::vector<uint32_t>> sets(iterators.size());
     for (uint64_t i = 0; i != iterators.size(); ++i) {
         auto& it = iterators[i];
         uint32_t val = it.value();
-        while (val < num_docs) {
+        while (val < num_colors) {
             sets[i].push_back(val);
             it.next();
             val = it.value();

@@ -12,8 +12,8 @@ struct differential {
             m_representative_offsets.push_back(0);
         }
 
-        void init_colors_builder(uint64_t num_docs) {
-            m_num_docs = num_docs;
+        void init_colors_builder(uint64_t num_colors) {
+            m_num_colors = num_colors;
             m_num_total_integers = 0;
             m_num_lists = 0;
         }
@@ -99,7 +99,7 @@ struct differential {
         }
 
         void build(differential& d) {
-            d.m_num_docs = m_num_docs;
+            d.m_num_colors = m_num_colors;
             d.m_colors.swap(m_bvb.bits());
             d.m_clusters.build(&m_clusters);
 
@@ -132,7 +132,7 @@ struct differential {
         pthash::bit_vector_builder m_clusters;
         uint64_t m_num_total_integers, m_num_lists;
 
-        uint64_t m_num_docs;
+        uint64_t m_num_colors;
         uint64_t m_prev_cluster_id;
         std::vector<uint64_t> m_representative_offsets, m_list_offsets;
     };
@@ -158,11 +158,11 @@ struct differential {
             m_size = util::read_delta(m_differential_list_it);
 
             m_curr_differential_val = m_differential_list_size == 0
-                                          ? num_docs()
+                                          ? num_colors()
                                           : util::read_delta(m_differential_list_it);
             m_prev_differential_val = 0;
             m_curr_representative_val =
-                m_representative_size == 0 ? num_docs() : util::read_delta(m_representative_it);
+                m_representative_size == 0 ? num_colors() : util::read_delta(m_representative_it);
             m_prev_representative_val = 0;
 
             m_pos_in_differential_list = 0;
@@ -178,7 +178,7 @@ struct differential {
         void next() {
             if (m_pos_in_representative >= m_representative_size &&
                 m_pos_in_differential_list >= m_differential_list_size) {
-                m_curr_val = num_docs();
+                m_curr_val = num_colors();
                 return;
             }
             if (m_pos_in_representative >= m_representative_size ||
@@ -193,12 +193,12 @@ struct differential {
         void operator++() { next(); }
 
         void next_geq(const uint64_t lower_bound) {
-            assert(lower_bound <= num_docs());
+            assert(lower_bound <= num_colors());
             while (value() < lower_bound) next();
             assert(value() >= lower_bound);
         }
 
-        uint32_t num_docs() const { return m_ptr->m_num_docs; }
+        uint32_t num_colors() const { return m_ptr->m_num_colors; }
         uint64_t differential_list_size() const { return m_differential_list_size; }
 
         int type() const { return list_type::differential_list; }
@@ -221,7 +221,7 @@ struct differential {
                 m_curr_representative_val =
                     m_prev_representative_val + util::read_delta(m_representative_it) + 1;
             } else {
-                m_curr_representative_val = num_docs();
+                m_curr_representative_val = num_colors();
             }
         }
 
@@ -232,7 +232,7 @@ struct differential {
                 m_curr_differential_val =
                     m_prev_differential_val + util::read_delta(m_differential_list_it) + 1;
             } else {
-                m_curr_differential_val = num_docs();
+                m_curr_differential_val = num_colors();
             }
         }
 
@@ -259,10 +259,10 @@ struct differential {
 
     uint64_t num_color_sets() const { return m_list_offsets.size() - 1; }
     uint64_t num_partitions() const { return m_clusters.num_ones() + 1; }
-    uint64_t num_docs() const { return m_num_docs; }
+    uint64_t num_colors() const { return m_num_colors; }
 
     uint64_t num_bits() const {
-        return sizeof(m_num_docs) * 8 + m_representative_offsets.num_bits() +
+        return sizeof(m_num_colors) * 8 + m_representative_offsets.num_bits() +
                m_list_offsets.num_bits() + essentials::vec_bytes(m_colors) * 8 +
                m_clusters.bytes() * 8;
     }
@@ -271,16 +271,16 @@ struct differential {
         std::cout << "Color statistics:\n";
         std::cout << "  Number of partitions: " << num_partitions() << std::endl;
 
-        uint64_t num_representative_offsets = m_representative_offsets.num_bits();
-        uint64_t num_list_offsets = m_list_offsets.num_bits();
-        uint64_t num_colors = essentials::vec_bytes(m_colors) * 8;
-        uint64_t num_clusters = m_clusters.size();
+        uint64_t num_bits_representative_offsets = m_representative_offsets.num_bits();
+        uint64_t num_bits_list_offsets = m_list_offsets.num_bits();
+        uint64_t num_bits_colors = essentials::vec_bytes(m_colors) * 8;
 
+        uint64_t num_clusters = m_clusters.size();
         uint64_t num_representatives = 0;
         uint64_t num_differential_lists = 0;
         uint64_t num_metadata = 0;
 
-        uint64_t num_docs_tenth = num_docs() / 10;
+        uint64_t num_colors_tenth = num_colors() / 10;
 
         std::vector<uint64_t> distribution(11, 0);
 
@@ -322,29 +322,31 @@ struct differential {
                 prev_position = it.position();
             }
             uint64_t q = 0;
-            if (num_docs_tenth != 0)
-                q = size / (num_docs_tenth) > 10 ? 10 : size / (num_docs_tenth);
+            if (num_colors_tenth != 0) {
+                q = size / (num_colors_tenth) > 10 ? 10 : size / (num_colors_tenth);
+            }
 
             distribution[q]++;
         }
 
         assert(num_bits() > 0);
-        assert(num_colors > 0);
+        assert(num_bits_colors > 0);
 
-        std::cout << "  representative offsets: " << num_representative_offsets / 8 << " bytes ("
-                  << (num_representative_offsets * 100.0) / num_bits() << "%)" << std::endl;
-        std::cout << "  differential list offsets: " << num_list_offsets / 8 << " bytes ("
-                  << (num_list_offsets * 100.0) / num_bits() << "%)" << std::endl;
+        std::cout << "  representative offsets: " << num_bits_representative_offsets / 8
+                  << " bytes (" << (num_bits_representative_offsets * 100.0) / num_bits() << "%)"
+                  << std::endl;
+        std::cout << "  differential list offsets: " << num_bits_list_offsets / 8 << " bytes ("
+                  << (num_bits_list_offsets * 100.0) / num_bits() << "%)" << std::endl;
         std::cout << "  clusters: " << num_clusters / 8 << " bytes ("
                   << (num_clusters * 100.0) / num_bits() << "%)" << std::endl;
-        std::cout << "  differential colors: " << num_colors / 8 << " bytes ("
-                  << (num_colors * 100.0) / num_bits() << "%)" << std::endl;
+        std::cout << "  differential colors: " << num_bits_colors / 8 << " bytes ("
+                  << (num_bits_colors * 100.0) / num_bits() << "%)" << std::endl;
         std::cout << "    representatives: " << num_representatives / 8 << " bytes ("
-                  << (num_representatives * 100.0) / num_colors << "%)" << std::endl;
+                  << (num_representatives * 100.0) / num_bits_colors << "%)" << std::endl;
         std::cout << "    differential lists: " << num_differential_lists / 8 << " bytes ("
-                  << (num_differential_lists * 100.0) / num_colors << "%)" << std::endl;
+                  << (num_differential_lists * 100.0) / num_bits_colors << "%)" << std::endl;
         std::cout << "    metadata: " << num_metadata / 8 << " bytes ("
-                  << (num_metadata * 100.0) / num_colors << "%)" << std::endl;
+                  << (num_metadata * 100.0) / num_bits_colors << "%)" << std::endl;
         std::cout << "  differential lists size distribution:" << std::endl;
         for (uint64_t partition = 0; partition < 11; partition++) {
             std::cout << distribution[partition] << " ";
@@ -365,14 +367,14 @@ struct differential {
 private:
     template <typename Visitor, typename T>
     static void visit_impl(Visitor& visitor, T&& t) {
-        visitor.visit(t.m_num_docs);
+        visitor.visit(t.m_num_colors);
         visitor.visit(t.m_representative_offsets);
         visitor.visit(t.m_list_offsets);
         visitor.visit(t.m_colors);
         visitor.visit(t.m_clusters);
     }
 
-    uint32_t m_num_docs;
+    uint32_t m_num_colors;
 
     sshash::ef_sequence<false> m_representative_offsets, m_list_offsets;
 

@@ -20,7 +20,7 @@ struct index<ColorSets>::builder {
             essentials::logger("step 1. build colored compacted dBG");
             timer.start();
             m_ccdbg.build(m_build_config);
-            m_build_config.num_docs = m_ccdbg.num_docs();
+            m_build_config.num_colors = m_ccdbg.num_colors();
             timer.stop();
             std::cout << "** building the ccdBG took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
@@ -40,7 +40,7 @@ struct index<ColorSets>::builder {
             std::ofstream out((m_build_config.file_base_name + ".fa").c_str());
             if (!out.is_open()) throw std::runtime_error("cannot open output file");
 
-            typename ColorSets::builder colors_builder(m_build_config.num_docs);
+            typename ColorSets::builder colors_builder(m_build_config.num_colors);
 
             m_ccdbg.loop_through_unitigs([&](ggcat::Slice<char> const unitig,
                                              ggcat::Slice<uint32_t> const colors, bool same_color) {

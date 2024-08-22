@@ -29,10 +29,10 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
                                                 }))
                                  .comp_value();
 
-        const uint32_t num_docs = iterators[0].num_docs();
-        complement_set.reserve(num_docs);
-        while (candidate < num_docs) {
-            uint32_t next_candidate = num_docs;
+        const uint32_t num_colors = iterators[0].num_colors();
+        complement_set.reserve(num_colors);
+        while (candidate < num_colors) {
+            uint32_t next_candidate = num_colors;
             for (uint64_t i = 0; i != iterators.size(); ++i) {
                 if (iterators[i].comp_value() == candidate) iterators[i].next_comp();
                 /* compute next minimum */
@@ -54,7 +54,7 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
             }
             candidate += 1;  // skip the candidate because it is equal to complement_set[i]
         }
-        while (candidate < num_docs) {
+        while (candidate < num_colors) {
             colors.push_back(candidate);
             candidate += 1;
         }
@@ -67,10 +67,10 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
     std::sort(iterators.begin(), iterators.end(),
               [](auto const& x, auto const& y) { return x.size() < y.size(); });
 
-    const uint32_t num_docs = iterators[0].num_docs();
+    const uint32_t num_colors = iterators[0].num_colors();
     uint32_t candidate = iterators[0].value();
     uint64_t i = 1;
-    while (candidate < num_docs) {
+    while (candidate < num_colors) {
         for (; i != iterators.size(); ++i) {
             iterators[i].next_geq(candidate);
             uint32_t val = iterators[i].value();
@@ -98,10 +98,10 @@ void diff_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
     std::sort(iterators.begin(), iterators.end(),
               [](auto const& x, auto const& y) { return x.size() < y.size(); });
 
-    const uint32_t num_docs = iterators[0].num_docs();
+    const uint32_t num_colors = iterators[0].num_colors();
     uint32_t candidate = iterators[0].value();
     uint64_t i = 1;
-    while (candidate < num_docs) {
+    while (candidate < num_colors) {
         for (; i != iterators.size(); ++i) {
             iterators[i].next_geq(candidate);
             uint32_t val = iterators[i].value();
@@ -182,10 +182,10 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
                 front_it.next_in_partition();
             }
         } else {  // intersect partial colors in the partition
-            const uint32_t num_docs = iterators[0].partition_upper_bound();
+            const uint32_t num_colors = iterators[0].partition_upper_bound();
             uint32_t candidate = iterators[0].value();
             uint64_t i = 1;
-            while (candidate < num_docs) {
+            while (candidate < num_colors) {
                 for (; i != iterators.size(); ++i) {
                     iterators[i].next_geq(candidate);
                     uint32_t val = iterators[i].value();

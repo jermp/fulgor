@@ -80,21 +80,21 @@ struct permuter {
                 val += tmp;
             }
 
-            const uint64_t num_docs = index.num_docs();
+            const uint64_t num_colors = index.num_colors();
 
             /* build permutation */
             auto counts = m_partition_size;  // copy
-            m_permutation.resize(num_docs);
-            assert(clustering_data.clusters.size() == num_docs);
-            for (uint64_t i = 0; i != num_docs; ++i) {
+            m_permutation.resize(num_colors);
+            assert(clustering_data.clusters.size() == num_colors);
+            for (uint64_t i = 0; i != num_colors; ++i) {
                 uint32_t cluster_id = clustering_data.clusters[i];
                 m_permutation[i] = counts[cluster_id];
                 counts[cluster_id] += 1;
             }
 
             /* permute filenames */
-            m_filenames.resize(num_docs);
-            for (uint64_t i = 0; i != num_docs; ++i) {
+            m_filenames.resize(num_colors);
+            for (uint64_t i = 0; i != num_colors; ++i) {
                 m_filenames[m_permutation[i]] = index.filename(i);
             }
         }
@@ -134,7 +134,7 @@ struct index<ColorSets>::meta_builder {
         essentials::load(index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");
 
-        const uint64_t num_docs = index.num_docs();
+        const uint64_t num_colors = index.num_colors();
         const uint64_t num_color_sets = index.num_color_sets();
 
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
@@ -162,15 +162,15 @@ struct index<ColorSets>::meta_builder {
             std::vector<uint32_t> partial_color;
             std::vector<uint32_t> permuted_list;
             partial_color.reserve(max_partition_size);
-            permuted_list.reserve(num_docs);
+            permuted_list.reserve(num_colors);
 
             typename ColorSets::builder colors_builder;
 
-            colors_builder.init_colors_builder(num_docs, num_partitions);
+            colors_builder.init_colors_builder(num_colors, num_partitions);
             for (uint64_t partition_id = 0; partition_id != num_partitions; ++partition_id) {
                 auto endpoints = p.partition_endpoints(partition_id);
-                uint64_t num_docs_in_partition = endpoints.end - endpoints.begin;
-                colors_builder.init_color_partition(partition_id, num_docs_in_partition);
+                uint64_t num_colors_in_partition = endpoints.end - endpoints.begin;
+                colors_builder.init_color_partition(partition_id, num_colors_in_partition);
             }
 
             uint64_t partition_id = 0;
@@ -341,7 +341,7 @@ struct index<ColorSets>::meta_builder {
             essentials::logger("step 7. check correctness...");
 
             std::vector<uint32_t> permuted_list;
-            permuted_list.reserve(num_docs);
+            permuted_list.reserve(num_colors);
 
             for (uint64_t color_set_id = 0; color_set_id != num_color_sets; ++color_set_id) {
                 auto it_exp = index.color_set(color_set_id);

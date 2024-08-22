@@ -32,16 +32,16 @@ struct index {
     void intersect_unitigs(std::vector<uint64_t>& unitig_ids,
                            std::vector<uint32_t>& color_set) const;
 
-    std::string_view filename(uint64_t doc_id) const {
-        assert(doc_id < num_docs());
-        return m_filenames.filename(doc_id);
+    std::string_view filename(uint64_t color) const {
+        assert(color < num_colors());
+        return m_filenames[color];
     }
 
     void print_stats() const;
     void dump(std::string const& basename) const;
 
     uint64_t k() const { return m_k2u.k(); }
-    uint64_t num_docs() const { return m_color_sets.num_docs(); }
+    uint64_t num_colors() const { return m_color_sets.num_colors(); }
     uint64_t num_unitigs() const { return m_k2u.num_contigs(); }
     uint64_t num_color_sets() const { return m_color_sets.num_color_sets(); }
 

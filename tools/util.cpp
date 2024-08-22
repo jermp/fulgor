@@ -34,7 +34,7 @@ void print_filenames(std::string const& index_filename) {
     essentials::logger("loading index from disk...");
     essentials::load(index, index_filename.c_str());
     essentials::logger("DONE");
-    for (uint64_t i = 0; i != index.num_docs(); ++i) {
+    for (uint64_t i = 0; i != index.num_colors(); ++i) {
         std::cout << i << '\t' << index.filename(i) << '\n';
     }
 }

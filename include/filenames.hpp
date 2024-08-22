@@ -13,16 +13,16 @@ struct filenames {
         }
     }
 
-    std::string_view filename(uint64_t doc_id) const {
-        uint32_t begin = m_offsets[doc_id];
-        uint32_t end = m_offsets[doc_id + 1];
+    std::string_view operator[](uint64_t i) const {
+        uint32_t begin = m_offsets[i];
+        uint32_t end = m_offsets[i + 1];
         return {m_chars.data() + begin, end - begin};
     }
 
-    uint32_t num_docs() const {
-        assert(m_offsets.size() > 0);
-        return m_offsets.size() - 1;
-    }
+    // uint32_t num_docs() const {
+    //     assert(m_offsets.size() > 0);
+    //     return m_offsets.size() - 1;
+    // }
 
     uint64_t num_bits() const {
         return essentials::vec_bytes(m_offsets) * 8 + essentials::vec_bytes(m_chars) * 8;

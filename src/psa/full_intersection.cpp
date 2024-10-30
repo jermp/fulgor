@@ -95,26 +95,70 @@ void diff_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
 
     if (iterators.empty()) return;
 
-    std::sort(iterators.begin(), iterators.end(),
-              [](auto const& x, auto const& y) { return x.size() < y.size(); });
+    std::map<uint64_t, std::vector<Iterator>> clusters;
+    for (const auto& it: iterators){
+        clusters[it.representative_begin()].push_back(it);
+    }
 
     const uint32_t num_colors = iterators[0].num_colors();
-    uint32_t candidate = iterators[0].value();
+
+    std::vector<std::vector<uint32_t>> intersections(clusters.size());
+
+    int cluster_id = 0;
+    for(auto& [key, its]: clusters){
+        for(auto& it: its){
+            it.full_rewind();
+        }
+        std::vector<uint32_t> counts(num_colors, 0);
+        for(auto& it: its){
+            uint32_t val = it.differential_val();
+            while(val != num_colors){
+                ++counts[val];
+                it.next_differential_val();
+                val = it.differential_val();
+            }
+        }
+        its[0].full_rewind();
+        Iterator it = its[0];
+        uint32_t val = it.representative_val();
+        for(uint32_t color = 0; color < num_colors; color++){
+            if (val < color) {
+                it.next_representative_val();
+                val = it.representative_val();
+            }
+            if ((counts[color] == its.size() && val != color) || (counts[color] == 0 && val == color)){
+                intersections[cluster_id].push_back(color);
+            }
+        }
+        cluster_id++;
+    }
+    std::vector<std::vector<uint32_t>::iterator> its(clusters.size());
+    for(uint32_t i = 0; i < clusters.size(); i++){
+        if (intersections[i].empty()) return;
+        its[i] = intersections[i].begin();
+    }
+
+    uint32_t candidate = *its[0];
     uint64_t i = 1;
     while (candidate < num_colors) {
-        for (; i != iterators.size(); ++i) {
-            iterators[i].next_geq(candidate);
-            uint32_t val = iterators[i].value();
+        for (; i != its.size(); ++i) {
+            while (its[i] != intersections[i].end() && *its[i] < candidate) ++its[i];
+            if (its[i] == intersections[i].end()) {
+                candidate = num_colors;
+                break;
+            }
+            uint32_t val = *its[i];
             if (val != candidate) {
                 candidate = val;
                 i = 0;
                 break;
             }
         }
-        if (i == iterators.size()) {
+        if (i == its.size()) {
             colors.push_back(candidate);
-            iterators[0].next();
-            candidate = iterators[0].value();
+            ++its[0];
+            if (its[0] == intersections[0].end()) break;
+            candidate = *its[0];
             i = 1;
         }
     }

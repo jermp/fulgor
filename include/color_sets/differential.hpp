@@ -149,25 +149,12 @@ struct differential {
         }
 
         void rewind() {
-            m_differential_list_it = bit_vector_iterator(
-                (m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_differential_list_begin);
-            m_representative_it = bit_vector_iterator(
-                (m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_representative_begin);
-            m_differential_list_size = util::read_delta(m_differential_list_it);
-            m_representative_size = util::read_delta(m_representative_it);
-            m_size = util::read_delta(m_differential_list_it);
-
-            m_curr_differential_val = m_differential_list_size == 0
-                                          ? num_colors()
-                                          : util::read_delta(m_differential_list_it);
-            m_prev_differential_val = 0;
-            m_curr_representative_val =
-                m_representative_size == 0 ? num_colors() : util::read_delta(m_representative_it);
-            m_prev_representative_val = 0;
-
-            m_pos_in_differential_list = 0;
-            m_pos_in_representative = 0;
+            init();
             update_curr_val();
+        }
+
+        void full_rewind(){
+            init();
         }
 
         uint32_t size() const { return m_size; }
@@ -203,16 +190,9 @@ struct differential {
 
         int type() const { return list_type::differential_list; }
 
-    private:
-        differential const* m_ptr;
-        uint64_t m_differential_list_begin, m_representative_begin;
-        uint64_t m_representative_size, m_differential_list_size;
-        uint64_t m_pos_in_differential_list, m_pos_in_representative;
-        uint32_t m_curr_representative_val, m_curr_differential_val;
-        uint32_t m_prev_representative_val, m_prev_differential_val;
-        uint32_t m_curr_val;
-        uint32_t m_size;
-        bit_vector_iterator m_representative_it, m_differential_list_it;
+        uint64_t representative_begin() const {
+            return m_representative_begin;
+        }
 
         void next_representative_val() {
             m_pos_in_representative += 1;
@@ -225,6 +205,10 @@ struct differential {
             }
         }
 
+        uint32_t representative_val() const {
+            return m_curr_representative_val;
+        }
+
         void next_differential_val() {
             m_pos_in_differential_list += 1;
             m_prev_differential_val = m_curr_differential_val;
@@ -234,6 +218,42 @@ struct differential {
             } else {
                 m_curr_differential_val = num_colors();
             }
+        }
+
+        uint32_t differential_val() const{
+            return m_curr_differential_val;
+        }
+
+    private:
+        differential const* m_ptr;
+        uint64_t m_differential_list_begin, m_representative_begin;
+        uint64_t m_representative_size, m_differential_list_size;
+        uint64_t m_pos_in_differential_list, m_pos_in_representative;
+        uint32_t m_curr_representative_val, m_curr_differential_val;
+        uint32_t m_prev_representative_val, m_prev_differential_val;
+        uint32_t m_curr_val;
+        uint32_t m_size;
+        bit_vector_iterator m_representative_it, m_differential_list_it;
+
+        void init(){
+            m_differential_list_it = bit_vector_iterator(
+                (m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_differential_list_begin);
+            m_representative_it = bit_vector_iterator(
+                (m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_representative_begin);
+            m_differential_list_size = util::read_delta(m_differential_list_it);
+            m_representative_size = util::read_delta(m_representative_it);
+            m_size = util::read_delta(m_differential_list_it);
+
+            m_curr_differential_val = m_differential_list_size == 0
+                                          ? num_colors()
+                                          : util::read_delta(m_differential_list_it);
+            m_prev_differential_val = 0;
+            m_curr_representative_val =
+                m_representative_size == 0 ? num_colors() : util::read_delta(m_representative_it);
+            m_prev_representative_val = 0;
+
+            m_pos_in_differential_list = 0;
+            m_pos_in_representative = 0;
         }
 
         void update_curr_val() {

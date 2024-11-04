@@ -95,55 +95,90 @@ void diff_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
 
     if (iterators.empty()) return;
 
-    std::map<uint64_t, std::vector<Iterator>> clusters;
-    for (const auto& it: iterators){
-        clusters[it.representative_begin()].push_back(it);
-    }
+    sort(iterators.begin(), iterators.end(), [](const Iterator& a, const Iterator& b) {
+        return a.representative_begin() < b.representative_begin();
+    });
 
     const uint32_t num_colors = iterators[0].num_colors();
-
-    std::vector<std::vector<uint32_t>> intersections(clusters.size());
-
-    int cluster_id = 0;
-    for(auto& [key, its]: clusters){
-        for(auto& it: its){
-            it.full_rewind();
+    const uint32_t num_iterators = iterators.size();
+    uint32_t num_partitions = 1;
+    {
+        uint32_t prev_partition = iterators[0].representative_begin();
+        for (const auto& it : iterators) {
+            uint32_t partition_id = it.representative_begin();
+            if (partition_id != prev_partition) {
+                prev_partition = partition_id;
+                ++num_partitions;
+            }
         }
+    }
+
+    std::vector<std::vector<uint32_t>> partitions(num_partitions);
+
+    {
         std::vector<uint32_t> counts(num_colors, 0);
-        for(auto& it: its){
+        uint32_t partition_id = 0;
+        uint32_t partition_size = 0;
+
+        for (uint32_t iterator_id = 0; iterator_id < num_iterators; iterator_id++) {
+            Iterator it = iterators[iterator_id];
+            partition_size++;
+
+            bool is_last_in_partition =
+                iterator_id + 1 == num_iterators ||
+                iterators[iterator_id + 1].representative_begin() != it.representative_begin();
+
+            if (partition_size == 1 && is_last_in_partition) {
+                // if one element in partition, decode the color set
+                for (uint32_t i = 0; i < it.size(); ++i, ++it) {
+                    partitions[partition_id].push_back(*it);
+                }
+                partition_id++;
+                partition_size = 0;
+                continue;
+            }
+
+            it.full_rewind();
+
             uint32_t val = it.differential_val();
-            while(val != num_colors){
+            while (val != num_colors) {
                 ++counts[val];
                 it.next_differential_val();
                 val = it.differential_val();
             }
-        }
-        its[0].full_rewind();
-        Iterator it = its[0];
-        uint32_t val = it.representative_val();
-        for(uint32_t color = 0; color < num_colors; color++){
-            if (val < color) {
-                it.next_representative_val();
+
+            if (is_last_in_partition) {
+                it.full_rewind();
                 val = it.representative_val();
-            }
-            if ((counts[color] == its.size() && val != color) || (counts[color] == 0 && val == color)){
-                intersections[cluster_id].push_back(color);
+                for (uint32_t color = 0; color < num_colors; color++) {
+                    if (val < color) {
+                        it.next_representative_val();
+                        val = it.representative_val();
+                    }
+                    if ((counts[color] == partition_size && val != color) ||
+                        (counts[color] == 0 && val == color)) {
+                        partitions[partition_id].push_back(color);
+                    }
+                }
+                partition_id++;
+                partition_size = 0;
+                fill(counts.begin(), counts.end(), 0);
             }
         }
-        cluster_id++;
     }
-    std::vector<std::vector<uint32_t>::iterator> its(clusters.size());
-    for(uint32_t i = 0; i < clusters.size(); i++){
-        if (intersections[i].empty()) return;
-        its[i] = intersections[i].begin();
+
+    std::vector<std::vector<uint32_t>::iterator> its(num_partitions);
+    for (uint32_t i = 0; i < num_partitions; i++) {
+        if (partitions[i].empty()) return;
+        its[i] = partitions[i].begin();
     }
 
     uint32_t candidate = *its[0];
     uint64_t i = 1;
     while (candidate < num_colors) {
         for (; i != its.size(); ++i) {
-            while (its[i] != intersections[i].end() && *its[i] < candidate) ++its[i];
-            if (its[i] == intersections[i].end()) {
+            while (its[i] != partitions[i].end() && *its[i] < candidate) ++its[i];
+            if (its[i] == partitions[i].end()) {
                 candidate = num_colors;
                 break;
             }
@@ -157,7 +192,7 @@ void diff_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
         if (i == its.size()) {
             colors.push_back(candidate);
             ++its[0];
-            if (its[0] == intersections[0].end()) break;
+            if (its[0] == partitions[0].end()) break;
             candidate = *its[0];
             i = 1;
         }

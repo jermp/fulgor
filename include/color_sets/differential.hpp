@@ -153,9 +153,7 @@ struct differential {
             update_curr_val();
         }
 
-        void full_rewind(){
-            init();
-        }
+        void full_rewind() { init(); }
 
         uint32_t size() const { return m_size; }
 
@@ -190,9 +188,7 @@ struct differential {
 
         int type() const { return list_type::differential_list; }
 
-        uint64_t representative_begin() const {
-            return m_representative_begin;
-        }
+        uint64_t representative_begin() const { return m_representative_begin; }
 
         void next_representative_val() {
             m_pos_in_representative += 1;
@@ -205,9 +201,7 @@ struct differential {
             }
         }
 
-        uint32_t representative_val() const {
-            return m_curr_representative_val;
-        }
+        uint32_t representative_val() const { return m_curr_representative_val; }
 
         void next_differential_val() {
             m_pos_in_differential_list += 1;
@@ -220,9 +214,7 @@ struct differential {
             }
         }
 
-        uint32_t differential_val() const{
-            return m_curr_differential_val;
-        }
+        uint32_t differential_val() const { return m_curr_differential_val; }
 
     private:
         differential const* m_ptr;
@@ -235,7 +227,7 @@ struct differential {
         uint32_t m_size;
         bit_vector_iterator m_representative_it, m_differential_list_it;
 
-        void init(){
+        void init() {
             m_differential_list_it = bit_vector_iterator(
                 (m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_differential_list_begin);
             m_representative_it = bit_vector_iterator(

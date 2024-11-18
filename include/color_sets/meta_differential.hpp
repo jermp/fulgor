@@ -243,6 +243,8 @@ struct meta_differential {
         uint32_t num_partitions() const { return m_ptr->num_partitions(); }
         uint64_t meta_color_list_size() const { return m_meta_color_list_size; }
 
+        differential::iterator_type partition_it() const { return m_curr_partition_it;}
+
     private:
         meta_differential const* m_ptr;
         differential::iterator_type m_curr_partition_it;

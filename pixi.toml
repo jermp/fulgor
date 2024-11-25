@@ -1,24 +1,23 @@
 [project]
-authors = ["Luiz Irber <contact+github@luizirber.org>"]
+authors = [
+  "Giulio Ermanno Pibiri <jeis90@gmail.com>",
+]
 channels = [
-#  "conda-forge/label/rust_dev",
   "conda-forge"
 ]
-description = "Add a short description here"
+description = "Fulgor is a colored de Bruijn graph index for large-scale matching and color queries, powered by SSHash and GGCAT"
 name = "fulgor"
 platforms = [
   "linux-64",
   "osx-64",
 ]
-version = "0.1.0"
+version = "3.0.0"
 
 [tasks]
 
 [dependencies]
 cxx-compiler = ">=1.8.0,<2"
 cmake = ">=3.31.1,<4"
-ninja = ">=1.12.1,<2"
-#rust = "==1.81.0.dev20240720"
 rust = ">=1.82.0,<1.83"
 make = ">=4.4.1,<5"
 zlib = ">=1.3.1,<2"

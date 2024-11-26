@@ -21,6 +21,10 @@ build = { cmd = "make -j", cwd = "build", depends-on = ["submodules", "configure
 configure = { cmd = "mkdir -p build && cd build && cmake ..",  depends-on = ["submodules"] }
 submodules = "git submodule update --init --recursive"
 
+debug = { depends-on = ["submodules", "configure-debug", "build-debug"] }
+build-debug = { cmd = "make -j", cwd = "debug_build", depends-on = ["submodules", "configure-debug"] }
+configure-debug = { cmd = "mkdir -p debug_build && cd debug_build && cmake .. -D CMAKE_BUILD_TYPE=Debug -D FULGOR_USE_SANITIZERS=On", depends-on = ["submodules"] }
+
 [dependencies]
 cxx-compiler = ">=1.8.0,<2"
 cmake = ">=3.31.1,<4"

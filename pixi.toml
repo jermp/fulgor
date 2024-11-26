@@ -15,6 +15,11 @@ platforms = [
 version = "3.0.0"
 
 [tasks]
+clean = "rm -rf build/"
+ci = { depends-on = ["submodules", "configure", "build"] }
+build = { cmd = "make -j", cwd = "build", depends-on = ["submodules", "configure"] }
+configure = { cmd = "mkdir -p build && cd build && cmake ..",  depends-on = ["submodules"] }
+submodules = "git submodule update --init --recursive"
 
 [dependencies]
 cxx-compiler = ">=1.8.0,<2"

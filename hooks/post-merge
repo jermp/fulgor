@@ -1,0 +1,5 @@
+# /bin/bash
+
+# run 'git config core.hooksPath hooks' in the root directory of the project to enable git hooks
+
+git submodule update --init --recursive

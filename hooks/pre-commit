@@ -1,0 +1,33 @@
+# /bin/bash
+
+# run 'chmod +x ./hooks/*' and 'git config core.hooksPath hooks' in the root directory of the project to enable git hooks
+# run 'git commit --no-verify' to skip this check (UNSAFE!)
+
+set -e
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+primary_directory='build'
+
+echo "${GREEN} == pre-commit hook started == ${NC}"
+
+{
+	echo " == trying directory '${primary_directory}' == "
+	cd "${primary_directory}"
+} || {
+	echo " == '${primary_directory}' directory not found, trying directory 'debug_build' == "
+	cd debug_build
+} || {
+	echo "${RED} == '${primary_directory}' and 'debug_build' directories not found == ${NC}"
+	echo "${YELLOW} == create a directory '${primary_directory}' or 'debug_build' and execute '$ cmake ..' inside it${NC}"
+	echo "${YELLOW}    or edit the variable 'primary_directory' in file 'hooks/pre-commit' == ${NC}"
+	exit 1
+}
+
+git submodule update --init --recursive
+make -j
+
+echo "${GREEN} == pre-commit hook done == ${NC}"

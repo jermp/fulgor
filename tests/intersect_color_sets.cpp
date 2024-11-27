@@ -23,7 +23,7 @@ int intersect_color_sets(std::string const& index_filename, uint64_t size, std::
     uint32_t num_colors = index.num_colors();
     srand(42);
 
-    essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> t;
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::nanoseconds> t;
 
     std::vector<std::vector<uint32_t>> color_sets_by_density(std::ceil(1/density_threshold));
 
@@ -40,7 +40,6 @@ int intersect_color_sets(std::string const& index_filename, uint64_t size, std::
 
     for (uint32_t density_group = 0; density_group < color_sets_by_density.size(); density_group++){
         uint16_t group_size = color_sets_by_density[density_group].size();
-        t.start();
         for (uint32_t i = 0; i < num_intersections; i++) {
             vector<typename FulgorIndex::color_sets_type::iterator_type> iterators;
             for (uint32_t j = 0; j < n; j++) {
@@ -49,22 +48,23 @@ int intersect_color_sets(std::string const& index_filename, uint64_t size, std::
             }
             vector<uint32_t> colors;
 
+            t.start();
             if (algo == "geq") {
                 next_geq_intersect(iterators, colors, index.num_colors());
             } else {
                 counting_intersect(iterators, colors, index.num_colors());
             }
+            t.stop();
         }
-        t.stop();
 
         if (!quiet) {
             std::cout << "intersected " << num_intersections * size << " color_sets with density [" 
                       << density_threshold*density_group << ", " << density_threshold*(density_group + 1) 
                       << "]" << std::endl;
             std::cout << "elapsed = " << t.elapsed() << " millisec / "
-                      << t.elapsed() / 1000 << " sec / "
-                      << t.elapsed() / 1000 / 60 << " min / "
-                      << (t.elapsed() * 1000) / num_intersections << " musec/intersection" << std::endl;
+                      << t.elapsed() / 1000000000 << " sec / "
+                      << t.elapsed() / 1000000000 / 60 << " min / "
+                      << (t.elapsed() / 1000) / num_intersections << " musec/intersection" << std::endl;
         }
         t.reset();
     }

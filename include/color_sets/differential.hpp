@@ -291,6 +291,9 @@ struct differential {
         uint64_t num_representatives = 0;
         uint64_t num_differential_lists = 0;
         uint64_t num_metadata = 0;
+        
+        uint64_t size_representatives = 0;
+        uint64_t size_differentials = 0;
 
         uint64_t num_colors_tenth = num_colors() / 10;
 
@@ -303,6 +306,7 @@ struct differential {
             uint64_t prev_position = it.position();
 
             uint64_t size = util::read_delta(it);
+            size_representatives += size;
             num_metadata += it.position() - prev_position;
             prev_position = it.position();
 
@@ -319,6 +323,7 @@ struct differential {
             uint64_t prev_position = it.position();
 
             uint64_t size = util::read_delta(it);
+            size_differentials += size;
             num_metadata += it.position() - prev_position;
             prev_position = it.position();
 
@@ -347,6 +352,8 @@ struct differential {
         std::cout << "  representative offsets: " << num_bits_representative_offsets / 8
                   << " bytes (" << (num_bits_representative_offsets * 100.0) / num_bits() << "%)"
                   << std::endl;
+        std::cout << "  average representative set size: " << size_representatives*1. / num_partitions() << " ints" << std::endl;
+        std::cout << "  average differential set size: " << size_differentials*1. / num_color_sets() << " ints" << std::endl;
         std::cout << "  differential list offsets: " << num_bits_list_offsets / 8 << " bytes ("
                   << (num_bits_list_offsets * 100.0) / num_bits() << "%)" << std::endl;
         std::cout << "  clusters: " << num_clusters / 8 << " bytes ("

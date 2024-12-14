@@ -11,12 +11,12 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 primary_directory='build'
-
 echo "${GREEN} == pre-commit hook started == ${NC}"
 
+git submodule update --init --recursive
 {
 	echo " == trying directory '${primary_directory}' == "
-	cd "${primary_directory}"
+    cd "${primary_directory}"
 } || {
 	echo " == '${primary_directory}' directory not found, trying directory 'debug_build' == "
 	cd debug_build
@@ -27,7 +27,6 @@ echo "${GREEN} == pre-commit hook started == ${NC}"
 	exit 1
 }
 
-git submodule update --init --recursive
 make -j
 
 echo "${GREEN} == pre-commit hook done == ${NC}"

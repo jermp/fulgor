@@ -18,7 +18,7 @@ int intersect_color_sets(std::string const& index_filename, uint64_t size, std::
     if (!quiet) essentials::logger("DONE");
 
     uint32_t num_intersections = 1000000;
-    double density_threshold = 0.25;
+    double density_threshold = 1;
     uint32_t n = size;
     uint32_t num_colors = index.num_colors();
     srand(42);
@@ -46,13 +46,24 @@ int intersect_color_sets(std::string const& index_filename, uint64_t size, std::
                 uint32_t id = color_sets_by_density[density_group][rand() % group_size];
                 iterators.push_back(index.color_set(id));
             }
+            /*
+            for (int j = 0; j < 2; j++){
+                uint32_t id = color_sets_by_density[0][rand() % (color_sets_by_density[0].size())];
+                iterators.push_back(index.color_set(id));
+            }
+            */
             vector<uint32_t> colors;
 
             t.start();
             if (algo == "geq") {
                 next_geq_intersect(iterators, colors, index.num_colors());
-            } else {
+            } else if (algo == "count"){
                 counting_intersect(iterators, colors, index.num_colors());
+            } else if (algo == "index"){
+                if constexpr(!FulgorIndex::color_sets_type::meta_colored && !FulgorIndex::color_sets_type::differential_colored){
+                    std::vector<uint32_t> complement_set;
+                    intersect<typename FulgorIndex::color_sets_type::iterator_type>(iterators, colors, complement_set);   
+                }
             }
             t.stop();
         }
@@ -96,7 +107,7 @@ int intersect_color_sets(int argc, char** argv) {
 
     if (!quiet) util::print_cmd(argc, argv);
 
-    if (algo != "geq" && algo != "count") {
+    if (algo != "geq" && algo != "count" && algo != "index") {
         std::cerr << "Wrong intersection algorithm" << std::endl;
         return 1;
     }

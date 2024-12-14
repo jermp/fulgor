@@ -6,6 +6,9 @@ namespace fulgor {
 template <typename Iterator>
 void next_geq_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
                         uint32_t num_colors) {
+    std::sort(iterators.begin(), iterators.end(),
+                          [](auto const& x, auto const& y) { return x.size() < y.size(); });
+
     uint32_t candidate = iterators[0].value();
     uint64_t i = 1;
     while (candidate < num_colors) {
@@ -24,6 +27,22 @@ void next_geq_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>&
             candidate = iterators[0].value();
             i = 1;
         }
+    }
+}
+
+template <typename Iterator>
+void _counting_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
+                        uint32_t num_colors) {
+    std::vector<uint16_t> counts(num_colors, 0);
+    uint32_t num_iterators = iterators.size();
+    for (auto it : iterators) {
+        while (*it != num_colors) {
+            counts[*it]++;
+            ++it;
+        }
+    }
+    for (uint32_t color = 0; color < num_colors; color++) {
+        if (counts[color] == num_iterators) { colors.push_back(color); }
     }
 }
 
@@ -92,6 +111,7 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
               [](auto const& x, auto const& y) { return x.size() < y.size(); });
 
     const uint32_t num_colors = iterators[0].num_colors();
+    // _counting_intersect(iterators, colors, num_colors);
     next_geq_intersect(iterators, colors, num_colors);
 }
 

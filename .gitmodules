@@ -16,3 +16,6 @@
 [submodule "external/kmeans"]
 	path = external/kmeans
 	url = https://github.com/jermp/kmeans
+[submodule "external/s_indexes"]
+	path = external/s_indexes
+	url = https://github.com/jermp/s_indexes

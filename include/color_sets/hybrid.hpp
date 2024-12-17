@@ -3,8 +3,7 @@
 namespace fulgor {
 
 struct hybrid {
-    static const bool meta_colored = false;
-    static const bool differential_colored = false;
+    static const index_t type = index_t::HYBRID;
 
     struct builder {
         builder() {}

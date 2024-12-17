@@ -340,11 +340,13 @@ void index<ColorSets>::intersect_unitigs(std::vector<uint64_t>& unitig_ids,
     }
 
     tmp.clear();  // don't need color class ids anymore
-    if constexpr (ColorSets::meta_colored) {
-        meta_intersect<typename ColorSets::iterator_type, ColorSets::differential_colored>(iterators, colors, tmp);
-    } else if constexpr (ColorSets::differential_colored) {
+    if constexpr (ColorSets::type == index_t::META) {
+        meta_intersect<typename ColorSets::iterator_type, false>(iterators, colors, tmp);
+    } else if constexpr (ColorSets::type == index_t::META_DIFF) {
+        meta_intersect<typename ColorSets::iterator_type, true>(iterators, colors, tmp);
+    } else if constexpr (ColorSets::type == index_t::DIFF) {
         diff_intersect(iterators, colors);
-    } else {
+    } else if constexpr (ColorSets::type == index_t::HYBRID){
         intersect(iterators, colors, tmp);
     }
 

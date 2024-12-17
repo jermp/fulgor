@@ -3,8 +3,7 @@
 namespace fulgor {
 
 struct meta_differential {
-    static const bool meta_colored = true;
-    static const bool differential_colored = true;
+    static const index_t type = index_t::META_DIFF;
 
     struct partition_endpoint {
         template <typename Visitor>

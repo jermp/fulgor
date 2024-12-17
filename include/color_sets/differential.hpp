@@ -3,8 +3,7 @@
 namespace fulgor {
 
 struct differential {
-    static const bool meta_colored = false;
-    static const bool differential_colored = true;
+    static const index_t type = index_t::DIFF;
 
     struct builder {
         builder() : m_prev_cluster_id(0) {

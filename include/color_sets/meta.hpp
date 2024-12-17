@@ -4,8 +4,7 @@ namespace fulgor {
 
 template <typename ColorSets>
 struct meta {
-    static const bool meta_colored = true;
-    static const bool differential_colored = false;
+    static const index_t type = index_t::META;
 
     struct partition_endpoint {
         template <typename Visitor>

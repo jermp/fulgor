@@ -41,7 +41,7 @@ struct index<ColorSets>::sliced_builder{
                 }
                 // TODO: see if pass is skippable
 
-                ::sliced::encode_sequence(color_set.data(), n, m_sequences); //TODO: implment
+                ::sliced::encode_sequence(color_set.data(), n, m_sequences);
                 m_offsets.push_back(m_sequences.size());
             }
 
@@ -52,6 +52,26 @@ struct index<ColorSets>::sliced_builder{
             colors_builder.build(idx.m_color_sets);
         }  
 
+        {
+            essentials::logger("step 3. copy u2c and k2u");
+            timer.start();
+            idx.m_u2c = index.get_u2c();
+            idx.m_k2u = index.get_k2u();
+            timer.stop();
+            std::cout << "** copying u2c and k2u took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
+
+        {
+            essentials::logger("step 4. building filenames");
+            timer.start();
+            idx.m_filenames = index.get_filenames();
+            timer.stop();
+            std::cout << "** building filenames took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
     }
 
 private:

@@ -25,6 +25,7 @@ static const std::string fulgor_filename_extension("fur");
 static const std::string meta_colored_fulgor_filename_extension("mfur");
 static const std::string diff_colored_fulgor_filename_extension("dfur");
 static const std::string meta_diff_colored_fulgor_filename_extension("mdfur");
+static const std::string slice_colored_fulgor_filename_extension("sfur");
 }  // namespace constants
 
 struct build_configuration {

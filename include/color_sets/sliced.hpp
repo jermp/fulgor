@@ -45,11 +45,11 @@ struct sliced{
         return forward_iterator(); // TODO: implement
     }
 
-    uint64_t num_color_sets() const { return 0; } // TODO: implement
+    uint64_t num_color_sets() const { return m_offsets.size() - 2; } //remove first (universe) and -1
     uint64_t num_colors() const { return m_num_colors; }
 
     uint64_t num_bits() const {
-        return 0; // TODO: implement
+        return sizeof(m_num_colors) * 8 + (essentials::vec_bytes(m_offsets) + essentials::vec_bytes(m_sequences)) * 8;
     }
 
     void print_stats() const {
@@ -70,13 +70,9 @@ struct sliced{
 private:
     template <typename Visitor, typename T>
     static void visit_impl(Visitor& visitor, T&& t) {
-        /*
         visitor.visit(t.m_num_colors);
-        visitor.visit(t.m_representative_offsets);
-        visitor.visit(t.m_list_offsets);
-        visitor.visit(t.m_colors);
-        visitor.visit(t.m_clusters);
-        */
+        visitor.visit(t.m_offsets);
+        visitor.visit(t.m_sequences);
     }
 
     uint64_t m_num_colors;

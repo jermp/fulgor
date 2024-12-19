@@ -13,7 +13,7 @@
 
 namespace fulgor {
 
-enum class index_t { HYBRID, DIFF, META, META_DIFF, SLICES, REPAIR };
+enum class index_t { HYBRID, DIFF, META, META_DIFF, SLICED, REPAIR };
 enum list_type { delta_gaps, bitmap, complement_delta_gaps, differential_list };
 
 
@@ -42,6 +42,7 @@ struct build_configuration {
         //
         , meta_colored(false)
         , diff_colored(false)  //
+        , slice_colored(false)  //
     {}
 
     uint32_t k;            // kmer length
@@ -62,6 +63,7 @@ struct build_configuration {
 
     bool meta_colored;
     bool diff_colored;
+    bool slice_colored;
 };
 
 namespace util {

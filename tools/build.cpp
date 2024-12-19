@@ -83,6 +83,26 @@ void meta_diff_color(build_configuration const& build_config)  //
     essentials::logger("DONE");
 }
 
+void slice_color(build_configuration const& build_config){
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+    timer.start();
+
+    sliced_index_type index;
+    typename sliced_index_type::sliced_builder builder(build_config);
+    builder.build(index);
+    index.print_stats();
+    
+    timer.stop();
+    essentials::logger("DONE");
+    std::string output_filename = build_config.index_filename_to_partition.substr(
+                                      0, build_config.index_filename_to_partition.length() -
+                                             constants::fulgor_filename_extension.length() - 1) +
+                                  "." + constants::diff_colored_fulgor_filename_extension;
+    essentials::logger("saving index to disk...");
+    essentials::save(index, output_filename.c_str());
+    essentials::logger("DONE");
+}
+
 int build(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("filenames_list", "Filenames list.", "-l", true);
@@ -201,6 +221,7 @@ int color(int argc, char** argv) {
                "--check", false, true);
     parser.add("meta", "Build a meta-colored index.", "--meta", false, true);
     parser.add("diff", "Build a differential-colored index.", "--diff", false, true);
+    parser.add("sliced", "Build a sliced-colored index.", "--sliced", false, true);
 
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
@@ -226,6 +247,7 @@ int color(int argc, char** argv) {
     build_config.check = parser.get<bool>("check");
     build_config.meta_colored = parser.get<bool>("meta");
     build_config.diff_colored = parser.get<bool>("diff");
+    build_config.slice_colored = parser.get<bool>("sliced");
 
     if (build_config.meta_colored and build_config.diff_colored) {
         meta_diff_color(build_config);
@@ -233,6 +255,8 @@ int color(int argc, char** argv) {
         meta_color(build_config);
     } else if (build_config.diff_colored) {
         diff_color(build_config);
+    } else if (build_config.slice_colored){
+       slice_color(build_config); 
     } else {
         std::cerr << "Either \"--meta\" or \"--diff\" should be specified." << std::endl;
         return 1;

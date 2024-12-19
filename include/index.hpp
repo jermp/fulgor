@@ -15,6 +15,7 @@ struct index {
     struct meta_builder;
     struct differential_builder;
     struct meta_differential_builder;
+    struct sliced_builder;
 
     typename color_sets_type::iterator_type color_set(uint64_t color_set_id) const {
         assert(color_set_id < num_color_sets());

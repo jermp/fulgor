@@ -385,13 +385,11 @@ struct differential {
 private:
     template <typename Visitor, typename T>
     static void visit_impl(Visitor& visitor, T&& t) {
-        /*
         visitor.visit(t.m_num_colors);
         visitor.visit(t.m_representative_offsets);
         visitor.visit(t.m_list_offsets);
         visitor.visit(t.m_colors);
         visitor.visit(t.m_clusters);
-        */
     }
 
     uint32_t m_num_colors;

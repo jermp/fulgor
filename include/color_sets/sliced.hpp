@@ -34,15 +34,50 @@ struct sliced{
     struct forward_iterator{
         forward_iterator() {}
 
-        uint64_t size(){
-            return 0; //TODO: implement
+        forward_iterator(sliced const* ptr, uint64_t color_set_id): m_ptr(ptr), m_color_set_id(color_set_id) {
+            rewind();
         }
+
+        void rewind() {
+            auto sequence = ::sliced::s_sequence((m_ptr->m_sequences).data() + (m_ptr->m_offsets)[m_color_set_id+1]);
+            m_size = sequence.size();
+            m_it = sequence.begin();
+        }
+
+        uint64_t value() const {
+           return m_it.id(); 
+        }
+        uint64_t operator*() const { return value(); }
+
+        void next() { m_it.next(); }
+        void operator++() { next(); }
+
+        void next_geq(const uint64_t lower_bound) {
+            m_it.advance(lower_bound);
+        }
+
+        uint32_t num_colors() const { return m_ptr->m_num_colors; }
+
+        uint64_t size() const {
+            return m_size;
+        }
+
+        ::sliced::s_sequence sequence() {
+            return ::sliced::s_sequence((m_ptr->m_sequences).data() + (m_ptr->m_offsets)[m_color_set_id+1]);
+        }
+
+        private:
+            sliced const* m_ptr;
+            uint64_t m_color_set_id;
+
+            uint64_t m_size;
+            ::sliced::s_sequence::iterator m_it;
     };
 
     typedef forward_iterator iterator_type;
 
-    forward_iterator color_set(uint64_t color_id) const{
-        return forward_iterator(); // TODO: implement
+    iterator_type color_set(uint64_t color_set_id) const{
+        return forward_iterator(this, color_set_id);
     }
 
     uint64_t num_color_sets() const { return m_offsets.size() - 2; } //remove first (universe) and -1

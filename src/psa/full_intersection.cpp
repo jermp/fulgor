@@ -1,5 +1,6 @@
 #include "include/index.hpp"
 #include "external/sshash/include/query/streaming_query_canonical_parsing.hpp"
+#include "external/s_indexes/include/intersection_many.hpp"
 
 namespace fulgor {
 
@@ -284,6 +285,25 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
     }
 }
 
+template <typename Iterator>
+void s_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors) {
+    uint64_t s = iterators.size();
+    if (s == 0) return;
+
+    std::sort(iterators.begin(), iterators.end(), [](auto const& x, auto const& y) {
+        return x.size() < y.size();
+    });
+    
+    colors.resize(iterators[0].size());
+
+    std::vector<::sliced::s_sequence> sequences(s);
+    for (uint64_t i = 0; i < s; ++i){
+        sequences[i] = iterators[i].sequence();
+    }
+    uint64_t out_size = ::sliced::intersection(sequences, colors.data());
+    colors.resize(out_size);
+}
+
 void stream_through(sshash::dictionary const& k2u, std::string const& sequence,
                     std::vector<uint64_t>& unitig_ids) {
     sshash::streaming_query_canonical_parsing query(&k2u);
@@ -348,6 +368,8 @@ void index<ColorSets>::intersect_unitigs(std::vector<uint64_t>& unitig_ids,
         diff_intersect(iterators, colors);
     } else if constexpr (ColorSets::type == index_t::HYBRID){
         intersect(iterators, colors, tmp);
+    } else if constexpr (ColorSets::type == index_t::SLICED){
+        s_intersect(iterators, colors);
     }
 
     assert(util::check_intersection(iterators, colors));

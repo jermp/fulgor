@@ -1,7 +1,7 @@
 #pragma once
 
-#include "index.hpp"
-#include "build_util.hpp"
+#include "../index.hpp"
+#include "../build_util.hpp"
 
 namespace fulgor {
 

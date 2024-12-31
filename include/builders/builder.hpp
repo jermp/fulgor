@@ -1,7 +1,7 @@
 #pragma once
 
-#include "index.hpp"
-#include "GGCAT.hpp"
+#include "../index.hpp"
+#include "../GGCAT.hpp"
 
 namespace fulgor {
 

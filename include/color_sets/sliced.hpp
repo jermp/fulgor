@@ -88,7 +88,8 @@ struct sliced{
     }
 
     void print_stats() const {
-        // TODO: implement
+        std::cout << "    offsets: " << essentials::vec_bytes(m_offsets) << " bytes" << std::endl;
+        std::cout << "    sequences: " << essentials::vec_bytes(m_sequences) << " bytes" << std::endl; 
     }
 
 

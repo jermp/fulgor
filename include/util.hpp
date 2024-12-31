@@ -26,6 +26,7 @@ static const std::string meta_colored_fulgor_filename_extension("mfur");
 static const std::string diff_colored_fulgor_filename_extension("dfur");
 static const std::string meta_diff_colored_fulgor_filename_extension("mdfur");
 static const std::string slice_colored_fulgor_filename_extension("sfur");
+static const std::string repair_colored_fulgor_filename_extension("rpfur");
 }  // namespace constants
 
 struct build_configuration {
@@ -44,6 +45,7 @@ struct build_configuration {
         , meta_colored(false)
         , diff_colored(false)  //
         , slice_colored(false)  //
+        , repair_colored(false)  //
     {}
 
     uint32_t k;            // kmer length
@@ -65,6 +67,7 @@ struct build_configuration {
     bool meta_colored;
     bool diff_colored;
     bool slice_colored;
+    bool repair_colored;
 };
 
 namespace util {

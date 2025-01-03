@@ -12,7 +12,8 @@ struct repair{
         builder(uint64_t num_colors): m_num_colors(num_colors) {}
 
         void set_code(std::vector<code_type> C){
-            m_C = C;
+            m_C_builder.resize(C.size(), std::ceil(std::log2(m_D.size())));
+            m_C_builder.fill(C.begin(), C.size());
         }
 
         void set_dict(std::vector<std::vector<uint32_t>> D){
@@ -22,12 +23,12 @@ struct repair{
         void build(repair& r){
             r.m_num_colors = m_num_colors;
             r.m_D.swap(m_D);
-            r.m_C.swap(m_C);
+            m_C_builder.build(r.m_C);
         }
 
         private:
             uint64_t m_num_colors;
-            std::vector<code_type> m_C;
+            pthash::compact_vector::builder m_C_builder;
             std::vector<std::vector<uint32_t>> m_D;
     };
     
@@ -49,11 +50,13 @@ struct repair{
     uint64_t num_colors() const { return 0; }
 
     uint64_t num_bits() const {
-        return sizeof(m_num_colors)*8 + (essentials::vec_bytes(m_C) + essentials::vec_bytes(m_D)) * 8; 
+        return sizeof(m_num_colors)*8 + (m_C.bytes() + essentials::vec_bytes(m_D)) * 8; 
     }
 
     void print_stats() const {
-        // TODO: implement
+        std::cout << "    C: " << m_C.bytes() << " bytes" << std::endl;
+        std::cout << "    D: " << essentials::vec_bytes(m_D) << " bytes" << std::endl;
+        std::cout << "    dict size: " << m_D.size() << " items" << std::endl;
     }
 
 
@@ -76,7 +79,7 @@ private:
     }
 
     uint64_t m_num_colors;
-    std::vector<code_type> m_C;
+    pthash::compact_vector m_C;
     std::vector<std::vector<uint32_t>> m_D;
 };
 

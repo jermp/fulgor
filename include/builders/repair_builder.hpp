@@ -301,8 +301,10 @@ struct index<ColorSets>::repair_builder{
             std::vector<code_type> C;
             std::vector<std::vector<uint32_t>> D;
             approximate_repair(std::make_pair(diffs.data(), diffs.data() + diffs.size()), C, D, false);
-            colors_builder.set_code(C);
+
             colors_builder.set_dict(D);
+            colors_builder.set_code(C);
+
             colors_builder.build(idx.m_color_sets);
         }  
 

@@ -49,7 +49,7 @@ struct repair{
     uint64_t num_colors() const { return 0; }
 
     uint64_t num_bits() const {
-        return 0; 
+        return sizeof(m_num_colors)*8 + (essentials::vec_bytes(m_C) + essentials::vec_bytes(m_D)) * 8; 
     }
 
     void print_stats() const {
@@ -70,7 +70,9 @@ struct repair{
 private:
     template <typename Visitor, typename T>
     static void visit_impl(Visitor& visitor, T&& t) {
-
+        visitor.visit(t.m_num_colors);
+        visitor.visit(t.m_C);
+        visitor.visit(t.m_D);
     }
 
     uint64_t m_num_colors;

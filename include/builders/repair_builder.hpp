@@ -282,17 +282,20 @@ struct index<ColorSets>::repair_builder{
         {
             essentials::logger("step 2. building repaired colors");
             std::vector<uint32_t> diffs, sizes(num_color_sets);
+            uint32_t max_size = 0;
             typename ColorSets::builder colors_builder(index.num_colors());
 
             for(uint64_t color_set_id = 0; color_set_id < num_color_sets; ++color_set_id){
                 auto it = index.color_set(color_set_id);
-                sizes[color_set_id] = it.size();
+                uint32_t size = it.size();
+                sizes[color_set_id] = size;
+                max_size = max(max_size, size);
                 
                 uint32_t prev = *it;
                 ++it;
                 diffs.push_back(prev);
                 
-                for(uint64_t i = 1; i < sizes[color_set_id]; ++i, ++it){
+                for(uint64_t i = 1; i < size; ++i, ++it){
                     diffs.push_back(*it - prev - 1);
                     prev = *it;
                 } 
@@ -302,8 +305,9 @@ struct index<ColorSets>::repair_builder{
             std::vector<std::vector<uint32_t>> D;
             approximate_repair(std::make_pair(diffs.data(), diffs.data() + diffs.size()), C, D, false);
 
-            colors_builder.set_dict(D);
-            colors_builder.set_code(C);
+            colors_builder.init_dict(D); // important to call before as D.size() is needed below
+            colors_builder.init_code(C);
+            colors_builder.init_sizes(sizes, max_size);
 
             colors_builder.build(idx.m_color_sets);
         }  

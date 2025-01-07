@@ -11,25 +11,66 @@ struct repair{
         builder() {}
         builder(uint64_t num_colors): m_num_colors(num_colors) {}
 
-        void set_code(std::vector<code_type> C){
+        void init_code(std::vector<code_type> C){
             m_C_builder.resize(C.size(), std::ceil(std::log2(m_D.size())));
             m_C_builder.fill(C.begin(), C.size());
         }
 
-        void set_dict(std::vector<std::vector<uint32_t>> D){
+        void init_dict(std::vector<std::vector<uint32_t>> D){
             m_D = D;
+        }
+
+        void init_sizes(std::vector<uint32_t>& sizes, uint32_t max_size){
+            uint64_t n = sizes.size();
+            max_size = max_size > m_C_builder.size() ? max_size : m_C_builder.size();
+            m_sizes_builder.resize(n, std::ceil(std::log2(max_size)));
+            m_sizes = sizes;
         }
 
         void build(repair& r){
             r.m_num_colors = m_num_colors;
-            r.m_D.swap(m_D);
             m_C_builder.build(r.m_C);
+
+            uint32_t n = m_sizes.size();
+            vector<uint32_t> offsets;
+            offsets.reserve(n);
+            uint32_t max_offsets_val = 0;
+
+            uint32_t pos = 0;
+            auto it = r.m_C.begin();
+            uint32_t offset = 0;
+            uint32_t val = *it;
+
+            for(uint32_t i = 0; i < n-1; i++){
+                // cout << i << "-" << val << "  " << flush;
+                offsets.push_back(pos);
+                offsets.push_back(offset);
+                max_offsets_val = max(max_offsets_val, pos);
+                max_offsets_val = max(max_offsets_val, offset);
+
+                uint32_t target = m_sizes[i] + offset;
+                while (m_D[val].size() <= target){
+                    target -= m_D[val].size();
+                    val = *it;
+                    ++it;
+                    ++pos;
+                }
+                offset = target;
+            }
+            
+            m_offsets_builder.resize(2*n, std::ceil(std::log2(max_offsets_val)));
+            m_offsets_builder.fill(offsets.begin(), offsets.size());
+
+            m_offsets_builder.build(r.m_offsets);
+            r.m_D.swap(m_D);
         }
 
-        private:
+private:
             uint64_t m_num_colors;
-            pthash::compact_vector::builder m_C_builder;
+            std::vector<uint32_t> m_sizes;
+            pthash::compact_vector::builder m_C_builder, m_sizes_builder, m_offsets_builder;
             std::vector<std::vector<uint32_t>> m_D;
+            // std::vector<uint32_t> m_begins;
     };
     
     struct forward_iterator{
@@ -57,6 +98,13 @@ struct repair{
         std::cout << "    C: " << m_C.bytes() << " bytes" << std::endl;
         std::cout << "    D: " << essentials::vec_bytes(m_D) << " bytes" << std::endl;
         std::cout << "    dict size: " << m_D.size() << " items" << std::endl;
+
+        uint32_t m = 0;
+        for(int i = 0; i < m_C.size(); i++){
+            m = m_C[i] > m ? m_C[i] : m;
+        }
+
+        cout << "    max C val: " << m << endl; 
     }
 
 
@@ -76,11 +124,14 @@ private:
         visitor.visit(t.m_num_colors);
         visitor.visit(t.m_C);
         visitor.visit(t.m_D);
+        visitor.visit(t.m_offsets);
     }
 
     uint64_t m_num_colors;
     pthash::compact_vector m_C;
     std::vector<std::vector<uint32_t>> m_D;
+    pthash::compact_vector m_offsets;
+   //  sshash::ef_sequence<false> m_begins;
 };
 
 }

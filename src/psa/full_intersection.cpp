@@ -290,18 +290,32 @@ void s_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors
     uint64_t s = iterators.size();
     if (s == 0) return;
 
-    std::sort(iterators.begin(), iterators.end(), [](auto const& x, auto const& y) {
-        return x.size() < y.size();
-    });
+    uint64_t min_size = iterators[0].size();
+    for(uint32_t i = 1; i < s; i++){
+        min_size = min(min_size, iterators[i].size());
+    }
     
-    colors.resize(iterators[0].size());
+    colors.resize(min_size);
 
     std::vector<::sliced::s_sequence> sequences(s);
     for (uint64_t i = 0; i < s; ++i){
         sequences[i] = iterators[i].sequence();
     }
+
     uint64_t out_size = ::sliced::intersection(sequences, colors.data());
     colors.resize(out_size);
+}
+
+template <typename Iterator>
+void repair_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors) {
+    uint64_t s = iterators.size();
+    if (s == 0) return;
+
+    std::sort(iterators.begin(), iterators.end(), [](auto const& x, auto const& y) {
+        return x.size() < y.size();
+    });
+    
+    next_geq_intersect(iterators, colors, iterators[0].num_colors());
 }
 
 void stream_through(sshash::dictionary const& k2u, std::string const& sequence,
@@ -370,7 +384,10 @@ void index<ColorSets>::intersect_unitigs(std::vector<uint64_t>& unitig_ids,
         intersect(iterators, colors, tmp);
     } else if constexpr (ColorSets::type == index_t::SLICED){
         s_intersect(iterators, colors);
+    } else if constexpr (ColorSets::type == index_t::REPAIR){
+        repair_intersect(iterators, colors);
     }
+
 
     assert(util::check_intersection(iterators, colors));
 }

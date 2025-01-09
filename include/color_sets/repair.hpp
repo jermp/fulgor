@@ -24,12 +24,14 @@ struct repair{
             uint64_t n = sizes.size();
             max_size = max_size > m_C_builder.size() ? max_size : m_C_builder.size();
             m_sizes_builder.resize(n, std::ceil(std::log2(max_size)));
+            m_sizes_builder.fill(sizes.begin(), n);
             m_sizes = sizes;
         }
 
         void build(repair& r){
             r.m_num_colors = m_num_colors;
             m_C_builder.build(r.m_C);
+            m_sizes_builder.build(r.m_sizes);
 
             uint32_t n = m_sizes.size();
             vector<uint32_t> offsets;
@@ -76,35 +78,93 @@ private:
     struct forward_iterator{
         forward_iterator() {}
 
-        uint64_t size(){
-            return 0;
+        forward_iterator(repair const* ptr, uint32_t begin, uint32_t offset, uint32_t size)
+            : m_ptr(ptr)
+            , m_begin(begin)
+            , m_offset(offset)
+            , m_size(size) {
+            rewind();    
+        }
+
+        void rewind(){
+            init();
+            update_curr_val();
+        }
+
+        uint64_t value() const { return m_curr_val; }
+        uint64_t operator*() const { return value(); }
+
+        void next() {
+            if (m_curr_pos >= m_size) return;
+
+            m_curr_pos++;
+            m_curr_offset++;
+            uint32_t c = (m_ptr->m_C)[m_curr_symbol];
+            if (m_curr_offset >= (m_ptr->m_D)[c].size()){
+                m_curr_symbol++;
+                m_curr_offset = 0;
+            }
+            update_curr_val();
+        }
+        void operator++() { next(); }
+
+        void next_geq(uint32_t lower_bound) {
+            while (value() < lower_bound) next();
+        }
+
+        uint64_t size() const {
+            return m_size;
+        }
+
+        uint32_t num_colors() const {
+            return m_ptr->num_colors();
+        }
+
+    private:
+        repair const* m_ptr;
+        uint32_t m_begin, m_offset;
+        uint32_t m_curr_symbol, m_curr_offset, m_curr_pos;
+        uint32_t m_curr_val;
+        uint32_t m_size;
+
+        void init(){
+            m_curr_pos = 0;
+            m_curr_symbol = m_begin;
+            m_curr_offset = m_offset;
+            m_curr_val = -1;
+        }
+
+        void update_curr_val(){
+            if (m_curr_pos >= m_size){
+                m_curr_val = num_colors();
+                return;
+            }
+            uint32_t c = (m_ptr->m_C)[m_curr_symbol];
+            m_curr_val += (m_ptr->m_D)[c][m_curr_offset] + 1;
         }
     };
 
     typedef forward_iterator iterator_type;
 
     iterator_type color_set(uint64_t color_set_id) const{
-        return forward_iterator();
+        return forward_iterator(this, 
+                m_offsets[color_set_id * 2], 
+                m_offsets[color_set_id * 2 + 1], 
+                m_sizes[color_set_id]
+            );
     }
 
-    uint64_t num_color_sets() const { return 0; } //remove first (universe) and -1
-    uint64_t num_colors() const { return 0; }
+    uint64_t num_color_sets() const { return m_sizes.size(); } //remove first (universe) and -1
+    uint64_t num_colors() const { return m_num_colors; }
 
     uint64_t num_bits() const {
-        return sizeof(m_num_colors)*8 + (m_C.bytes() + essentials::vec_bytes(m_D)) * 8; 
+        return sizeof(m_num_colors)*8 + (m_C.bytes() + m_offsets.bytes() + essentials::vec_bytes(m_D)) * 8; 
     }
 
     void print_stats() const {
         std::cout << "    C: " << m_C.bytes() << " bytes" << std::endl;
         std::cout << "    D: " << essentials::vec_bytes(m_D) << " bytes" << std::endl;
         std::cout << "    dict size: " << m_D.size() << " items" << std::endl;
-
-        uint32_t m = 0;
-        for(int i = 0; i < m_C.size(); i++){
-            m = m_C[i] > m ? m_C[i] : m;
-        }
-
-        cout << "    max C val: " << m << endl; 
     }
 
 
@@ -125,12 +185,14 @@ private:
         visitor.visit(t.m_C);
         visitor.visit(t.m_D);
         visitor.visit(t.m_offsets);
+        visitor.visit(t.m_sizes);
     }
 
     uint64_t m_num_colors;
     pthash::compact_vector m_C;
     std::vector<std::vector<uint32_t>> m_D;
     pthash::compact_vector m_offsets;
+    pthash::compact_vector m_sizes;
    //  sshash::ef_sequence<false> m_begins;
 };
 

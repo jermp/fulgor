@@ -334,6 +334,9 @@ int pseudoalign(int argc, char** argv) {
                                        constants::diff_colored_fulgor_filename_extension)) {
         return pseudoalign<differential_index_type>(index_filename, query_filename, output_filename,
                                                     num_threads, threshold, algo, quiet);
+    } else if (sshash::util::ends_with(index_filename, constants::repair_colored_fulgor_filename_extension)) {
+        return pseudoalign<repair_index_type>(index_filename, query_filename, output_filename, num_threads,
+                                       threshold, algo, quiet);
     } else if (sshash::util::ends_with(index_filename, constants::slice_colored_fulgor_filename_extension)) {
         return pseudoalign<sliced_index_type>(index_filename, query_filename, output_filename, num_threads,
                                        threshold, algo, quiet);

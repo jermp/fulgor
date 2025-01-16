@@ -176,7 +176,6 @@ struct index<ColorSets>::meta_builder {
             std::vector<std::thread> threads(num_threads);
             std::vector<uint32_t> thread_slices(num_threads + 1);
             std::vector<std::shared_mutex> partitions_mutex(num_partitions);
-            std::shared_mutex mutex;
 
             for(uint64_t i = 0; i < num_threads; ++i) {
                 thread_slices[i] = index.num_color_sets() / num_threads * i;
@@ -184,7 +183,7 @@ struct index<ColorSets>::meta_builder {
             thread_slices[num_threads] = index.num_color_sets();
 
             auto exe = [&](uint64_t thread_id){
-                string tmp_filename = m_build_config.tmp_dirname + "/metacolors_" + std::to_string(thread_id) + ".bin";
+                string tmp_filename = metacolors_file_name(thread_id);
                 uint64_t partition_id = 0;
                 uint32_t meta_color_list_size = 0;
                 std::vector<uint32_t> partial_color;
@@ -198,20 +197,12 @@ struct index<ColorSets>::meta_builder {
                 auto hash_and_compress = [&]() {
                     std::lock_guard<std::shared_mutex> lock(partitions_mutex[partition_id]);
                     assert(!partial_color.empty());
-                    __uint128_t hash;
                     uint32_t partial_color_id = 0;
-                    std::unordered_map<__uint128_t, uint32_t, util::hasher_uint128_t>::const_iterator it;
+                    auto hash = util::hash128(reinterpret_cast<char const*>(partial_color.data()),
+                                          partial_color.size() * sizeof(uint32_t));
+                    auto it = hashes[partition_id].find(hash);                    
                     
-                    {
-                        //std::lock_guard<std::shared_mutex> lock(mutex); // multiple read
-                        hash = util::hash128(reinterpret_cast<char const*>(partial_color.data()),
-                                              partial_color.size() * sizeof(uint32_t));
-
-                        it = hashes[partition_id].find(hash);
-                    }
                     if (it == hashes[partition_id].cend()) {  // new partial color
-                        //std::lock_guard<std::shared_mutex> lock(mutex); // one write
-
                         partial_color_id = hashes[partition_id].size();
                         hashes[partition_id].insert({hash, partial_color_id});
                         colors_builder.process_colors(partition_id, partial_color.data(),
@@ -283,7 +274,7 @@ struct index<ColorSets>::meta_builder {
                 metacolors_out.close();
             };
 
-            for(int i = 0; i < num_threads; ++i){
+            for(uint64_t i = 0; i < num_threads; ++i){
                 threads[i] = std::thread(exe, i);
             }
 
@@ -291,12 +282,6 @@ struct index<ColorSets>::meta_builder {
                 if (t.joinable()) t.join();
             }
             
-
-            timer.stop();
-            cout << " end: " << timer.elapsed() << endl;
-            timer.start();
-
-
             std::vector<uint64_t> num_partial_colors_before;
             std::vector<uint32_t> num_lists_in_partition;
             num_partial_colors_before.reserve(num_partitions);
@@ -320,16 +305,17 @@ struct index<ColorSets>::meta_builder {
             std::vector<uint32_t> metacolors;
             metacolors.reserve(num_partitions);  // at most
 
-            std::ifstream metacolors_in(m_build_config.tmp_dirname + "/metacolors_0.bin",
-                                        std::ios::binary);
+            std::ifstream metacolors_in(metacolors_file_name(0), std::ios::binary);
             if (!metacolors_in.is_open()) throw std::runtime_error("error in opening file");
 
             uint64_t thread_id = 0;
             for (uint64_t color_set_id = 0; color_set_id != num_color_sets; ++color_set_id) {
                 if (color_set_id >= thread_slices[thread_id+1]){
-                    thread_id++;
                     metacolors_in.close();
-                    string tmp_filename = m_build_config.tmp_dirname + "/metacolors_" + std::to_string(thread_id) + ".bin";
+                    std::remove(metacolors_file_name(thread_id).c_str());
+
+                    thread_id++;
+                    string tmp_filename = metacolors_file_name(thread_id);
                     metacolors_in = std::ifstream(tmp_filename, std::ios::binary);
                     if (!metacolors_in.is_open()) throw std::runtime_error("error in opening file: " + tmp_filename);
                 }
@@ -351,10 +337,9 @@ struct index<ColorSets>::meta_builder {
                 colors_builder.process_metacolors(metacolors.data(), metacolors.size());
                 metacolors.clear();
             }
-            cout << ">> BUILDING" << endl;
 
             metacolors_in.close();
-            std::remove((m_build_config.tmp_dirname + "/metacolors.bin").c_str());
+            std::remove(metacolors_file_name(thread_id).c_str());
             colors_builder.build(idx.m_color_sets);
 
             timer.stop();
@@ -433,6 +418,11 @@ struct index<ColorSets>::meta_builder {
 
 private:
     build_configuration m_build_config;
+
+    std::string metacolors_file_name(uint32_t id){
+        return m_build_config.tmp_dirname + "/metacolors_" + std::to_string(id) + ".bin";
+
+    }
 };
 
 }  // namespace fulgor

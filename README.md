@@ -9,7 +9,7 @@ The Fulgor index is described in the following papers:
 
 - [**Meta-colored compacted de Bruijn graphs**](https://link.springer.com/chapter/10.1007/978-1-0716-3989-4_9) (International Conference on Research in Computational Molecular Biology, RECOMB 2024).
 
-- [**Where the patters are: repetition-aware compression for colored de Bruijn graphs**](https://jermp.github.io/assets/pdf/papers/JCB2024.pdf) (Journal of Computational Biology, JCB 2024). To appear.
+- [**Where the patterns are: repetition-aware compression for colored de Bruijn graphs**](https://jermp.github.io/assets/pdf/papers/JCB2024.pdf) (Journal of Computational Biology, JCB 2024). To appear.
 
 Please, cite these papers if you use Fulgor.
 

@@ -69,6 +69,8 @@ static void print_cmd(int argc, char** argv) {
     std::cout << std::endl;
 }
 
+std::string filename(std::string const& path) { return path.substr(path.find_last_of("/\\") + 1); }
+
 /* return the number of 64-bit words for num_bits */
 static uint64_t num_64bit_words_for(uint64_t num_bits) { return (num_bits + 64 - 1) / 64; }
 

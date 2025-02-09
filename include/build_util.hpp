@@ -1,6 +1,7 @@
 #pragma once
 
 #include "external/sketch/include/sketch/hll.h"
+#include "external/sketch/include/sketch/mh.h"
 #include "external/kmeans/include/kmeans.hpp"
 #include "color_sets/meta.hpp"
 
@@ -201,13 +202,13 @@ void build_colors_sketches_sliced(
         assert(thread_slices.size() <= num_threads);
     }
     num_threads = thread_slices.size();
-    std::vector<std::vector<sketch::hll_t>> thread_sketches(num_threads);
+    std::vector<std::vector<sketch::mh::RangeMinHash<uint16_t>>> thread_sketches(num_threads);
 
     auto exe = [&](uint64_t thread_id) {
         assert(thread_id < thread_slices.size());
         auto& sketches = thread_sketches[thread_id];
         auto s = thread_slices[thread_id];
-        sketches = std::vector<sketch::hll_t>(s.end - s.begin, sketch::hll_t(p));
+        sketches = std::vector<sketch::mh::RangeMinHash<uint16_t>>(s.end - s.begin, sketch::mh::RangeMinHash<uint16_t>(1 << (p - 2)));
 
         for (uint64_t color_id = s.begin; color_id != s.end; ++color_id) {
             auto it = filtered_colors[color_id];
@@ -242,8 +243,16 @@ void build_colors_sketches_sliced(
         for (auto const& x : sketch) {
             assert(x.m() == num_bytes);
             assert(x.m() == x.core().size());
-            uint8_t const* data = x.data();
-            out.write(reinterpret_cast<char const*>(data), num_bytes);
+            auto minhash = x.finalize();
+            auto it = minhash.begin();
+            // uint8_t const* data = x.data();
+            uint64_t size = minhash.size();
+            for(uint64_t i = 0; i < size; i++, ++it){
+                // cout << *it << endl;
+                uint64_t val = *it;
+                out.write(reinterpret_cast<char const*>(&val), 2);
+            }
+            // out.write(reinterpret_cast<char const*>(data), num_bytes);
         }
     }
     out.close();

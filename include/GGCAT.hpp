@@ -14,8 +14,8 @@ struct GGCAT {
     ~GGCAT() {
         try {
             /* remove GGCAT's files */
-            std::remove((m_graph_file).c_str());                             // ccdbg filename
-            std::remove((m_output_filename + ".ggcat.colors.dat").c_str());  // colors tmp filename
+            // std::remove((m_graph_file).c_str());                             // ccdbg filename
+            // std::remove((m_output_filename + ".ggcat.colors.dat").c_str());  // colors tmp filename
         } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
     }
 
@@ -53,6 +53,11 @@ struct GGCAT {
         color_names.reserve(m_filenames.size());
         for (uint64_t i = 0; i != m_filenames.size(); ++i) {
             color_names.push_back(std::to_string(i));
+        }
+
+        if (std::filesystem::exists(m_graph_file)){
+            cout << "SKIP" << endl;
+            return;
         }
 
         constexpr bool forward_only = false;

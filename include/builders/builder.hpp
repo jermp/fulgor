@@ -75,6 +75,7 @@ struct index<ColorSets>::builder {
             uint64_t num_distinct_colors = 0;
 
             uint64_t num_threads = m_build_config.num_threads;
+            uint64_t MAX_BUFFER_SIZE = 1 << 28; // ~ 250e6 uint32_t
 
             pthash::bit_vector_builder u2c_builder;
 
@@ -83,21 +84,25 @@ struct index<ColorSets>::builder {
             if (!out.is_open()) throw std::runtime_error("cannot open output file");
 
             typename ColorSets::builder main_builder(m_build_config.num_colors);
-            std::vector<typename ColorSets::builder> thread_builders(num_threads);
+            std::vector<typename ColorSets::builder> thread_builders(num_threads, m_build_config.num_colors);
             std::vector<std::thread> threads(num_threads);
-            std::vector<buffer> thread_buffers(num_threads, m_build_config.num_colors*10000);
+            std::vector<buffer> thread_buffers(num_threads, min(m_build_config.num_colors*10000, MAX_BUFFER_SIZE));
             assert(thread_buffers[0].capacity() > m_build_config.num_colors);
             uint32_t curr_thread = 0;
+            std::atomic<uint32_t> appending_thread = 0;
 
-            auto exe = [&](uint64_t thread_id){
+            auto process_and_append = [&](uint64_t thread_id){
                 buffer b = thread_buffers[thread_id];
-                thread_builders[thread_id] = typename ColorSets::builder(m_build_config.num_colors);
+                thread_builders[thread_id].clear();
                 uint32_t pos = 0;
                 for(uint32_t i = 0; i < b.num_sets(); i++){
                     uint32_t size = b[pos++];
                     thread_builders[thread_id].process(b.data() + pos, size);
                     pos += size;
                 }
+                while (appending_thread != thread_id){}
+                main_builder.append(thread_builders[thread_id]);
+                appending_thread = (appending_thread + 1) % num_threads;
             };
 
             m_ccdbg.loop_through_unitigs([&](ggcat::Slice<char> const unitig,
@@ -109,23 +114,15 @@ struct index<ColorSets>::builder {
                         num_distinct_colors += 1;
                         if (num_unitigs > 0) u2c_builder.set(num_unitigs - 1, 1);
 
-                        /* compress colors */
-                        // colors_builder.process(colors.data, colors.size);
                         /* fill buffers */
                         if (!thread_buffers[curr_thread].insert(colors.data, colors.size)){
-                            threads[curr_thread] = std::thread(exe, curr_thread);
-                            curr_thread++;
-                            if (curr_thread == num_threads){
-                                curr_thread = 0;
-                                for(auto& t: threads){
-                                    if (t.joinable()) t.join();
-                                }
-                                cout << "Joining buffers" << endl;
-                                // FIXME: do this operation cyclycally, without waiting for the last one to finish
-                                for(uint32_t thread_id = 0; thread_id < num_threads; thread_id++){
-                                    main_builder.append(thread_builders[thread_id]);
-                                }
+                            threads[curr_thread] = std::thread(process_and_append, curr_thread);
+                            const uint32_t next_thread = (curr_thread + 1) % num_threads;
+                            if (threads[next_thread].joinable()){
+                                threads[next_thread].join();
                             }
+
+                            curr_thread = next_thread;
 
                             thread_buffers[curr_thread].clear();
                             thread_buffers[curr_thread].insert(colors.data, colors.size);
@@ -145,16 +142,12 @@ struct index<ColorSets>::builder {
                 }
             });
 
-            out.close();
-            
-            threads[curr_thread] = std::thread(exe, curr_thread);
-            for(auto& t: threads){
+            threads[curr_thread] = std::thread(process_and_append, curr_thread);
+            for(auto& t : threads){
                 if (t.joinable()) t.join();
             }
-            // FIXME: do this operation cyclycally, without waiting for the last one to finish
-            for(uint32_t thread_id = 0; thread_id < curr_thread + 1; thread_id++){
-                main_builder.append(thread_builders[thread_id]);
-            }
+
+            out.close();
 
             assert(num_unitigs > 0);
             assert(num_unitigs < (uint64_t(1) << 32));

@@ -256,12 +256,16 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
         front_it.next_geq_partition_id(partition_id);
         front_it.update_partition();
         uint32_t meta_color = front_it.meta_color();
+        
+        std::unordered_map<uint32_t, Iterator> partial_sets;
+        partial_sets.emplace(front_it.meta_color(), front_it); 
 
         for (uint32_t i = 1; i != iterators.size(); ++i) {
             auto& it = iterators[i];
             it.next_geq_partition_id(partition_id);
             it.update_partition();
             if (it.meta_color() != meta_color) same_meta_color = false;
+            if (partial_sets.count(it.meta_color()) == 0) partial_sets.emplace(it.meta_color(), it);
         }
 
         if (same_meta_color) {  // do not intersect, just write the whole partial color once
@@ -271,15 +275,21 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
                 front_it.next_in_partition();
             }
         } else {  // intersect partial colors in the partition
-            const uint32_t num_colors = iterators[0].partition_upper_bound();
+            std::vector<Iterator> partial_iterators;
+            partial_iterators.reserve(partial_sets.size());
+            for (const auto &s : partial_sets){
+               partial_iterators.push_back(s.second);
+           }
+
+            const uint32_t num_colors =  partial_iterators[0].partition_upper_bound();
             if constexpr (is_differential) {
                 vector<differential::iterator_type> diff_iterators;
-                std::transform(iterators.begin(), iterators.end(), back_inserter(diff_iterators),
+                std::transform(partial_iterators.begin(), partial_iterators.end(), back_inserter(diff_iterators),
                                [](Iterator a) { return a.partition_it(); });
-                uint32_t lower_bound = iterators[0].partition_upper_bound() - diff_iterators[0].num_colors();
+                uint32_t lower_bound = partial_iterators[0].partition_upper_bound() - diff_iterators[0].num_colors();
                 diff_intersect(diff_iterators, colors, lower_bound);
             } else {
-                next_geq_intersect(iterators, colors, num_colors);
+                next_geq_intersect(partial_iterators, colors, num_colors);
             }
         }
     }

@@ -5,24 +5,25 @@
 namespace fulgor {
 
 template <typename Iterator>
-void next_geq_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
+void next_geq_intersect(Iterator begin, Iterator end, std::vector<uint32_t>& colors,
                         uint32_t num_colors) {
-    uint32_t candidate = iterators[0].value();
+    uint32_t candidate = begin->value();
     uint64_t i = 1;
+    uint64_t size = end - begin;
     while (candidate < num_colors) {
-        for (; i != iterators.size(); ++i) {
-            iterators[i].next_geq(candidate);
-            uint32_t val = iterators[i].value();
+        for (; i != size; ++i) {
+            (begin + i)->next_geq(candidate);
+            uint32_t val = (begin + i)->value();
             if (val != candidate) {
                 candidate = val;
                 i = 0;
                 break;
             }
         }
-        if (i == iterators.size()) {
+        if (i == size) {
             colors.push_back(candidate);
-            iterators[0].next();
-            candidate = iterators[0].value();
+            begin->next();
+            candidate = begin->value();
             i = 1;
         }
     }
@@ -93,7 +94,7 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
               [](auto const& x, auto const& y) { return x.size() < y.size(); });
 
     const uint32_t num_colors = iterators[0].num_colors();
-    next_geq_intersect(iterators, colors, num_colors);
+    next_geq_intersect(iterators.begin(), iterators.end(), colors, num_colors);
 }
 
 template <typename Iterator>
@@ -257,15 +258,11 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
         front_it.update_partition();
         uint32_t meta_color = front_it.meta_color();
         
-        std::unordered_map<uint32_t, Iterator> partial_sets;
-        partial_sets.emplace(front_it.meta_color(), front_it); 
-
         for (uint32_t i = 1; i != iterators.size(); ++i) {
             auto& it = iterators[i];
             it.next_geq_partition_id(partition_id);
             it.update_partition();
             if (it.meta_color() != meta_color) same_meta_color = false;
-            if (partial_sets.count(it.meta_color()) == 0) partial_sets.emplace(it.meta_color(), it);
         }
 
         if (same_meta_color) {  // do not intersect, just write the whole partial color once
@@ -275,21 +272,22 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
                 front_it.next_in_partition();
             }
         } else {  // intersect partial colors in the partition
-            std::vector<Iterator> partial_iterators;
-            partial_iterators.reserve(partial_sets.size());
-            for (const auto &s : partial_sets){
-               partial_iterators.push_back(s.second);
-           }
+            std::sort(iterators.begin(), iterators.end(), [](Iterator& a, Iterator& b){
+                    return a.meta_color() > b.meta_color(); 
+                });
+            auto end_it = std::unique(iterators.begin(), iterators.end(), [](Iterator& a, Iterator& b){
+                    return a.meta_color() == b.meta_color();    
+                });
 
-            const uint32_t num_colors =  partial_iterators[0].partition_upper_bound();
+            const uint32_t num_colors = iterators[0].partition_upper_bound();
             if constexpr (is_differential) {
                 vector<differential::iterator_type> diff_iterators;
-                std::transform(partial_iterators.begin(), partial_iterators.end(), back_inserter(diff_iterators),
+                std::transform(iterators.begin(), end_it, back_inserter(diff_iterators),
                                [](Iterator a) { return a.partition_it(); });
-                uint32_t lower_bound = partial_iterators[0].partition_upper_bound() - diff_iterators[0].num_colors();
+                uint32_t lower_bound = iterators[0].partition_upper_bound() - diff_iterators[0].num_colors();
                 diff_intersect(diff_iterators, colors, lower_bound);
             } else {
-                next_geq_intersect(partial_iterators, colors, num_colors);
+                next_geq_intersect(iterators.begin(), end_it, colors, num_colors);
             }
         }
     }
@@ -325,7 +323,7 @@ void repair_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& c
         return x.size() < y.size();
     });
     
-    next_geq_intersect(iterators, colors, iterators[0].num_colors());
+    next_geq_intersect(iterators.begin(), iterators.end(), colors, iterators[0].num_colors());
 }
 
 void stream_through(sshash::dictionary const& k2u, std::string const& sequence,

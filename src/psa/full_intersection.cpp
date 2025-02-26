@@ -99,12 +99,12 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
 
 template <typename Iterator>
 void diff_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors, uint32_t lower_bound = 0) {
-    // assert(colors.empty());
+    // assert(colors.empty()); // not empty if meta-diff query
 
     if (iterators.empty()) return;
     const uint32_t num_colors = iterators[0].num_colors();
     
-    sort(iterators.begin(), iterators.end(), [](const Iterator& a, const Iterator& b) {
+    std::sort(iterators.begin(), iterators.end(), [](const Iterator& a, const Iterator& b) {
         return a.representative_begin() < b.representative_begin();
     });
 
@@ -281,7 +281,7 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
 
             const uint32_t num_colors = iterators[0].partition_upper_bound();
             if constexpr (is_differential) {
-                vector<differential::iterator_type> diff_iterators;
+                std::vector<differential::iterator_type> diff_iterators;
                 std::transform(iterators.begin(), end_it, back_inserter(diff_iterators),
                                [](Iterator a) { return a.partition_it(); });
                 uint32_t lower_bound = iterators[0].partition_upper_bound() - diff_iterators[0].num_colors();

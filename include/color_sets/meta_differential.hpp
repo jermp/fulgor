@@ -234,6 +234,7 @@ struct meta_differential {
         }
 
         uint32_t partition_id() const { return m_curr_partition_id; }
+        uint32_t partition_lower_bound() const { return m_docid_lower_bound; }
         uint32_t partition_upper_bound() const {
             return m_docid_lower_bound + m_curr_partition_it.num_colors();
         }

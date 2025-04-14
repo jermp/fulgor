@@ -2,14 +2,21 @@
 #include "external/sshash/include/query/streaming_query_canonical_parsing.hpp"
 #include "external/s_indexes/include/intersection_many.hpp"
 
+atomic_uint64_t mc_i = 0;
+atomic_uint64_t mc_t = 0;
+atomic_uint64_t num_mc = 0;
+atomic_uint64_t num_c = 0;
+atomic_uint64_t num_c_in_partials = 0;
+
 namespace fulgor {
 
 template <typename Iterator>
-void next_geq_intersect(Iterator begin, Iterator end, std::vector<uint32_t>& colors,
+void next_geq_intersect(const Iterator& begin, const Iterator& end, std::vector<uint32_t>& colors,
                         uint32_t num_colors) {
     uint32_t candidate = begin->value();
     uint64_t i = 1;
     uint64_t size = end - begin;
+    
     while (candidate < num_colors) {
         for (; i != size; ++i) {
             (begin + i)->next_geq(candidate);
@@ -218,6 +225,16 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
 
     if (iterators.empty()) return;
 
+    for(auto it : iterators){
+        // num_c += it.size();
+        while (it.partition_id() != it.num_partitions()) {
+            // num_mc++;
+            it.next_partition_id();
+        }
+        it.init();
+        it.change_partition();
+    }
+
     std::sort(iterators.begin(), iterators.end(), [](auto const& x, auto const& y) {
         return x.meta_color_list_size() < y.meta_color_list_size();
     });
@@ -272,16 +289,28 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
                 front_it.next_in_partition();
             }
         } else {  // intersect partial colors in the partition
-            std::sort(iterators.begin(), iterators.end(), [](Iterator& a, Iterator& b){
-                    return a.meta_color() > b.meta_color(); 
+            // mc_t += iterators.size();
+            std::sort(iterators.begin(), iterators.end(), [](const Iterator& a, const Iterator& b){
+                    return a.partial_set_size() < b.partial_set_size() ||
+                        (a.partial_set_size() == b.partial_set_size() && a.meta_color() < b.meta_color());
                 });
-            auto end_it = std::unique(iterators.begin(), iterators.end(), [](Iterator& a, Iterator& b){
-                    return a.meta_color() == b.meta_color();    
-                });
+
+            uint64_t back_pos = 0;
+            // num_c_in_partials += iterators.front().partial_set_size();
+            for(uint64_t curr_pos = 1; curr_pos < iterators.size(); curr_pos++){
+                // num_c_in_partials += iterators[curr_pos].partial_set_size();
+                if (iterators[curr_pos].meta_color() != iterators[back_pos].meta_color()){
+                    std::swap(iterators[++back_pos], iterators[curr_pos]);
+                }
+            }
+            auto end_it = iterators.begin() + back_pos + 1;
+
+            // mc_i += end_it - iterators.begin();
 
             const uint32_t num_colors = iterators[0].partition_upper_bound();
             if constexpr (is_differential) {
                 std::vector<differential::iterator_type> diff_iterators;
+                diff_iterators.reserve(end_it - iterators.begin());
                 std::transform(iterators.begin(), end_it, back_inserter(diff_iterators),
                                [](Iterator a) { return a.partition_it(); });
                 uint32_t lower_bound = iterators[0].partition_upper_bound() - diff_iterators[0].num_colors();

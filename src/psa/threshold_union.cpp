@@ -15,15 +15,23 @@ typedef scored<uint64_t> scored_id;
 
 template <typename Iterator>
 void merge(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
-           const uint64_t min_score) {
+           int64_t min_score) {
     if (iterators.empty()) return;
 
     uint32_t num_colors = iterators[0].item.num_colors();
-    std::vector<uint32_t> scores(num_colors, 0);
+    std::vector<int32_t> scores(num_colors, 0);
     for(auto& it : iterators) {
-        uint32_t size = it.item.size();
-        for(uint32_t i = 0; i < size; ++i, it.item.next()){
-            scores[it.item.value()] += it.score;
+        if (it.item.type() == list_type::complement_delta_gaps){
+            min_score -= it.score;
+            while (it.item.comp_value() < num_colors){
+                scores[it.item.comp_value()] -= it.score;
+                it.item.next_comp();
+            }
+        } else {
+            uint32_t size = it.item.size();
+            for(uint32_t i = 0; i < size; ++i, it.item.next()){
+                scores[it.item.value()] += it.score;
+            }
         }
     }
     for(uint32_t color = 0; color < num_colors; color++){
@@ -80,12 +88,29 @@ void merge_meta(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
             }
         }
 
-        for(auto& it : iterators) {
+        std::sort(iterators.begin(), iterators.end(), [](const Iterator& a, const Iterator& b){
+            return a.item.partition_id() < b.item.partition_id() || 
+                (a.item.partition_id() == b.item.partition_id() && a.item.meta_color() < b.item.meta_color());
+            });
+
+        uint64_t meta_score = iterators.front().score;
+        auto process_meta = [&](Iterator& it){
             while(it.item.value() < upper_bound) {
-                scores[it.item.value()] += it.score;
+                scores[it.item.value()] += meta_score;
                 it.item.next();
             }
+        };
+        uint64_t i = 1;
+        for(; i < iterators.size(); ++i) {
+            auto& it = iterators[i];
+            if (it.item.partition_id() != partition_id) break;
+            if (it.item.meta_color() != iterators[i-1].item.meta_color()){
+                process_meta(iterators[i-1]);
+                meta_score = 0;
+            }
+            meta_score += it.score;
         }
+        process_meta(iterators[i-1]);
     }
 
     for(uint32_t color = 0; color < num_colors; color++){
@@ -360,7 +385,7 @@ void index<ColorSets>::pseudoalign_threshold_union(std::string const& sequence,
         merge_diff(iterators, colors, min_score);
     } else if constexpr (ColorSets::type == index_t::META_DIFF) {
         merge_metadiff(iterators, colors, min_score);
-    } else{
+    } else if constexpr (ColorSets::type == index_t::HYBRID){
         merge(iterators, colors, min_score);
     }
 }

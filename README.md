@@ -4,8 +4,6 @@
   <img src="img/fulgor.png" width="350" alt="Logo">
 </picture>
 
-===
-
 **Fulgor** is a *colored de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
 
 The Fulgor index is described in the following papers:

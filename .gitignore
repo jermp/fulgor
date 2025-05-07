@@ -3,3 +3,5 @@ build
 debug_build
 test_data
 .idea
+
+.pixi

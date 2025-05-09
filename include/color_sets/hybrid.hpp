@@ -25,7 +25,7 @@ struct hybrid {
             std::cout << "m_very_dense_set_threshold_size " << m_very_dense_set_threshold_size
                       << std::endl;
 
-            m_bvb.reserve(8 * essentials::GB);
+            m_bvb.reserve(320 * essentials::GB);
             m_offsets.push_back(0);
 
             m_num_lists = 0;

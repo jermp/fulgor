@@ -43,16 +43,19 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
     assert(complement_set.empty());
 
     if (iterators.empty()) return;
+    std::sort(iterators.begin(), iterators.end(),
+              [](auto const& x, auto const& y) { return x.size() < y.size(); });
 
-    bool all_very_dense = true;
-    for (auto const& it : iterators) {
-        if (it.type() != list_type::complement_delta_gaps) {
-            all_very_dense = false;
-            break;
-        }
+    const uint32_t num_colors = iterators[0].num_colors();
+    uint32_t num_sparse = 0;
+    while (num_sparse != iterators.size() && iterators[num_sparse].type() != list_type::complement_delta_gaps) {
+        ++num_sparse;
     }
 
-    if (all_very_dense) {
+    // cout << iterators.size() - num_sparse << " " << flush;
+
+
+    if (num_sparse == 0) {
         /* step 1: take the union of complementary sets */
         for (auto& it : iterators) it.reinit_for_complemented_set_iteration();
 
@@ -62,7 +65,6 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
                                                 }))
                                  .comp_value();
 
-        const uint32_t num_colors = iterators[0].num_colors();
         complement_set.reserve(num_colors);
         while (candidate < num_colors) {
             uint32_t next_candidate = num_colors;
@@ -95,13 +97,48 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
         return;
     }
 
+    std::vector<bool> complement_union(num_colors, true);
+    for(uint32_t i = num_sparse; i < iterators.size(); ++i){
+        auto it = iterators[i];
+        while (it.comp_value() < num_colors){
+            complement_union[it.comp_value()] = false;
+            it.next_comp();
+        }
+    }
+
     /* traditional intersection code based on next_geq() and next() */
 
-    std::sort(iterators.begin(), iterators.end(),
-              [](auto const& x, auto const& y) { return x.size() < y.size(); });
-
-    const uint32_t num_colors = iterators[0].num_colors();
-    next_geq_intersect(iterators.begin(), iterators.end(), colors, num_colors);
+    uint32_t candidate = iterators[0].value();
+    uint64_t i = 1;
+    uint64_t size = num_sparse;
+    
+    while (candidate < num_colors) {
+        /*
+        if (!complement_union[candidate]){
+            iterators[0].next_geq(candidate+1);
+            candidate = iterators[0].value();
+            i = 1;
+            continue;
+        }
+        */
+        for (; i != size; ++i) {
+            iterators[i].next_geq(candidate);
+            uint32_t val = iterators[i].value();
+            if (val != candidate) {
+                candidate = val;
+                i = 0;
+                break;
+            }
+        }
+        if (i == size) {
+            if (complement_union[candidate]){
+                colors.push_back(candidate);
+            }
+            iterators[0].next();
+            candidate = iterators[0].value();
+            i = 1;
+        }
+    }
 }
 
 template <typename Iterator>

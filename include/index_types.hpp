@@ -35,19 +35,3 @@ namespace fulgor {
 typedef index<meta_differential> meta_differential_colors_index_type;
 typedef meta_differential_colors_index_type meta_differential_index_type;  // in use
 }  // namespace fulgor
-
-#include "color_sets/sliced.hpp"
-#include "builders/sliced_builder.hpp"
-
-namespace fulgor{
-typedef index<sliced> sliced_colors_index_type;
-typedef sliced_colors_index_type sliced_index_type;
-}  // namespace fulgor
-
-#include "color_sets/repair.hpp"
-#include "builders/repair_builder.hpp"
-
-namespace fulgor{
-typedef index<repair> repair_colors_index_type;
-typedef repair_colors_index_type repair_index_type;
-}  // namespace fulgor

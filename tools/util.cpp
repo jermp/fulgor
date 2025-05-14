@@ -15,14 +15,6 @@ bool is_diff(std::string index_filename) {
                                    constants::diff_colored_fulgor_filename_extension);
 }
 
-bool is_sliced(std::string index_filename){
-    return sshash::util::ends_with(index_filename, constants::slice_colored_fulgor_filename_extension);
-}
-
-bool is_repair(std::string index_filename){
-    return sshash::util::ends_with(index_filename, constants::repair_colored_fulgor_filename_extension);
-}
-
 bool is_hybrid(std::string index_filename) {
     return sshash::util::ends_with(index_filename, constants::fulgor_filename_extension);
 }
@@ -69,10 +61,6 @@ int stats(int argc, char** argv) {
         print_stats<meta_differential_index_type>(index_filename);
     } else if (is_diff(index_filename)) {
         print_stats<differential_index_type>(index_filename);
-    } else if (is_sliced(index_filename)) {
-        print_stats<sliced_index_type>(index_filename);
-    } else if (is_repair(index_filename)) {
-        print_stats<repair_index_type>(index_filename);
     } else if (is_hybrid(index_filename)) {
         print_stats<index_type>(index_filename);
     } else {

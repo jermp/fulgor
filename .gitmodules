@@ -16,9 +16,3 @@
 [submodule "external/kmeans"]
 	path = external/kmeans
 	url = https://github.com/jermp/kmeans
-[submodule "external/s_indexes"]
-	path = external/s_indexes
-	url = https://github.com/Alessio-Campa/s_indexes 
-[submodule "external/path_decomposed_tries"]
-	path = external/path_decomposed_tries
-	url = https://github.com/Alessio-Campa/path_decomposed_tries.git

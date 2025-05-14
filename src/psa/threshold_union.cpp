@@ -196,9 +196,9 @@ void merge_metadiff(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
 
     // the number of partitions is relatively small, so this does not impact efficiency
     uint32_t candidate_partition =
-        (*std::min_element(iterators.begin(), iterators.end(), [](auto const& x, auto const& y) {
+        std::min_element(iterators.begin(), iterators.end(), [](auto const& x, auto const& y) {
             return x.item.partition_id() < y.item.partition_id();
-        })).item.partition_id();
+        })->item.partition_id();
 
     while (candidate_partition < num_partitions) {
         uint32_t next_partition = num_partitions;
@@ -238,29 +238,43 @@ void merge_metadiff(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
             }
         }
 
-        std::sort(iterators.begin(), iterators.end(), [](const Iterator& a, const Iterator& b) {
-            return a.item.partition_it().representative_begin() < b.item.partition_it().representative_begin();
+        std::sort(iterators.begin(), iterators.end(), [&](const Iterator& a, const Iterator& b) {
+            uint32_t a_part = a.item.partition_id();
+            uint32_t b_part = b.item.partition_id();
+            if (a_part == partition_id && b_part == partition_id){
+                uint32_t a_repr = a.item.partition_it().representative_begin();
+                uint32_t a_meta = a.item.meta_color();
+                uint32_t b_repr = b.item.partition_it().representative_begin();
+                uint32_t b_meta = b.item.meta_color();
+                return a_meta < b_meta || (a_meta == b_meta && a_repr < b_repr); 
+            }
+            return a_part < b_part;
         });
 
-        uint32_t score = 0;
+        uint32_t partition_score = 0;
         uint32_t partition_size = 0;
+        uint32_t meta_score = 0;
         for(uint32_t iterator_id = 0; iterator_id < num_iterators; iterator_id++){
             Iterator it = iterators[iterator_id];
-            if (it.item.partition_id() != partition_id) continue;
-            auto diff_it = it.item.partition_it();
+            if (it.item.partition_id() != partition_id) break;
+            meta_score += it.score;
             num_sets--;
             partition_size++;
-            score += it.score;
+            if (num_sets != 0 && iterators[iterator_id + 1].item.meta_color() == it.item.meta_color()) continue;
+
+            auto diff_it = it.item.partition_it();
+            partition_score += meta_score;
 
             bool is_last_in_partition = num_sets == 0 || 
                 iterators[iterator_id +1].item.partition_it().representative_begin() != diff_it.representative_begin();
             
             if (is_last_in_partition && partition_size == 1){
                 for(uint32_t i = 0; i < diff_it.size(); ++i, ++diff_it){
-                    scores[lower_bound + *diff_it] += it.score;
+                    scores[lower_bound + *diff_it] += meta_score;
                 }
-                score = 0;
+                partition_score = 0;
                 partition_size = 0;
+                meta_score = 0;
                 continue;
             }
 
@@ -268,29 +282,29 @@ void merge_metadiff(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
 
             uint32_t val = diff_it.differential_val();
             while (val != num_partition_colors) {
-                partition_scores[val] += it.score;
+                partition_scores[val] += meta_score;
                 diff_it.next_differential_val();
                 val = diff_it.differential_val();
             }
+            meta_score = 0;
 
             if (is_last_in_partition) {
                 diff_it.full_rewind();
                 val = diff_it.representative_val();
                 for (uint32_t color = 0; color < num_partition_colors; color++) {
                     if (val == color){
-                        scores[lower_bound + color] += score - partition_scores[color];
+                        scores[lower_bound + color] += partition_score - partition_scores[color];
                         diff_it.next_representative_val();
                         val = diff_it.representative_val();
                     } else {
                         scores[lower_bound + color] += partition_scores[color];
                     }
                 }
-                score = 0;
+                partition_score = 0;
                 partition_size = 0;
                 fill(partition_scores.begin(), partition_scores.begin() + num_partition_colors, 0);
             }
         }
-
     }
     for(uint32_t color = 0; color < num_colors; color++){
         if (scores[color] >= min_score) colors.push_back(color);

@@ -9,13 +9,13 @@
 namespace fulgor {
 
 struct GGCAT {
-    GGCAT() : m_instance(nullptr), m_graph_file(""), m_k(0) {}
+    GGCAT() : m_k(0), m_instance(nullptr) {}
 
     ~GGCAT() {
         try {
-            /* remove GGCAT's files */
-            std::remove((m_graph_file).c_str());                             // ccdbg filename
-            std::remove((m_output_filename + ".ggcat.colors.dat").c_str());  // colors tmp filename
+            /* remove GGCAT's tmp files */
+            std::remove((m_graph_file).c_str());
+            std::remove((m_color_sets_file).c_str());
         } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
     }
 
@@ -29,8 +29,10 @@ struct GGCAT {
             in.close();
         }
 
-        m_output_filename = build_config.file_base_name;
-        m_graph_file = build_config.file_base_name + ".ggcat.fa";
+        std::string basename =
+            build_config.tmp_dirname + "/" + util::filename(build_config.file_base_name);
+        m_color_sets_file = basename + ".ggcat.colors.dat";
+        m_graph_file = basename + ".ggcat.fa";
         m_k = build_config.k;
 
         ggcat::GGCATConfig config;
@@ -65,11 +67,11 @@ struct GGCAT {
             ggcat::Slice<std::string>(color_names.data(), color_names.size()));
     }
 
-    void loop_through_unitigs(
-        std::function<void(ggcat::Slice<char> const /* unitig */,
-                           ggcat::Slice<uint32_t> const /* colors */, bool /* same_color */)>
-            callback,
-        uint64_t num_threads = 1) const {
+    void loop_through_unitigs(std::function<void(ggcat::Slice<char> const /* unitig */,      //
+                                                 ggcat::Slice<uint32_t> const /* colors */,  //
+                                                 bool /* same_color */)>
+                                  callback,
+                              uint64_t num_threads) const {
         if (m_k == 0) throw std::runtime_error("graph must be built first");
         m_instance->dump_unitigs(m_graph_file, m_k, num_threads, num_threads == 1, callback, true);
     }
@@ -78,11 +80,11 @@ struct GGCAT {
     std::vector<std::string> const& filenames() const { return m_filenames; }
 
 private:
-    ggcat::GGCATInstance* m_instance;
-    std::string m_graph_file;
-    std::vector<std::string> m_filenames;
-    std::string m_output_filename;
     uint64_t m_k;
+    ggcat::GGCATInstance* m_instance;
+    std::vector<std::string> m_filenames;
+    std::string m_graph_file;
+    std::string m_color_sets_file;
 };
 
 }  // namespace fulgor

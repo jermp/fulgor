@@ -1,7 +1,10 @@
-Fulgor
-======
 
-Fulgor is a *colored de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/fulgor_on_dark.png">
+  <img src="img/fulgor.png" width="350" alt="Logo">
+</picture>
+
+**Fulgor** is a *colored de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
 
 The Fulgor index is described in the following papers:
 
@@ -9,7 +12,7 @@ The Fulgor index is described in the following papers:
 
 - [**Meta-colored compacted de Bruijn graphs**](https://link.springer.com/chapter/10.1007/978-1-0716-3989-4_9) (International Conference on Research in Computational Molecular Biology, RECOMB 2024).
 
-- [**Where the patters are: repetition-aware compression for colored de Bruijn graphs**](https://jermp.github.io/assets/pdf/papers/JCB2024.pdf) (Journal of Computational Biology, JCB 2024). To appear.
+- [**Where the patterns are: repetition-aware compression for colored de Bruijn graphs**](https://www.liebertpub.com/doi/10.1089/cmb.2024.0714) (Journal of Computational Biology, JCB 2024).
 
 Please, cite these papers if you use Fulgor.
 
@@ -173,7 +176,7 @@ See the table below.
 
 The following table is taken from the paper *"Where the patters are: repetition-aware compression for colored de Bruijn graphs"* and shows the size of the various Fulgor indexes on several larger pangenomes.
 
-![Index size](./fulgor_index_size.png)
+![Index size](./img/fulgor_index_size.png)
 
 
 Pseudoalignment output format

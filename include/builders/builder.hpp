@@ -16,10 +16,10 @@ struct buffer {
         }
         memcpy(m_buffer.data() + m_size, &size, sizeof(uint32_t));
         memcpy(m_buffer.data() + m_size + 1, data, sizeof(uint32_t) * size);
-        
+
         m_size += size + 1;
         m_num_sets++;
-        
+
         return true;
     }
 
@@ -36,7 +36,7 @@ struct buffer {
     uint32_t* data() {return m_buffer.data(); }
 
     void clear() {
-        m_size = 0; 
+        m_size = 0;
         m_num_sets = 0;
     }
 
@@ -67,6 +67,10 @@ struct index<ColorSets>::builder {
             timer.reset();
         }
 
+        std::string input_filename_for_sshash = m_build_config.tmp_dirname + "/" +
+                                                util::filename(m_build_config.file_base_name) +
+                                                ".sshash.fa";
+
         {
             essentials::logger("step 2. build m_u2c and m_color_sets");
             timer.start();
@@ -74,13 +78,10 @@ struct index<ColorSets>::builder {
             uint64_t num_unitigs = 0;
             uint64_t num_distinct_colors = 0;
 
-            uint64_t num_threads = m_build_config.num_threads;
-            uint64_t MAX_BUFFER_SIZE = 1 << 28; // ~ 250e6 uint32_t
-
             pthash::bit_vector_builder u2c_builder;
 
             /* write unitigs to fasta file for SSHash */
-            std::ofstream out((m_build_config.file_base_name + ".fa").c_str());
+            std::ofstream out(input_filename_for_sshash.c_str());
             if (!out.is_open()) throw std::runtime_error("cannot open output file");
 
             typename ColorSets::builder main_builder(m_build_config.num_colors);
@@ -130,17 +131,24 @@ struct index<ColorSets>::builder {
                     }
                     u2c_builder.push_back(0);
 
-                    out << ">\n";
-                    out.write(unitig.data, unitig.size);
-                    out << '\n';
+                        /*
+                            Rewrite unitigs in color-set order.
+                            This is *not* the same order in which
+                            unitigs are written in the ggcat.fa file.
+                        */
+                        out << ">\n";
+                        out.write(unitig.data, unitig.size);
+                        out << '\n';
 
-                    num_unitigs += 1;
+                        num_unitigs += 1;
 
-                } catch (std::exception const& e) {
-                    std::cerr << e.what() << std::endl;
-                    exit(1);
-                }
-            });
+                    } catch (std::exception const& e) {
+                        std::cerr << e.what() << std::endl;
+                        exit(1);
+                    }
+                },
+                m_build_config.num_threads  //
+            );
 
             threads[curr_thread] = std::thread(process_and_append, curr_thread);
             for(auto& t : threads){
@@ -183,9 +191,9 @@ struct index<ColorSets>::builder {
             sshash_config.verbose = m_build_config.verbose;
             sshash_config.tmp_dirname = m_build_config.tmp_dirname;
             sshash_config.print();
-            idx.m_k2u.build(m_build_config.file_base_name + ".fa", sshash_config);
+            idx.m_k2u.build(input_filename_for_sshash, sshash_config);
             try {  // remove unitig file
-                std::remove((m_build_config.file_base_name + ".fa").c_str());
+                std::remove(input_filename_for_sshash.c_str());
             } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
 
             timer.stop();
@@ -208,8 +216,9 @@ struct index<ColorSets>::builder {
         {
             essentials::logger("step 5. check correctness...");
             m_ccdbg.loop_through_unitigs(
-                [&](ggcat::Slice<char> const unitig, ggcat::Slice<uint32_t> const colors,
-                    bool /* same_color */)  //
+                [&](ggcat::Slice<char> const unitig,      //
+                    ggcat::Slice<uint32_t> const colors,  //
+                    bool /* same_color */)                //
                 {
                     auto lookup_result = idx.m_k2u.lookup_advanced(unitig.data);
                     const uint64_t unitig_id = lookup_result.contig_id;

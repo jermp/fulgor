@@ -78,6 +78,9 @@ struct index<ColorSets>::builder {
             uint64_t num_unitigs = 0;
             uint64_t num_distinct_colors = 0;
 
+            uint64_t num_threads = m_build_config.num_threads;
+            uint64_t MAX_BUFFER_SIZE = 1 << 28; // 250e6 uint32_t
+
             pthash::bit_vector_builder u2c_builder;
 
             /* write unitigs to fasta file for SSHash */

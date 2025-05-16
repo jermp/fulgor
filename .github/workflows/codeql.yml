@@ -1,0 +1,42 @@
+name: "CodeQL"
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: 'cpp'
+
+    - name: Creating build directory
+      run: cmake -E make_directory ./build
+
+    - name: Run CMake
+      working-directory: ./build
+      run: cmake .. -DCMAKE_BUILD_TYPE=Release
+
+    - name: Compilation
+      working-directory: ./build
+      run: cmake --build . --config Release
+
+    # Perform Analysis
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+      with:
+        category: "/language:cpp"

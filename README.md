@@ -1,3 +1,5 @@
+[![Build](https://github.com/jermp/fulgor/actions/workflows/build.yml/badge.svg)](https://github.com/jermp/fulgor/actions/workflows/build.yml)
+[![CodeQL](https://github.com/jermp/fulgor/actions/workflows/codeql.yml/badge.svg)](https://github.com/jermp/fulgor/actions/workflows/codeql.yml)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="img/fulgor_on_dark.png">

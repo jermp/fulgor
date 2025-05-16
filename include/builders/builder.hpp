@@ -75,7 +75,7 @@ struct index<ColorSets>::builder {
             uint64_t num_distinct_colors = 0;
 
             uint64_t num_threads = m_build_config.num_threads;
-            uint64_t MAX_BUFFER_SIZE = 1 << 28;  // 250e6 uint32_t
+            constexpr uint64_t MAX_BUFFER_SIZE = 1 << 28;  // 250e6 uint32_t
 
             pthash::bit_vector_builder u2c_builder;
 
@@ -107,50 +107,45 @@ struct index<ColorSets>::builder {
                 appending_thread = (appending_thread + 1) % num_threads;
             };
 
-            m_ccdbg.loop_through_unitigs(
-                [&](ggcat::Slice<char> const unitig, ggcat::Slice<uint32_t> const colors,
-                    bool same_color) {
-                    assert(curr_thread >= 0);
-                    assert(curr_thread < num_threads);
-                    try {
-                        if (!same_color) {
-                            num_distinct_colors += 1;
-                            if (num_unitigs > 0) u2c_builder.set(num_unitigs - 1, 1);
+            m_ccdbg.loop_through_unitigs([&](ggcat::Slice<char> const unitig,
+                                             ggcat::Slice<uint32_t> const colors, bool same_color) {
+                assert(curr_thread >= 0);
+                assert(curr_thread < num_threads);
+                try {
+                    if (!same_color) {
+                        num_distinct_colors += 1;
+                        if (num_unitigs > 0) u2c_builder.set(num_unitigs - 1, 1);
 
-                            /* fill buffers */
-                            if (!thread_buffers[curr_thread].insert(colors.data, colors.size)) {
-                                threads[curr_thread] = std::thread(process_and_append, curr_thread);
-                                const uint32_t next_thread = (curr_thread + 1) % num_threads;
-                                if (threads[next_thread].joinable()) {
-                                    threads[next_thread].join();
-                                }
+                        /* fill buffers */
+                        if (!thread_buffers[curr_thread].insert(colors.data, colors.size)) {
+                            threads[curr_thread] = std::thread(process_and_append, curr_thread);
+                            const uint32_t next_thread = (curr_thread + 1) % num_threads;
+                            if (threads[next_thread].joinable()) { threads[next_thread].join(); }
 
-                                curr_thread = next_thread;
+                            curr_thread = next_thread;
 
-                                thread_buffers[curr_thread].clear();
-                                thread_buffers[curr_thread].insert(colors.data, colors.size);
-                            }
+                            thread_buffers[curr_thread].clear();
+                            thread_buffers[curr_thread].insert(colors.data, colors.size);
                         }
-                        u2c_builder.push_back(0);
-
-                        /*
-                            Rewrite unitigs in color-set order.
-                            This is *not* the same order in which
-                            unitigs are written in the ggcat.fa file.
-                        */
-                        out << ">\n";
-                        out.write(unitig.data, unitig.size);
-                        out << '\n';
-
-                        num_unitigs += 1;
-
-                    } catch (std::exception const& e) {
-                        std::cerr << e.what() << std::endl;
-                        exit(1);
                     }
-                },
-                m_build_config.num_threads  //
-            );
+                    u2c_builder.push_back(0);
+
+                    /*
+                        Rewrite unitigs in color-set order.
+                        This is *not* the same order in which
+                        unitigs are written in the ggcat.fa file.
+                    */
+                    out << ">\n";
+                    out.write(unitig.data, unitig.size);
+                    out << '\n';
+
+                    num_unitigs += 1;
+
+                } catch (std::exception const& e) {
+                    std::cerr << e.what() << std::endl;
+                    exit(1);
+                }
+            });
 
             threads[curr_thread] = std::thread(process_and_append, curr_thread);
             for (auto& t : threads) {

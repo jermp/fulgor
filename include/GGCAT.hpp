@@ -71,7 +71,8 @@ struct GGCAT {
                                                  ggcat::Slice<uint32_t> const /* colors */,  //
                                                  bool /* same_color */)>
                                   callback,
-                              uint64_t num_threads) const {
+                              uint64_t num_threads = 1) const  //
+    {
         if (m_k == 0) throw std::runtime_error("graph must be built first");
         m_instance->dump_unitigs(m_graph_file, m_k, num_threads, num_threads == 1, callback, true);
     }

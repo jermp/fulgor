@@ -3,11 +3,10 @@
 namespace fulgor {
 
 struct hybrid {
-    static const bool meta_colored = false;
-    static const bool differential_colored = false;
+    static const index_t type = index_t::HYBRID;
 
     struct builder {
-        builder() {}
+        builder(): m_num_lists(0) {}
         builder(uint64_t num_colors) { init(num_colors); }
 
         void init(uint64_t num_colors) {
@@ -26,7 +25,7 @@ struct hybrid {
             std::cout << "m_very_dense_set_threshold_size " << m_very_dense_set_threshold_size
                       << std::endl;
 
-            m_bvb.reserve(8 * essentials::GB);
+            m_bvb.reserve(320 * essentials::GB);
             m_offsets.push_back(0);
 
             m_num_lists = 0;
@@ -93,6 +92,24 @@ struct hybrid {
             }
         }
 
+        void append(hybrid::builder& hb) {
+            if (hb.m_num_lists == 0){
+                return;
+            }
+
+            m_bvb.append(hb.m_bvb);
+            assert(m_offsets.size() > 0);
+            uint64_t delta = m_offsets.back();
+
+            m_offsets.reserve(m_offsets.size() + hb.m_offsets.size());
+            for(uint32_t offset_id = 1; offset_id < hb.m_offsets.size(); offset_id++){
+                m_offsets.push_back(hb.m_offsets[offset_id] + delta);
+            }
+            m_num_lists += hb.m_num_lists;
+            m_num_total_integers += hb.m_num_total_integers;
+            assert(m_num_lists == m_offsets.size() - 1);
+        }
+
         void build(hybrid& h) {
             h.m_num_colors = m_num_colors;
             h.m_sparse_set_threshold_size = m_sparse_set_threshold_size;
@@ -115,6 +132,12 @@ struct hybrid {
             std::cout << "  lists: "
                       << static_cast<double>(h.m_colors.size() * 64) / m_num_total_integers
                       << " bits/int" << std::endl;
+        }
+
+        void clear(){
+            m_offsets.clear(); // constant since uint64_t is trivially destructible
+            m_bvb.clear();
+            init(m_num_colors);
         }
 
     private:

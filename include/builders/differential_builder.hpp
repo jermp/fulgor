@@ -1,6 +1,6 @@
 #pragma once
 
-#include "index.hpp"
+#include "../index.hpp"
 
 namespace fulgor {
 struct differential_permuter {

@@ -3,8 +3,7 @@
 namespace fulgor {
 
 struct differential {
-    static const bool meta_colored = false;
-    static const bool differential_colored = true;
+    static const index_t type = index_t::DIFF;
 
     struct builder {
         builder() : m_prev_cluster_id(0) {
@@ -149,26 +148,11 @@ struct differential {
         }
 
         void rewind() {
-            m_differential_list_it = bit_vector_iterator(
-                (m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_differential_list_begin);
-            m_representative_it = bit_vector_iterator(
-                (m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_representative_begin);
-            m_differential_list_size = util::read_delta(m_differential_list_it);
-            m_representative_size = util::read_delta(m_representative_it);
-            m_size = util::read_delta(m_differential_list_it);
-
-            m_curr_differential_val = m_differential_list_size == 0
-                                          ? num_colors()
-                                          : util::read_delta(m_differential_list_it);
-            m_prev_differential_val = 0;
-            m_curr_representative_val =
-                m_representative_size == 0 ? num_colors() : util::read_delta(m_representative_it);
-            m_prev_representative_val = 0;
-
-            m_pos_in_differential_list = 0;
-            m_pos_in_representative = 0;
+            init();
             update_curr_val();
         }
+
+        void full_rewind() { init(); }
 
         uint32_t size() const { return m_size; }
 
@@ -203,16 +187,7 @@ struct differential {
 
         int type() const { return list_type::differential_list; }
 
-    private:
-        differential const* m_ptr;
-        uint64_t m_differential_list_begin, m_representative_begin;
-        uint64_t m_representative_size, m_differential_list_size;
-        uint64_t m_pos_in_differential_list, m_pos_in_representative;
-        uint32_t m_curr_representative_val, m_curr_differential_val;
-        uint32_t m_prev_representative_val, m_prev_differential_val;
-        uint32_t m_curr_val;
-        uint32_t m_size;
-        bit_vector_iterator m_representative_it, m_differential_list_it;
+        uint64_t representative_begin() const { return m_representative_begin; }
 
         void next_representative_val() {
             m_pos_in_representative += 1;
@@ -225,6 +200,8 @@ struct differential {
             }
         }
 
+        uint32_t representative_val() const { return m_curr_representative_val; }
+
         void next_differential_val() {
             m_pos_in_differential_list += 1;
             m_prev_differential_val = m_curr_differential_val;
@@ -234,6 +211,40 @@ struct differential {
             } else {
                 m_curr_differential_val = num_colors();
             }
+        }
+
+        uint32_t differential_val() const { return m_curr_differential_val; }
+
+    private:
+        differential const* m_ptr;
+        uint64_t m_differential_list_begin, m_representative_begin;
+        uint64_t m_representative_size, m_differential_list_size;
+        uint64_t m_pos_in_differential_list, m_pos_in_representative;
+        uint32_t m_curr_representative_val, m_curr_differential_val;
+        uint32_t m_prev_representative_val, m_prev_differential_val;
+        uint32_t m_curr_val;
+        uint32_t m_size;
+        bit_vector_iterator m_representative_it, m_differential_list_it;
+
+        void init() {
+            m_differential_list_it = bit_vector_iterator(
+                (m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_differential_list_begin);
+            m_representative_it = bit_vector_iterator(
+                (m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_representative_begin);
+            m_differential_list_size = util::read_delta(m_differential_list_it);
+            m_representative_size = util::read_delta(m_representative_it);
+            m_size = util::read_delta(m_differential_list_it);
+
+            m_curr_differential_val = m_differential_list_size == 0
+                                          ? num_colors()
+                                          : util::read_delta(m_differential_list_it);
+            m_prev_differential_val = 0;
+            m_curr_representative_val =
+                m_representative_size == 0 ? num_colors() : util::read_delta(m_representative_it);
+            m_prev_representative_val = 0;
+
+            m_pos_in_differential_list = 0;
+            m_pos_in_representative = 0;
         }
 
         void update_curr_val() {
@@ -279,6 +290,9 @@ struct differential {
         uint64_t num_representatives = 0;
         uint64_t num_differential_lists = 0;
         uint64_t num_metadata = 0;
+        
+        uint64_t size_representatives = 0;
+        uint64_t size_differentials = 0;
 
         uint64_t num_colors_tenth = num_colors() / 10;
 
@@ -291,6 +305,7 @@ struct differential {
             uint64_t prev_position = it.position();
 
             uint64_t size = util::read_delta(it);
+            size_representatives += size;
             num_metadata += it.position() - prev_position;
             prev_position = it.position();
 
@@ -307,6 +322,7 @@ struct differential {
             uint64_t prev_position = it.position();
 
             uint64_t size = util::read_delta(it);
+            size_differentials += size;
             num_metadata += it.position() - prev_position;
             prev_position = it.position();
 
@@ -335,6 +351,8 @@ struct differential {
         std::cout << "  representative offsets: " << num_bits_representative_offsets / 8
                   << " bytes (" << (num_bits_representative_offsets * 100.0) / num_bits() << "%)"
                   << std::endl;
+        std::cout << "  average representative set size: " << size_representatives*1. / num_partitions() << " ints" << std::endl;
+        std::cout << "  average differential set size: " << size_differentials*1. / num_color_sets() << " ints" << std::endl;
         std::cout << "  differential list offsets: " << num_bits_list_offsets / 8 << " bytes ("
                   << (num_bits_list_offsets * 100.0) / num_bits() << "%)" << std::endl;
         std::cout << "  clusters: " << num_clusters / 8 << " bytes ("

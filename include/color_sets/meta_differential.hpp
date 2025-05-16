@@ -3,8 +3,7 @@
 namespace fulgor {
 
 struct meta_differential {
-    static const bool meta_colored = true;
-    static const bool differential_colored = true;
+    static const index_t type = index_t::META_DIFF;
 
     struct partition_endpoint {
         template <typename Visitor>
@@ -234,7 +233,12 @@ struct meta_differential {
             return size;
         }
 
+        uint32_t partial_set_size() const {
+            return m_curr_partition_it.size();
+        }
+
         uint32_t partition_id() const { return m_curr_partition_id; }
+        uint32_t partition_lower_bound() const { return m_docid_lower_bound; }
         uint32_t partition_upper_bound() const {
             return m_docid_lower_bound + m_curr_partition_it.num_colors();
         }
@@ -242,6 +246,8 @@ struct meta_differential {
         uint32_t num_colors() const { return m_ptr->num_colors(); }
         uint32_t num_partitions() const { return m_ptr->num_partitions(); }
         uint64_t meta_color_list_size() const { return m_meta_color_list_size; }
+
+        differential::iterator_type partition_it() const { return m_curr_partition_it;}
 
     private:
         meta_differential const* m_ptr;

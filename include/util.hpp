@@ -13,7 +13,9 @@
 
 namespace fulgor {
 
+enum class index_t { HYBRID, DIFF, META, META_DIFF};
 enum list_type { delta_gaps, bitmap, complement_delta_gaps, differential_list };
+
 
 namespace constants {
 constexpr double invalid_threshold = -1.0;

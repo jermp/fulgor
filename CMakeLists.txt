@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.5...4.0)
 project(FULGOR)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -7,7 +7,6 @@ if (NOT CMAKE_BUILD_TYPE)
 endif ()
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
   set(OpenMP_C_FLAGS "-Xpreprocessor -fopenmp")
   set(OpenMP_C_LIB_NAMES "omp")
   set(OpenMP_omp_LIBRARY omp)

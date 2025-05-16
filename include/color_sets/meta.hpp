@@ -145,9 +145,7 @@ struct meta {
             }
             return n;
         }
-        uint32_t partial_set_size() const {
-            return m_curr_partition_it.size();
-        }
+        uint32_t partial_set_size() const { return m_curr_partition_it.size(); }
 
         uint32_t meta_color() const { return m_curr_meta_color; }
 
@@ -311,7 +309,7 @@ struct meta {
                   << ((essentials::vec_bytes(m_partition_endpoints) * 8) * 100.0) / num_bits()
                   << "%)\n";
         std::cout << "  partition endpoints: ";
-        for(auto p: m_partition_endpoints) cout << p.docid_lower_bound << " ";
+        for (auto p : m_partition_endpoints) cout << p.docid_lower_bound << " ";
         std::cout << std::endl;
     }
 

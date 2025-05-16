@@ -198,9 +198,6 @@ int do_map(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::Rea
     return 0;
 }
 
-extern atomic_uint64_t mc_i, mc_t; // meta_colors_intersected, meta_colors_total
-extern atomic_uint64_t num_mc, num_c, num_c_in_partials; // num_meta_colors, num_colors
-
 template <typename FulgorIndex>
 int pseudoalign(std::string const& index_filename, std::string const& query_filename,
                 std::string const& output_filename, uint64_t num_threads, double threshold,
@@ -273,9 +270,6 @@ int pseudoalign(std::string const& index_filename, std::string const& query_file
 
     t.stop();
     if (!quiet) essentials::logger("DONE");
-
-    cout << mc_i << " / " << mc_t << endl;
-    cout << num_mc << " / " << num_c << " -- " << num_c_in_partials << endl;
 
     if (!quiet) {
         std::cout << "mapped " << num_reads << " reads" << std::endl;

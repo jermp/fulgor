@@ -6,14 +6,12 @@
 namespace fulgor {
 
 struct buffer {
-    buffer(uint64_t capacity) : m_capacity(capacity), m_size(0), m_num_sets(0){
+    buffer(uint64_t capacity) : m_capacity(capacity), m_size(0), m_num_sets(0) {
         m_buffer.resize(capacity);
     }
 
-    bool insert(uint32_t* data, uint32_t size){
-        if (m_size + size + 1 > m_capacity){
-            return false;
-        }
+    bool insert(uint32_t* data, uint32_t size) {
+        if (m_size + size + 1 > m_capacity) { return false; }
         memcpy(m_buffer.data() + m_size, &size, sizeof(uint32_t));
         memcpy(m_buffer.data() + m_size + 1, data, sizeof(uint32_t) * size);
 
@@ -23,17 +21,15 @@ struct buffer {
         return true;
     }
 
-    std::vector<uint32_t> content(){
-        return m_buffer;
-    }
+    std::vector<uint32_t> content() { return m_buffer; }
 
-    uint32_t size() {return m_size; }
-    uint64_t capacity() {return m_capacity; }
-    uint32_t num_sets() {return m_num_sets; }
+    uint32_t size() { return m_size; }
+    uint64_t capacity() { return m_capacity; }
+    uint32_t num_sets() { return m_num_sets; }
 
     uint32_t get(uint32_t i) { return m_buffer[i]; }
-    uint32_t operator[](uint32_t i) {return get(i); }
-    uint32_t* data() {return m_buffer.data(); }
+    uint32_t operator[](uint32_t i) { return get(i); }
+    uint32_t* data() { return m_buffer.data(); }
 
     void clear() {
         m_size = 0;
@@ -79,7 +75,7 @@ struct index<ColorSets>::builder {
             uint64_t num_distinct_colors = 0;
 
             uint64_t num_threads = m_build_config.num_threads;
-            uint64_t MAX_BUFFER_SIZE = 1 << 28; // 250e6 uint32_t
+            uint64_t MAX_BUFFER_SIZE = 1 << 28;  // 250e6 uint32_t
 
             pthash::bit_vector_builder u2c_builder;
 
@@ -88,51 +84,54 @@ struct index<ColorSets>::builder {
             if (!out.is_open()) throw std::runtime_error("cannot open output file");
 
             typename ColorSets::builder main_builder(m_build_config.num_colors);
-            std::vector<typename ColorSets::builder> thread_builders(num_threads, m_build_config.num_colors);
+            std::vector<typename ColorSets::builder> thread_builders(num_threads,
+                                                                     m_build_config.num_colors);
             std::vector<std::thread> threads(num_threads);
-            std::vector<buffer> thread_buffers(num_threads, min(m_build_config.num_colors*10000, MAX_BUFFER_SIZE));
+            std::vector<buffer> thread_buffers(
+                num_threads, min(m_build_config.num_colors * 10000, MAX_BUFFER_SIZE));
             assert(thread_buffers[0].capacity() > m_build_config.num_colors);
             uint32_t curr_thread = 0;
             std::atomic<uint32_t> appending_thread = 0;
 
-            auto process_and_append = [&](uint64_t thread_id){
+            auto process_and_append = [&](uint64_t thread_id) {
                 buffer b = thread_buffers[thread_id];
                 thread_builders[thread_id].clear();
                 uint32_t pos = 0;
-                for(uint32_t i = 0; i < b.num_sets(); i++){
+                for (uint32_t i = 0; i < b.num_sets(); i++) {
                     uint32_t size = b[pos++];
                     thread_builders[thread_id].process(b.data() + pos, size);
                     pos += size;
                 }
-                while (appending_thread != thread_id){}
+                while (appending_thread != thread_id) {}
                 main_builder.append(thread_builders[thread_id]);
                 appending_thread = (appending_thread + 1) % num_threads;
             };
 
-            m_ccdbg.loop_through_unitigs([&](ggcat::Slice<char> const unitig,
-                                             ggcat::Slice<uint32_t> const colors, bool same_color) {
-                assert(curr_thread >= 0);
-                assert(curr_thread < num_threads);
-                try {
-                    if (!same_color) {
-                        num_distinct_colors += 1;
-                        if (num_unitigs > 0) u2c_builder.set(num_unitigs - 1, 1);
+            m_ccdbg.loop_through_unitigs(
+                [&](ggcat::Slice<char> const unitig, ggcat::Slice<uint32_t> const colors,
+                    bool same_color) {
+                    assert(curr_thread >= 0);
+                    assert(curr_thread < num_threads);
+                    try {
+                        if (!same_color) {
+                            num_distinct_colors += 1;
+                            if (num_unitigs > 0) u2c_builder.set(num_unitigs - 1, 1);
 
-                        /* fill buffers */
-                        if (!thread_buffers[curr_thread].insert(colors.data, colors.size)){
-                            threads[curr_thread] = std::thread(process_and_append, curr_thread);
-                            const uint32_t next_thread = (curr_thread + 1) % num_threads;
-                            if (threads[next_thread].joinable()){
-                                threads[next_thread].join();
+                            /* fill buffers */
+                            if (!thread_buffers[curr_thread].insert(colors.data, colors.size)) {
+                                threads[curr_thread] = std::thread(process_and_append, curr_thread);
+                                const uint32_t next_thread = (curr_thread + 1) % num_threads;
+                                if (threads[next_thread].joinable()) {
+                                    threads[next_thread].join();
+                                }
+
+                                curr_thread = next_thread;
+
+                                thread_buffers[curr_thread].clear();
+                                thread_buffers[curr_thread].insert(colors.data, colors.size);
                             }
-
-                            curr_thread = next_thread;
-
-                            thread_buffers[curr_thread].clear();
-                            thread_buffers[curr_thread].insert(colors.data, colors.size);
                         }
-                    }
-                    u2c_builder.push_back(0);
+                        u2c_builder.push_back(0);
 
                         /*
                             Rewrite unitigs in color-set order.
@@ -154,7 +153,7 @@ struct index<ColorSets>::builder {
             );
 
             threads[curr_thread] = std::thread(process_and_append, curr_thread);
-            for(auto& t : threads){
+            for (auto& t : threads) {
                 if (t.joinable()) t.join();
             }
 

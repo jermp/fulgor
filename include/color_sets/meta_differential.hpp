@@ -233,9 +233,7 @@ struct meta_differential {
             return size;
         }
 
-        uint32_t partial_set_size() const {
-            return m_curr_partition_it.size();
-        }
+        uint32_t partial_set_size() const { return m_curr_partition_it.size(); }
 
         uint32_t partition_id() const { return m_curr_partition_id; }
         uint32_t partition_lower_bound() const { return m_docid_lower_bound; }
@@ -247,7 +245,7 @@ struct meta_differential {
         uint32_t num_partitions() const { return m_ptr->num_partitions(); }
         uint64_t meta_color_list_size() const { return m_meta_color_list_size; }
 
-        differential::iterator_type partition_it() const { return m_curr_partition_it;}
+        differential::iterator_type partition_it() const { return m_curr_partition_it; }
 
     private:
         meta_differential const* m_ptr;

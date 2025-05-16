@@ -6,7 +6,7 @@ struct hybrid {
     static const index_t type = index_t::HYBRID;
 
     struct builder {
-        builder(): m_num_lists(0) {}
+        builder() : m_num_lists(0) {}
         builder(uint64_t num_colors) { init(num_colors); }
 
         void init(uint64_t num_colors) {
@@ -93,16 +93,14 @@ struct hybrid {
         }
 
         void append(hybrid::builder& hb) {
-            if (hb.m_num_lists == 0){
-                return;
-            }
+            if (hb.m_num_lists == 0) { return; }
 
             m_bvb.append(hb.m_bvb);
             assert(m_offsets.size() > 0);
             uint64_t delta = m_offsets.back();
 
             m_offsets.reserve(m_offsets.size() + hb.m_offsets.size());
-            for(uint32_t offset_id = 1; offset_id < hb.m_offsets.size(); offset_id++){
+            for (uint32_t offset_id = 1; offset_id < hb.m_offsets.size(); offset_id++) {
                 m_offsets.push_back(hb.m_offsets[offset_id] + delta);
             }
             m_num_lists += hb.m_num_lists;
@@ -134,8 +132,8 @@ struct hybrid {
                       << " bits/int" << std::endl;
         }
 
-        void clear(){
-            m_offsets.clear(); // constant since uint64_t is trivially destructible
+        void clear() {
+            m_offsets.clear();  // constant since uint64_t is trivially destructible
             m_bvb.clear();
             init(m_num_colors);
         }

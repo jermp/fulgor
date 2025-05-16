@@ -1,21 +1,15 @@
 #include "include/index.hpp"
 #include "external/sshash/include/query/streaming_query_canonical_parsing.hpp"
 
-atomic_uint64_t mc_i = 0;
-atomic_uint64_t mc_t = 0;
-atomic_uint64_t num_mc = 0;
-atomic_uint64_t num_c = 0;
-atomic_uint64_t num_c_in_partials = 0;
-
 namespace fulgor {
 
 template <typename Iterator>
-void next_geq_intersect(const Iterator& begin, const Iterator& end, std::vector<uint32_t>& colors,
-                        uint32_t num_colors) {
+void next_geq_intersect(Iterator const& begin, Iterator const& end,                //
+                        std::vector<uint32_t>& colors, const uint32_t num_colors)  //
+{
     uint32_t candidate = begin->value();
     uint64_t i = 1;
-    uint64_t size = end - begin;
-    
+    const uint64_t size = end - begin;
     while (candidate < num_colors) {
         for (; i != size; ++i) {
             (begin + i)->next_geq(candidate);
@@ -36,8 +30,10 @@ void next_geq_intersect(const Iterator& begin, const Iterator& end, std::vector<
 }
 
 template <typename Iterator>
-void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
-               std::vector<uint32_t>& complement_set) {
+void intersect(std::vector<Iterator>& iterators,       //
+               std::vector<uint32_t>& colors,          //
+               std::vector<uint32_t>& complement_set)  //
+{
     assert(colors.empty());
     assert(complement_set.empty());
 
@@ -47,12 +43,10 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
 
     const uint32_t num_colors = iterators[0].num_colors();
     uint32_t num_sparse = 0;
-    while (num_sparse != iterators.size() && iterators[num_sparse].type() != list_type::complement_delta_gaps) {
+    while (num_sparse != iterators.size() &&
+           iterators[num_sparse].type() != list_type::complement_delta_gaps) {
         ++num_sparse;
     }
-
-    // cout << iterators.size() - num_sparse << " " << flush;
-
 
     if (num_sparse == 0) {
         /* step 1: take the union of complementary sets */
@@ -97,9 +91,9 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
     }
 
     std::vector<bool> complement_union(num_colors, true);
-    for(uint32_t i = num_sparse; i < iterators.size(); ++i){
+    for (uint32_t i = num_sparse; i < iterators.size(); ++i) {
         auto it = iterators[i];
-        while (it.comp_value() < num_colors){
+        while (it.comp_value() < num_colors) {
             complement_union[it.comp_value()] = false;
             it.next_comp();
         }
@@ -110,7 +104,7 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
     uint32_t candidate = iterators[0].value();
     uint64_t i = 1;
     uint64_t size = num_sparse;
-    
+
     while (candidate < num_colors) {
         /*
         if (!complement_union[candidate]){
@@ -130,9 +124,7 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
             }
         }
         if (i == size) {
-            if (complement_union[candidate]){
-                colors.push_back(candidate);
-            }
+            if (complement_union[candidate]) { colors.push_back(candidate); }
             iterators[0].next();
             candidate = iterators[0].value();
             i = 1;
@@ -141,12 +133,12 @@ void intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
 }
 
 template <typename Iterator>
-void diff_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors, uint32_t lower_bound = 0) {
-    // assert(colors.empty()); // not empty if meta-diff query
-
+void diff_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
+                    uint32_t lower_bound = 0)  //
+{
     if (iterators.empty()) return;
     const uint32_t num_colors = iterators[0].num_colors();
-    
+
     std::sort(iterators.begin(), iterators.end(), [](const Iterator& a, const Iterator& b) {
         return a.representative_begin() < b.representative_begin();
     });
@@ -217,7 +209,7 @@ void diff_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
             }
         }
     }
-    
+
     std::sort(partitions.begin(), partitions.end(),
               [](auto const& x, auto const& y) { return x.size() < y.size(); });
 
@@ -261,12 +253,8 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
 
     if (iterators.empty()) return;
 
-    for(auto it : iterators){
-        // num_c += it.size();
-        while (it.partition_id() != it.num_partitions()) {
-            // num_mc++;
-            it.next_partition_id();
-        }
+    for (auto it : iterators) {
+        while (it.partition_id() != it.num_partitions()) it.next_partition_id();
         it.init();
         it.change_partition();
     }
@@ -310,7 +298,7 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
         front_it.next_geq_partition_id(partition_id);
         front_it.update_partition();
         uint32_t meta_color = front_it.meta_color();
-        
+
         for (uint32_t i = 1; i != iterators.size(); ++i) {
             auto& it = iterators[i];
             it.next_geq_partition_id(partition_id);
@@ -325,23 +313,19 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
                 front_it.next_in_partition();
             }
         } else {  // intersect partial colors in the partition
-            // mc_t += iterators.size();
-            std::sort(iterators.begin(), iterators.end(), [](const Iterator& a, const Iterator& b){
-                    return a.partial_set_size() < b.partial_set_size() ||
-                        (a.partial_set_size() == b.partial_set_size() && a.meta_color() < b.meta_color());
-                });
+            std::sort(iterators.begin(), iterators.end(), [](const Iterator& a, const Iterator& b) {
+                return a.partial_set_size() < b.partial_set_size() ||
+                       (a.partial_set_size() == b.partial_set_size() &&
+                        a.meta_color() < b.meta_color());
+            });
 
             uint64_t back_pos = 0;
-            // num_c_in_partials += iterators.front().partial_set_size();
-            for(uint64_t curr_pos = 1; curr_pos < iterators.size(); curr_pos++){
-                // num_c_in_partials += iterators[curr_pos].partial_set_size();
-                if (iterators[curr_pos].meta_color() != iterators[back_pos].meta_color()){
+            for (uint64_t curr_pos = 1; curr_pos < iterators.size(); curr_pos++) {
+                if (iterators[curr_pos].meta_color() != iterators[back_pos].meta_color()) {
                     std::swap(iterators[++back_pos], iterators[curr_pos]);
                 }
             }
             auto end_it = iterators.begin() + back_pos + 1;
-
-            // mc_i += end_it - iterators.begin();
 
             const uint32_t num_colors = iterators[0].partition_upper_bound();
             if constexpr (is_differential) {
@@ -349,7 +333,8 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
                 diff_iterators.reserve(end_it - iterators.begin());
                 std::transform(iterators.begin(), end_it, back_inserter(diff_iterators),
                                [](Iterator a) { return a.partition_it(); });
-                uint32_t lower_bound = iterators[0].partition_upper_bound() - diff_iterators[0].num_colors();
+                uint32_t lower_bound =
+                    iterators[0].partition_upper_bound() - diff_iterators[0].num_colors();
                 diff_intersect(diff_iterators, colors, lower_bound);
             } else {
                 next_geq_intersect(iterators.begin(), end_it, colors, num_colors);
@@ -420,7 +405,7 @@ void index<ColorSets>::intersect_unitigs(std::vector<uint64_t>& unitig_ids,
         meta_intersect<typename ColorSets::iterator_type, true>(iterators, colors, tmp);
     } else if constexpr (ColorSets::type == index_t::DIFF) {
         diff_intersect(iterators, colors);
-    } else if constexpr (ColorSets::type == index_t::HYBRID){
+    } else if constexpr (ColorSets::type == index_t::HYBRID) {
         intersect(iterators, colors, tmp);
     }
 

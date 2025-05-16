@@ -19,7 +19,6 @@ bool is_hybrid(std::string index_filename) {
     return sshash::util::ends_with(index_filename, constants::fulgor_filename_extension);
 }
 
-
 template <typename FulgorIndex>
 void print_stats(std::string const& index_filename) {
     FulgorIndex index;

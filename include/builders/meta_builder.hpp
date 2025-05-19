@@ -60,6 +60,7 @@ struct permuter {
             params.set_max_iteration(max_iteration);
             params.set_min_cluster_size(min_cluster_size);
             params.set_random_seed(seed);
+            params.set_num_threads(m_build_config.num_threads);
             auto clustering_data = kmeans::kmeans_divisive(points.begin(), points.end(), params);
 
             timer.stop();

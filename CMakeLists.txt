@@ -4,7 +4,7 @@ project(FULGOR)
 set(CMAKE_CXX_STANDARD 17)
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release")
-endif ()
+endif()
 
 MESSAGE(STATUS "CMAKE_BUILD_TYPE: " ${CMAKE_BUILD_TYPE})
 
@@ -21,8 +21,12 @@ endif()
 
 if (UNIX)
 
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+  if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+  endif()
+
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-missing-braces -Wno-unknown-attributes -Wno-unused-function")
 

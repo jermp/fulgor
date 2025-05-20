@@ -2,7 +2,6 @@
 #include <fstream>
 #include <sstream>
 
-#include "external/CLI11.hpp"
 #include "external/sshash/include/gz/zip_stream.hpp"
 #include "external/FQFeeder/include/FastxParser.hpp"
 #include "external/FQFeeder/src/FastxParser.cpp"
@@ -21,19 +20,19 @@ std::string to_string(pseudoalignment_algorithm algo, double threshold) {
             o = "full-intersection";
             break;
         case pseudoalignment_algorithm::THRESHOLD_UNION:
-            o = "threshold-intersection (t = " + std::to_string(threshold) + ")";
+            o = "threshold-union (t = " + std::to_string(threshold) + ")";
             break;
     }
     return o;
 }
 
 template <typename FulgorIndex>
-int do_map(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::ReadSeq>& rparser,
-           std::atomic<uint64_t>& num_reads, std::atomic<uint64_t>& num_mapped_reads,
-           pseudoalignment_algorithm algo, const double threshold, std::ofstream& out_file,
-           std::mutex& iomut, std::mutex& ofile_mut)  //
+int pseudoalign(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::ReadSeq>& rparser,
+                std::atomic<uint64_t>& num_reads, std::atomic<uint64_t>& num_mapped_reads,
+                pseudoalignment_algorithm algo, const double threshold, std::ofstream& out_file,
+                std::mutex& iomut, std::mutex& ofile_mut)  //
 {
-    std::vector<uint32_t> colors;  // result of pseudo-alignment
+    std::vector<uint32_t> colors;  // result of pseudoalignment
     std::stringstream ss;
     uint64_t buff_size = 0;
     constexpr uint64_t buff_thresh = 50;
@@ -57,7 +56,6 @@ int do_map(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::Rea
                 ss << record.name << '\t' << colors.size();
                 for (auto c : colors) { ss << "\t" << c; }
                 ss << '\n';
-                // write_output(colors, ss);
             } else {
                 ss << record.name << "\t0\n";
             }
@@ -95,19 +93,13 @@ int do_map(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::Rea
 template <typename FulgorIndex>
 int pseudoalign(std::string const& index_filename, std::string const& query_filename,
                 std::string const& output_filename, uint64_t num_threads, double threshold,
-                pseudoalignment_algorithm algo, const bool quiet) {
+                pseudoalignment_algorithm ps_alg, const bool verbose) {
     FulgorIndex index;
-    if (!quiet) essentials::logger("loading index from disk...");
+    if (verbose) essentials::logger("loading index from disk...");
     essentials::load(index, index_filename.c_str());
-    if (!quiet) essentials::logger("DONE");
+    if (verbose) essentials::logger("DONE");
 
-    // if not a skipping variant and no threshold set, then set the algorithm
-    if ((algo == pseudoalignment_algorithm::FULL_INTERSECTION) and
-        (threshold != constants::invalid_threshold)) {
-        algo = pseudoalignment_algorithm::THRESHOLD_UNION;
-    }
-
-    std::cerr << "query mode : " << to_string(algo, threshold) << "\n";
+    std::cerr << "query mode : " << to_string(ps_alg, threshold) << "\n";
 
     std::ifstream is(query_filename.c_str());
     if (!is.good()) {
@@ -115,7 +107,7 @@ int pseudoalign(std::string const& index_filename, std::string const& query_file
         return 1;
     }
 
-    if (!quiet) essentials::logger("performing queries from file '" + query_filename + "'...");
+    if (verbose) essentials::logger("performing queries from file '" + query_filename + "'...");
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> t;
     t.start();
 
@@ -123,12 +115,7 @@ int pseudoalign(std::string const& index_filename, std::string const& query_file
     std::atomic<uint64_t> num_reads{0};
 
     auto query_filenames = std::vector<std::string>({query_filename});
-    if (num_threads == 1) {
-        num_threads += 1;
-        std::cerr
-            << "1 thread was specified, but an additional thread will be allocated for parsing"
-            << std::endl;
-    }
+    assert(num_threads >= 2);
     fastx_parser::FastxParser<fastx_parser::ReadSeq> rparser(query_filenames, num_threads,
                                                              num_threads - 1);
 
@@ -145,10 +132,10 @@ int pseudoalign(std::string const& index_filename, std::string const& query_file
     }
 
     for (uint64_t i = 1; i != num_threads; ++i) {
-        workers.push_back(std::thread([&index, &rparser, &num_reads, &num_mapped_reads, algo,
+        workers.push_back(std::thread([&index, &rparser, &num_reads, &num_mapped_reads, ps_alg,
                                        threshold, &out_file, &iomut, &ofile_mut]() {
-            do_map(index, rparser, num_reads, num_mapped_reads, algo, threshold, out_file, iomut,
-                   ofile_mut);
+            pseudoalign(index, rparser, num_reads, num_mapped_reads, ps_alg, threshold, out_file,
+                        iomut, ofile_mut);
         }));
     }
 
@@ -156,9 +143,9 @@ int pseudoalign(std::string const& index_filename, std::string const& query_file
     rparser.stop();
 
     t.stop();
-    if (!quiet) essentials::logger("DONE");
+    if (verbose) essentials::logger("DONE");
 
-    if (!quiet) {
+    if (verbose) {
         std::cout << "mapped " << num_reads << " reads" << std::endl;
         std::cout << "elapsed = " << t.elapsed() << " millisec / ";
         std::cout << t.elapsed() / 1000 << " sec / ";
@@ -172,53 +159,72 @@ int pseudoalign(std::string const& index_filename, std::string const& query_file
 }
 
 int pseudoalign(int argc, char** argv) {
-    /* params */
-    std::string index_filename;
-    std::string query_filename;
-    std::string output_filename;
+    cmd_line_parser::parser parser(argc, argv);
+
+    parser.add("index_filename", "The Fulgor index filename.", "-i", true);
+    parser.add("query_filename", "Query filename in FASTA/FASTQ format (optionally gzipped).", "-q",
+               true);
+    parser.add("output_filename",
+               "File where output will be written. You can specify \"/dev/stdout\" to write "
+               "output to stdout. In this case, it is also recommended to use the --verbose flag "
+               "to avoid printing status messages to stdout.",
+               "-o", true);
+    parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
+    parser.add("verbose", "Verbose output during query (default is false).", "--verbose", false,
+               true);
+    parser.add("threshold",
+               "Threshold for threshold_union algorithm. It must be a float in (0.0,1.0].", "-r",
+               false);
+    if (!parser.parse()) return 1;
+
+    auto index_filename = parser.get<std::string>("index_filename");
+    auto query_filename = parser.get<std::string>("query_filename");
+    auto output_filename = parser.get<std::string>("output_filename");
+
     uint64_t num_threads = 1;
+    if (parser.parsed("num_threads")) num_threads = parser.get<uint64_t>("num_threads");
+    if (num_threads == 1) {
+        num_threads += 1;
+        std::cerr
+            << "1 thread was specified, but an additional thread will be allocated for parsing"
+            << std::endl;
+    }
+
     double threshold = constants::invalid_threshold;
-    pseudoalignment_algorithm algo = pseudoalignment_algorithm::FULL_INTERSECTION;
-    bool quiet = false;
+    if (parser.parsed("threshold")) threshold = parser.get<double>("threshold");
+    if (threshold == 0.0 or threshold > 1.0) {
+        std::cerr << "threshold must be a float in (0.0,1.0]" << std::endl;
+        return 1;
+    }
 
-    CLI::App app{"Perform (color-only) pseudoalignment to a Fulgor index."};
-    app.add_option("-i,--index", index_filename, "The Fulgor index filename.")
-        ->required()
-        ->check(CLI::ExistingFile);
-    app.add_option("-q,--query", query_filename,
-                   "Query filename in FASTA/FASTQ format (optionally gzipped).")
-        ->required();
-    app.add_option("-o,--output", output_filename,
-                   "File where output will be written. You can specify \"/dev/stdout\" to write "
-                   "output to stdout. In this case, it is also recommended to use the --quiet flag "
-                   "to avoid printing status messages to stdout.")
-        ->required();
-    app.add_option("-t,--threads", num_threads, "Number of threads.")->default_val(1);
-    app.add_option("--threshold", threshold, "Threshold for threshold_union algorithm.")
-        ->check(CLI::Range(0.0, 1.0));
-    app.add_flag("--quiet", quiet, "Quiet mode: do not print status messages to stdout.");
-    CLI11_PARSE(app, argc, argv);
+    auto ps_alg = pseudoalignment_algorithm::FULL_INTERSECTION;
+    if (threshold != constants::invalid_threshold) {
+        ps_alg = pseudoalignment_algorithm::THRESHOLD_UNION;
+    }
 
-    if (!quiet) util::print_cmd(argc, argv);
+    bool verbose = parser.get<bool>("verbose");
+
+    if (verbose) util::print_cmd(argc, argv);
 
     if (sshash::util::ends_with(index_filename,
                                 constants::meta_diff_colored_fulgor_filename_extension)) {
-        return pseudoalign<meta_differential_index_type>(
-            index_filename, query_filename, output_filename, num_threads, threshold, algo, quiet);
+        return pseudoalign<meta_differential_index_type>(index_filename, query_filename,
+                                                         output_filename, num_threads, threshold,
+                                                         ps_alg, verbose);
     } else if (sshash::util::ends_with(index_filename,
                                        constants::meta_colored_fulgor_filename_extension)) {
         return pseudoalign<meta_index_type>(index_filename, query_filename, output_filename,
-                                            num_threads, threshold, algo, quiet);
+                                            num_threads, threshold, ps_alg, verbose);
     } else if (sshash::util::ends_with(index_filename,
                                        constants::diff_colored_fulgor_filename_extension)) {
         return pseudoalign<differential_index_type>(index_filename, query_filename, output_filename,
-                                                    num_threads, threshold, algo, quiet);
+                                                    num_threads, threshold, ps_alg, verbose);
     } else if (sshash::util::ends_with(index_filename, constants::fulgor_filename_extension)) {
         return pseudoalign<index_type>(index_filename, query_filename, output_filename, num_threads,
-                                       threshold, algo, quiet);
+                                       threshold, ps_alg, verbose);
     }
 
-    std::cerr << "Wrong filename supplied." << std::endl;
+    std::cerr << "Wrong index filename supplied." << std::endl;
 
     return 1;
 }

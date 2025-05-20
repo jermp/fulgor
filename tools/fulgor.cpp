@@ -20,7 +20,7 @@ int help(char* arg0) {
 
     std::cout << "Tools:\n"
               << "  build              build a Fulgor index\n"
-              << "  pseudoalign        pseudoalign reads to references\n"
+              << "  pseudoalign        perform pseudoalignment to a Fulgor index\n"
               << "  stats              print index statistics\n"
               << "  print-filenames    print all reference filenames\n"
               << std::endl;

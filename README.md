@@ -130,7 +130,7 @@ Indexing an example Salmonella Enterica pangenome
 -------------------------------------------------
 
 In this example, we will build a Fulgor index, with k = 31, for the 4,546 Salmonella genomes that can be downloaded from [here](https://zenodo.org/record/1323684)
-with
+with (assuming you have `wget` installed)
 
 	wget https://zenodo.org/records/1323684/files/Salmonella_enterica.zip
 	unzip Salmonella_enterica.zip
@@ -149,14 +149,14 @@ which will create an index named `~/Salmonella_enterica/salmonella_4546.fur` of 
 
 We can now pseudoalign the reads from SRR801268, as follows.
 
-First, download the reads in `~/` with (assuming you have `wget` installed):
+First, download the reads in `~/` with
 
 	cd
 	wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR801/SRR801268/SRR801268_1.fastq.gz
 
-and then process them with:
+and then process them with
 
-	./fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.fur -q ~/SRR801268_1.fastq.gz -t 8 -o /dev/null
+	./fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.fur -q ~/SRR801268_1.fastq.gz -t 8 --verbose -o /dev/null
 
 	mapped 6584304 reads
 	elapsed = 130133 millisec / 130.133 sec / 2.16888 min / 19.7641 musec/read

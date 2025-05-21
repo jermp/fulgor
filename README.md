@@ -23,7 +23,7 @@ Please, cite these papers if you use Fulgor.
 * [Compiling the code](#compiling-the-code)
 * [Tools and usage](#tools-and-usage)
 * [Quick start](#quick-start)
-* [Indexing an example Salmonella pangenome](#indexing-an-example-salmonella-pangenome)
+* [Indexing an example Salmonella Enterica pangenome](#indexing-an-example-salmonella-enterica-pangenome)
 * [Pseudoalignment output format](#pseudoalignment-output-format)
 
 

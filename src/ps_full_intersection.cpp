@@ -321,7 +321,6 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
             }
             auto end_it = iterators.begin() + back_pos + 1;
 
-            const uint32_t num_colors = iterators[0].partition_upper_bound();
             if constexpr (is_differential) {
                 std::vector<differential::iterator_type> diff_iterators;
                 diff_iterators.reserve(end_it - iterators.begin());
@@ -331,6 +330,7 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
                     iterators[0].partition_upper_bound() - diff_iterators[0].num_colors();
                 diff_intersect(diff_iterators, colors, lower_bound);
             } else {
+                const uint32_t num_colors = iterators[0].partition_upper_bound();
                 next_geq_intersect(iterators.begin(), end_it, colors, num_colors);
             }
         }

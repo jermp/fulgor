@@ -126,15 +126,18 @@ Then, from `fulgor/build`, run
 to build an index that will be serialized to the file `test_data/salmonella_10.fur`.
 
 
-Indexing an example Salmonella pangenome
-----------------------------------------
+Indexing an example Salmonella Enterica pangenome
+-------------------------------------------------
 
-In this example, we will build a Fulgor index, with k = 31, for the 4,546 Salmonella genomes that can be downloaded from [here](https://zenodo.org/record/1323684).
+In this example, we will build a Fulgor index, with k = 31, for the 4,546 Salmonella genomes that can be downloaded from [here](https://zenodo.org/record/1323684)
+with
+
+	wget https://zenodo.org/records/1323684/files/Salmonella_enterica.zip
+	unzip Salmonella_enterica.zip
 
 We assume all commands are issue from within the home (`~/`) directory.
 
-After download,
-create a list of all `.fasta` filenames with
+After download, create a list of all `.fasta` filenames with
 
 	find $(pwd)/Salmonella_enterica/Genomes/*.fasta > salmonella_4546_filenames.txt
 

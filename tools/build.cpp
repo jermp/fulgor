@@ -48,16 +48,16 @@ void diff_color(build_configuration const& build_config) {
 
 void meta_diff_color(build_configuration const& build_config)  //
 {
-    { /* first build a meta-colored Fulgor index */
-        meta_color(build_config);
-    }
-
     build_configuration meta_diff_build_config = build_config;
     meta_diff_build_config.index_filename_to_partition =
         build_config.index_filename_to_partition.substr(
             0, build_config.index_filename_to_partition.length() -
                    constants::fulgor_filename_extension.length() - 1) +
         "." + constants::meta_colored_fulgor_filename_extension;
+
+    if(!std::filesystem::exists(meta_diff_build_config.index_filename_to_partition)){ /* first build a meta-colored Fulgor index */
+        meta_color(build_config);
+    }
 
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();

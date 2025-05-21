@@ -75,7 +75,7 @@ void intersect(std::vector<Iterator>& iterators,       //
 
         /* step 2: compute the intersection by scanning complement_set */
         candidate = 0;
-        for (unsigned int i : complement_set) {
+        for (uint32_t i : complement_set) {
             while (candidate < i) {
                 colors.push_back(candidate);
                 candidate += 1;
@@ -93,6 +93,7 @@ void intersect(std::vector<Iterator>& iterators,       //
     std::vector<bool> complement_union(num_colors, true);
     for (uint32_t i = num_sparse; i < iterators.size(); ++i) {
         auto it = iterators[i];
+        it.reinit_for_complemented_set_iteration();
         while (it.comp_value() < num_colors) {
             complement_union[it.comp_value()] = false;
             it.next_comp();
@@ -101,19 +102,12 @@ void intersect(std::vector<Iterator>& iterators,       //
 
     /* traditional intersection code based on next_geq() and next() */
 
+    assert(iterators[0].type() != list_type::complement_delta_gaps);
     uint32_t candidate = iterators[0].value();
     uint64_t i = 1;
     uint64_t size = num_sparse;
 
     while (candidate < num_colors) {
-        /*
-        if (!complement_union[candidate]){
-            iterators[0].next_geq(candidate+1);
-            candidate = iterators[0].value();
-            i = 1;
-            continue;
-        }
-        */
         for (; i != size; ++i) {
             iterators[i].next_geq(candidate);
             uint32_t val = iterators[i].value();

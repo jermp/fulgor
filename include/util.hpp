@@ -125,31 +125,6 @@ bool check_intersection(std::vector<ForwardIterator>& iterators, std::vector<uin
     return true;
 }
 
-// /*
-//     Good reference for built-in functions:
-//     http://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html
-// */
-
-// /* position of the most significant bit (msb) */
-// static uint32_t msbll(uint64_t x) {
-//     assert(x > 0);                   // if x is 0, the result is undefined
-//     return 63 - __builtin_clzll(x);  // count leading zeros (clz)
-// }
-
-// /* position of the least significant bit (lsb) */
-// static uint64_t lsbll(uint64_t x) {
-//     assert(x > 0);              // if x is 0, the result is undefined
-//     return __builtin_ctzll(x);  // count trailing zeros (ctz)
-// }
-
-// inline uint8_t lsb(uint64_t x, unsigned long& ret) {
-//     if (x) {
-//         ret = (unsigned long)__builtin_ctzll(x);
-//         return true;
-//     }
-//     return false;
-// }
-
 __uint128_t hash128(char const* bytes, uint64_t num_bytes, const uint64_t seed = 1234567890) {
     auto ret = CityHash128WithSeed(bytes, num_bytes, {seed, seed});
     __uint128_t out = 0;

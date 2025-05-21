@@ -66,9 +66,8 @@ struct meta_differential {
             for (uint64_t i = 0; i < size; i++) {
                 uint64_t partition_id = partition_set[i];
                 uint64_t relative_id = relative_colors[i];
-
                 uint64_t partition_size = m_partition_endpoints[partition_id].num_lists;
-                m_relative_colors.append_bits(relative_id, msb(partition_size));
+                m_relative_colors.append_bits(relative_id, bits::util::msbll(partition_size) + 1);
             }
             m_relative_colors_offsets.push_back(m_relative_colors.num_bits());
         }
@@ -94,8 +93,6 @@ struct meta_differential {
         }
 
     private:
-        uint8_t msb(uint64_t n) { return 64 - __builtin_clzll(n); }
-
         std::vector<differential> m_partial_colors;
 
         bits::bit_vector::builder m_relative_colors;
@@ -194,7 +191,7 @@ struct meta_differential {
             }
             m_curr_partition_id += delta;
             uint8_t relative_color_size =
-                msb(m_ptr->m_partition_endpoints[m_curr_partition_id].num_lists);
+                bits::util::msbll(m_ptr->m_partition_endpoints[m_curr_partition_id].num_lists) + 1;
             m_curr_relative_color = m_relative_colors_it.take(relative_color_size);
         }
 
@@ -229,7 +226,7 @@ struct meta_differential {
                  partial_color_id++) {
                 partition_id += bits::util::read_delta(partition_set_it);
                 uint8_t relative_color_size =
-                    msb(m_ptr->m_partition_endpoints[partition_id].num_lists);
+                    bits::util::msbll(m_ptr->m_partition_endpoints[partition_id].num_lists) + 1;
                 uint64_t relative_color = rel_it.take(relative_color_size);
                 size += m_ptr->m_partial_colors[partition_id].color_set(relative_color).size();
             }
@@ -264,8 +261,6 @@ struct meta_differential {
         uint64_t m_num_lists_before;
 
         void update_curr_val() { m_curr_val = m_docid_lower_bound + *m_curr_partition_it; }
-
-        uint8_t msb(uint64_t n) const { return 64 - __builtin_clzll(n); }
     };
 
     typedef forward_iterator iterator_type;

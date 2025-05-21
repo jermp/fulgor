@@ -22,11 +22,9 @@ struct differential {
             bits::util::write_delta(m_bvb, size);
             m_num_total_integers += size + 1;  // size plus size number
             m_num_lists += 1;
-
             if (size > 0) {
                 uint32_t prev_val = representative[0];
                 bits::util::write_delta(m_bvb, prev_val);
-
                 for (uint64_t i = 1; i < size; ++i) {
                     uint32_t val = representative[i];
                     assert(val >= prev_val + 1);
@@ -84,7 +82,6 @@ struct differential {
             if (size > 0) {
                 uint32_t prev_val = differential_list[0];
                 bits::util::write_delta(m_bvb, prev_val);
-
                 for (uint64_t pos = 1; pos < size; ++pos) {
                     uint32_t val = differential_list[pos];
                     assert(val >= prev_val + 1);
@@ -99,22 +96,23 @@ struct differential {
 
         void build(differential& d) {
             d.m_num_colors = m_num_colors;
-            d.m_colors.swap(m_bvb.data());
+            m_bvb.build(d.m_color_sets);
             m_clusters.build(d.m_clusters);
             d.m_clusters_rank1_index.build(d.m_clusters);
-            d.m_representative_offsets.encode(m_representative_offsets.begin(),
-                                              m_representative_offsets.size(),
+            d.m_representative_offsets.encode(m_representative_offsets.begin(),  //
+                                              m_representative_offsets.size(),   //
                                               m_representative_offsets.back());
-            d.m_list_offsets.encode(m_list_offsets.begin(), m_list_offsets.size(),
+            d.m_list_offsets.encode(m_list_offsets.begin(),  //
+                                    m_list_offsets.size(),   //
                                     m_list_offsets.back());
 
-            std::cout << "processed " << m_num_lists << " lists\n";
+            std::cout << "processed " << m_num_lists << " color sets\n";
             std::cout << "m_num_total_integers " << m_num_total_integers << '\n';
 
-            std::cout << "  total bits for ints = " << d.m_colors.size() * 64 << '\n';
+            std::cout << "  total bits for ints = " << 8 * d.m_color_sets.num_bytes() << '\n';
             std::cout << "  total bits per offset = "
                       << 8 * (d.m_list_offsets.num_bytes() + d.m_representative_offsets.num_bytes())
-                      << " (lists: " << 8 * d.m_list_offsets.num_bytes()
+                      << " (differences: " << 8 * d.m_list_offsets.num_bytes()
                       << ", representatives: " << 8 * d.m_representative_offsets.num_bytes()
                       << ")\n";
             std::cout << "  offsets: "
@@ -123,9 +121,8 @@ struct differential {
                               d.m_representative_offsets.num_bytes()) /
                              m_num_total_integers
                       << " bits/int\n";
-            std::cout << "  lists: "
-                      << static_cast<double>(d.m_colors.size() * 64) / m_num_total_integers
-                      << " bits/int\n";
+            std::cout << "  color sets: "
+                      << (8.0 * d.m_color_sets.num_bytes()) / m_num_total_integers << " bits/int\n";
         }
 
     private:
@@ -228,10 +225,11 @@ struct differential {
         bits::bit_vector::iterator m_representative_it, m_differential_list_it;
 
         void init() {
-            m_differential_list_it = bits::bit_vector::iterator(
-                (m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_differential_list_begin);
-            m_representative_it = bits::bit_vector::iterator(
-                (m_ptr->m_colors).data(), (m_ptr->m_colors).size(), m_representative_begin);
+            m_differential_list_it =  //
+                (m_ptr->m_color_sets).get_iterator_at(m_differential_list_begin);
+            m_representative_it =  //
+                (m_ptr->m_color_sets).get_iterator_at(m_representative_begin);
+
             m_differential_list_size = bits::util::read_delta(m_differential_list_it);
             m_representative_size = bits::util::read_delta(m_representative_it);
             m_size = bits::util::read_delta(m_differential_list_it);
@@ -277,107 +275,12 @@ struct differential {
 
     uint64_t num_bits() const {
         return (sizeof(m_num_colors) + m_representative_offsets.num_bytes() +
-                m_list_offsets.num_bytes() + essentials::vec_bytes(m_colors) +
-                m_clusters.num_bytes() + m_clusters_rank1_index.num_bytes()) *
+                m_list_offsets.num_bytes() + m_color_sets.num_bytes() + m_clusters.num_bytes() +
+                m_clusters_rank1_index.num_bytes()) *
                8;
     }
 
-    void print_stats() const {
-        std::cout << "Color statistics:\n";
-        std::cout << "  Number of partitions: " << num_partitions() << std::endl;
-
-        uint64_t num_bits_representative_offsets = m_representative_offsets.num_bytes() * 8;
-        uint64_t num_bits_list_offsets = m_list_offsets.num_bytes() * 8;
-        uint64_t num_bits_colors = essentials::vec_bytes(m_colors) * 8;
-
-        const uint64_t num_clusters = m_clusters.num_bits();
-        uint64_t num_representatives = 0;
-        uint64_t num_differential_lists = 0;
-        uint64_t num_metadata = 0;
-
-        uint64_t size_representatives = 0;
-        uint64_t size_differentials = 0;
-
-        uint64_t num_colors_tenth = num_colors() / 10;
-
-        std::vector<uint64_t> distribution(11, 0);
-
-        for (uint64_t representative_id = 0; representative_id < num_partitions();
-             representative_id++) {
-            uint64_t representative_begin = m_representative_offsets.access(representative_id);
-            auto it =
-                bits::bit_vector::iterator(m_colors.data(), m_colors.size(), representative_begin);
-            uint64_t prev_position = it.position();
-
-            uint64_t size = bits::util::read_delta(it);
-            size_representatives += size;
-            num_metadata += it.position() - prev_position;
-            prev_position = it.position();
-
-            for (uint64_t i = 0; i < size; i++) {
-                bits::util::read_delta(it);
-                num_representatives += it.position() - prev_position;
-                prev_position = it.position();
-            }
-        }
-        uint64_t last_representative = m_representative_offsets.access(num_partitions());
-        for (uint64_t color_id = 0; color_id < num_color_sets(); color_id++) {
-            uint64_t list_begin = m_list_offsets.access(color_id) + last_representative;
-            auto it = bits::bit_vector::iterator(m_colors.data(), m_colors.size(), list_begin);
-            uint64_t prev_position = it.position();
-
-            uint64_t size = bits::util::read_delta(it);
-            size_differentials += size;
-            num_metadata += it.position() - prev_position;
-            prev_position = it.position();
-
-            bits::util::read_delta(it);  // original list size
-            num_metadata += it.position() - prev_position;
-            prev_position = it.position();
-
-            for (uint64_t i = 0; i < size; i++) {
-                bits::util::read_delta(it);
-                uint64_t delta_size = it.position() - prev_position;
-                num_differential_lists += delta_size;
-
-                prev_position = it.position();
-            }
-            uint64_t q = 0;
-            if (num_colors_tenth != 0) {
-                q = size / (num_colors_tenth) > 10 ? 10 : size / (num_colors_tenth);
-            }
-
-            distribution[q]++;
-        }
-
-        assert(num_bits() > 0);
-        assert(num_bits_colors > 0);
-
-        std::cout << "  representative offsets: " << num_bits_representative_offsets / 8
-                  << " bytes (" << (num_bits_representative_offsets * 100.0) / num_bits() << "%)"
-                  << std::endl;
-        std::cout << "  average representative set size: "
-                  << size_representatives * 1. / num_partitions() << " ints" << std::endl;
-        std::cout << "  average differential set size: "
-                  << size_differentials * 1. / num_color_sets() << " ints" << std::endl;
-        std::cout << "  differential list offsets: " << num_bits_list_offsets / 8 << " bytes ("
-                  << (num_bits_list_offsets * 100.0) / num_bits() << "%)" << std::endl;
-        std::cout << "  clusters: " << num_clusters / 8 << " bytes ("
-                  << (num_clusters * 100.0) / num_bits() << "%)" << std::endl;
-        std::cout << "  differential colors: " << num_bits_colors / 8 << " bytes ("
-                  << (num_bits_colors * 100.0) / num_bits() << "%)" << std::endl;
-        std::cout << "    representatives: " << num_representatives / 8 << " bytes ("
-                  << (num_representatives * 100.0) / num_bits_colors << "%)" << std::endl;
-        std::cout << "    differential lists: " << num_differential_lists / 8 << " bytes ("
-                  << (num_differential_lists * 100.0) / num_bits_colors << "%)" << std::endl;
-        std::cout << "    metadata: " << num_metadata / 8 << " bytes ("
-                  << (num_metadata * 100.0) / num_bits_colors << "%)" << std::endl;
-        std::cout << "  differential lists size distribution:" << std::endl;
-        for (uint64_t partition = 0; partition < 11; partition++) {
-            std::cout << distribution[partition] << " ";
-        }
-        std::cout << std::endl;
-    }
+    void print_stats() const;
 
     template <typename Visitor>
     void visit(Visitor& visitor) {
@@ -395,25 +298,21 @@ private:
         visitor.visit(t.m_num_colors);
         visitor.visit(t.m_representative_offsets);
         visitor.visit(t.m_list_offsets);
-        visitor.visit(t.m_colors);
+        visitor.visit(t.m_color_sets);
         visitor.visit(t.m_clusters);
         visitor.visit(t.m_clusters_rank1_index);
     }
 
     uint32_t m_num_colors;
-
     bits::elias_fano<false, false> m_representative_offsets, m_list_offsets;
-
-    std::vector<uint64_t> m_colors;
+    bits::bit_vector m_color_sets;
     bits::bit_vector m_clusters;
     bits::rank9 m_clusters_rank1_index;
 
     std::vector<uint64_t> read_representative_set(uint64_t begin) const {
-        bits::bit_vector::iterator it(m_colors.data(), m_colors.size(), begin);
+        auto it = m_color_sets.get_iterator_at(begin);
         uint64_t size = bits::util::read_delta(it);
-
         if (size == 0) return {};
-
         std::vector<uint64_t> set(size);
         set[0] = bits::util::read_delta(it);
         for (uint64_t i = 1; i != size; ++i) {
@@ -423,12 +322,10 @@ private:
     }
 
     std::vector<uint64_t> read_differential_set(uint64_t begin) const {
-        bits::bit_vector::iterator it(m_colors.data(), m_colors.size(), begin);
+        auto it = m_color_sets.get_iterator_at(begin);
         uint64_t size = bits::util::read_delta(it);
         bits::util::read_delta(it);  // skip color_set size
-
         if (size == 0) return {};
-
         std::vector<uint64_t> set(size);
         set[0] = bits::util::read_delta(it);
         for (uint64_t i = 1; i != size; ++i) {

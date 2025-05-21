@@ -93,14 +93,14 @@ struct hybrid {
         }
 
         void append(hybrid::builder& hb) {
-            if (hb.m_num_lists == 0) { return; }
+            if (hb.m_num_lists == 0) return;
 
             m_bvb.append(hb.m_bvb);
             assert(m_offsets.size() > 0);
             uint64_t delta = m_offsets.back();
 
             m_offsets.reserve(m_offsets.size() + hb.m_offsets.size());
-            for (uint32_t offset_id = 1; offset_id < hb.m_offsets.size(); offset_id++) {
+            for (uint64_t offset_id = 1; offset_id < hb.m_offsets.size(); offset_id++) {
                 m_offsets.push_back(hb.m_offsets[offset_id] + delta);
             }
             m_num_lists += hb.m_num_lists;
@@ -113,21 +113,22 @@ struct hybrid {
             h.m_sparse_set_threshold_size = m_sparse_set_threshold_size;
             h.m_very_dense_set_threshold_size = m_very_dense_set_threshold_size;
 
-            std::cout << "processed " << m_num_lists << " lists" << std::endl;
+            std::cout << "processed " << m_num_lists << " color sets" << std::endl;
             std::cout << "m_num_total_integers " << m_num_total_integers << std::endl;
             assert(m_num_lists == m_offsets.size() - 1);
 
             h.m_offsets.encode(m_offsets.begin(), m_offsets.size(), m_offsets.back());
-            h.m_colors.swap(m_bvb.data());
+            m_bvb.build(h.m_color_sets);
 
-            std::cout << "  total bits for ints = " << h.m_colors.size() * 64 << std::endl;
+            std::cout << "  total bits for ints = " << 8 * h.m_color_sets.num_bytes() << std::endl;
             std::cout << "  total bits per offsets = " << 8 * h.m_offsets.num_bytes() << std::endl;
-            std::cout << "  total bits = " << 8 * h.m_offsets.num_bytes() + h.m_colors.size() * 64
-                      << std::endl;
+            std::cout << "  total bits = "
+                      << 8 * (h.m_color_sets.num_bytes() + h.m_offsets.num_bytes()) << std::endl;
             std::cout << "  offsets: " << (8.0 * h.m_offsets.num_bytes()) / m_num_total_integers
                       << " bits/int" << std::endl;
-            std::cout << "  lists: " << (64.0 * h.m_colors.size()) / m_num_total_integers
-                      << " bits/int" << std::endl;
+            std::cout << "  color sets: "
+                      << (8.0 * h.m_color_sets.num_bytes()) / m_num_total_integers << " bits/int"
+                      << std::endl;
         }
 
         void clear() {
@@ -153,7 +154,7 @@ struct hybrid {
         forward_iterator(hybrid const* ptr, uint64_t begin)
             : m_ptr(ptr)
             , m_bitmap_begin(begin)
-            , m_colors_begin(begin)
+            , m_color_sets_begin(begin)
             , m_num_colors(ptr->m_num_colors) {
             rewind();
         }
@@ -165,8 +166,7 @@ struct hybrid {
             m_comp_val = -1;
             m_prev_val = -1;
             m_curr_val = 0;
-            m_it = bits::bit_vector::iterator((m_ptr->m_colors).data(), (m_ptr->m_colors).size(),
-                                              m_colors_begin);
+            m_it = (m_ptr->m_color_sets).get_iterator_at(m_color_sets_begin);
             m_size = bits::util::read_delta(m_it);
             /* set m_type and read the first value */
             if (m_size < m_ptr->m_sparse_set_threshold_size) {
@@ -194,8 +194,7 @@ struct hybrid {
             m_pos_in_comp_list = 0;
             m_prev_val = -1;
             m_curr_val = 0;
-            m_it = bits::bit_vector::iterator((m_ptr->m_colors).data(), (m_ptr->m_colors).size(),
-                                              m_colors_begin);
+            m_it = (m_ptr->m_color_sets).get_iterator_at(m_color_sets_begin);
             bits::util::read_delta(m_it); /* skip m_size */
             if (m_comp_list_size > 0) {
                 m_comp_val = bits::util::read_delta(m_it);
@@ -270,7 +269,7 @@ struct hybrid {
     private:
         hybrid const* m_ptr;
         uint64_t m_bitmap_begin;
-        uint64_t m_colors_begin;
+        uint64_t m_color_sets_begin;
         uint32_t m_num_colors;
         int m_type;
 
@@ -319,84 +318,11 @@ struct hybrid {
     uint64_t num_bits() const {
         return (sizeof(m_num_colors) + sizeof(m_sparse_set_threshold_size) +
                 sizeof(m_very_dense_set_threshold_size) + m_offsets.num_bytes() +
-                essentials::vec_bytes(m_colors)) *
+                m_color_sets.num_bytes()) *
                8;
     }
 
-    void print_stats() const {
-        uint64_t num_buckets = 10;
-        assert(num_buckets > 0);
-        uint64_t bucket_size = m_num_colors / num_buckets;
-        std::vector<uint32_t> list_size_upperbounds;
-        for (uint64_t i = 0, curr_list_size_upper_bound = bucket_size; i != num_buckets;
-             ++i, curr_list_size_upper_bound += bucket_size) {
-            if (i == num_buckets - 1) curr_list_size_upper_bound = m_num_colors;
-            list_size_upperbounds.push_back(curr_list_size_upper_bound);
-        }
-
-        std::vector<uint64_t> num_bits_per_bucket;
-        std::vector<uint64_t> num_lists_per_bucket;
-        std::vector<uint64_t> num_ints_per_bucket;
-        num_bits_per_bucket.resize(num_buckets, 0);
-        num_lists_per_bucket.resize(num_buckets, 0);
-        num_ints_per_bucket.resize(num_buckets, 0);
-
-        const uint64_t num_lists = num_color_sets();
-        uint64_t num_total_integers = 0;
-        for (uint64_t color_set_id = 0; color_set_id != m_offsets.size() - 1; ++color_set_id) {
-            uint64_t offset = m_offsets.access(color_set_id);
-            bits::bit_vector::iterator it(m_colors.data(), m_colors.size(), offset);
-            uint32_t list_size = bits::util::read_delta(it);
-            uint64_t num_bits = m_offsets.access(color_set_id + 1) - offset;
-            auto bucket_it = std::upper_bound(list_size_upperbounds.begin(),
-                                              list_size_upperbounds.end(), list_size);
-            if (bucket_it != list_size_upperbounds.begin() and *(bucket_it - 1) == list_size) {
-                --bucket_it;
-            }
-            uint64_t bucket_index = std::distance(list_size_upperbounds.begin(), bucket_it);
-            num_bits_per_bucket[bucket_index] += num_bits;
-            num_lists_per_bucket[bucket_index] += 1;
-            num_ints_per_bucket[bucket_index] += list_size;
-            num_total_integers += list_size;
-        }
-
-        std::cout << "CCs SPACE BREAKDOWN:\n";
-        uint64_t integers = 0;
-        uint64_t bits = 0;
-        const uint64_t total_bits = num_bits();
-        for (uint64_t i = 0, curr_list_size_upper_bound = 0; i != num_buckets; ++i) {
-            if (i == num_buckets - 1) {
-                curr_list_size_upper_bound = m_num_colors;
-            } else {
-                curr_list_size_upper_bound += bucket_size;
-            }
-            if (num_lists_per_bucket[i] > 0) {
-                uint64_t n = num_ints_per_bucket[i];
-                integers += n;
-                bits += num_bits_per_bucket[i];
-                std::cout << "num. lists of size > " << (curr_list_size_upper_bound - bucket_size)
-                          << " and <= " << curr_list_size_upper_bound << ": "
-                          << num_lists_per_bucket[i] << " ("
-                          << (num_lists_per_bucket[i] * 100.0) / num_lists
-                          << "%) -- integers: " << n << " (" << (n * 100.0) / num_total_integers
-                          << "%) -- bits/int: " << static_cast<double>(num_bits_per_bucket[i]) / n
-                          << " -- "
-                          << static_cast<double>(num_bits_per_bucket[i]) / total_bits * 100.0
-                          << "\% of total space" << '\n';
-            }
-        }
-        assert(integers == num_total_integers);
-        assert(std::accumulate(num_lists_per_bucket.begin(), num_lists_per_bucket.end(),
-                               uint64_t(0)) == num_lists);
-        std::cout << "  colors: " << static_cast<double>(bits) / integers << " bits/int"
-                  << std::endl;
-        std::cout << "  offsets: "
-                  << ((sizeof(m_num_colors) + sizeof(m_sparse_set_threshold_size) +
-                       sizeof(m_very_dense_set_threshold_size) + m_offsets.num_bytes()) *
-                      8.0) /
-                         integers
-                  << " bits/int" << std::endl;
-    }
+    void print_stats() const;
 
     template <typename Visitor>
     void visit(Visitor& visitor) {
@@ -415,14 +341,15 @@ private:
         visitor.visit(t.m_sparse_set_threshold_size);
         visitor.visit(t.m_very_dense_set_threshold_size);
         visitor.visit(t.m_offsets);
-        visitor.visit(t.m_colors);
+        visitor.visit(t.m_color_sets);
     }
 
     uint32_t m_num_colors;
     uint32_t m_sparse_set_threshold_size;
     uint32_t m_very_dense_set_threshold_size;
+
     bits::elias_fano<false, false> m_offsets;
-    std::vector<uint64_t> m_colors;
+    bits::bit_vector m_color_sets;
 };
 
 }  // namespace fulgor

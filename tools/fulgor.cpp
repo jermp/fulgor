@@ -8,6 +8,7 @@
 
 #include "include/index_types.hpp"
 #include "src/index.cpp"
+#include "src/color_sets.cpp"
 #include "external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
 
 #include "util.cpp"

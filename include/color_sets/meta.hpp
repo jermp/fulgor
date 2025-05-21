@@ -252,66 +252,7 @@ struct meta {
                    8;
     }
 
-    void print_stats() const {
-        std::cout << "Color statistics:\n";
-        std::cout << "  Number of partitions: " << num_partitions() << '\n';
-        uint64_t num_bits_colors = 0;
-
-        uint64_t num_partial_colors_very_dense = 0;
-        uint64_t num_partial_colors_dense = 0;
-        uint64_t num_partial_colors_sparse = 0;
-        uint64_t num_total_partial_colors = 0;
-
-        for (auto const& c : m_colors) {
-            // c.print_stats();
-
-            uint64_t n = c.num_color_sets();
-            num_total_partial_colors += n;
-            for (uint64_t i = 0; i != n; ++i) {
-                auto it = c.color_set(i);
-                if (it.type() == list_type::complement_delta_gaps) {
-                    ++num_partial_colors_very_dense;
-                } else if (it.type() == list_type::bitmap) {
-                    ++num_partial_colors_dense;
-                } else {
-                    assert(it.type() == list_type::delta_gaps);
-                    ++num_partial_colors_sparse;
-                }
-            }
-
-            num_bits_colors += c.num_bits();
-        }
-
-        assert(num_total_partial_colors > 0);
-        assert(num_bits() > 0);
-
-        std::cout << "  num_partial_colors_very_dense = " << num_partial_colors_very_dense << " / "
-                  << num_total_partial_colors << " ("
-                  << (num_partial_colors_very_dense * 100.0) / num_total_partial_colors << "%)"
-                  << std::endl;
-        std::cout << "  num_partial_colors_dense = " << num_partial_colors_dense << " / "
-                  << num_total_partial_colors << " ("
-                  << (num_partial_colors_dense * 100.0) / num_total_partial_colors << "%)"
-                  << std::endl;
-        std::cout << "  num_partial_colors_sparse = " << num_partial_colors_sparse << " / "
-                  << num_total_partial_colors << " ("
-                  << (num_partial_colors_sparse * 100.0) / num_total_partial_colors << "%)"
-                  << std::endl;
-
-        std::cout << "  partial colors: " << num_bits_colors / 8 << " bytes ("
-                  << (num_bits_colors * 100.0) / num_bits() << "%)\n";
-        std::cout << "  meta colors: "
-                  << m_meta_colors.num_bytes() + m_meta_colors_offsets.num_bytes() << " bytes ("
-                  << ((m_meta_colors.num_bytes() + m_meta_colors_offsets.num_bytes()) * 8 * 100.0) /
-                         num_bits()
-                  << "%)\n";
-        std::cout << "  other: " << essentials::vec_bytes(m_partition_endpoints) << " bytes ("
-                  << ((essentials::vec_bytes(m_partition_endpoints) * 8) * 100.0) / num_bits()
-                  << "%)\n";
-        std::cout << "  partition endpoints: ";
-        for (auto p : m_partition_endpoints) cout << p.docid_lower_bound << " ";
-        std::cout << std::endl;
-    }
+    void print_stats() const;
 
     template <typename Visitor>
     void visit(Visitor& visitor) {

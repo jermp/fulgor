@@ -1,8 +1,9 @@
 #pragma once
 
+#include "include/index.hpp"
+#include "include/build_util.hpp"
+
 #include <map>
-#include "../index.hpp"
-#include "../build_util.hpp"
 
 namespace fulgor {
 
@@ -154,11 +155,12 @@ struct index<ColorSets>::meta_differential_builder {
             std::ofstream out(permuted_unitigs_filename.c_str());
             if (!out.is_open()) throw std::runtime_error("cannot open output file");
 
-            pthash::darray1 d;  // for select_1 on index.u2c
-            d.build(meta_index.get_u2c());
+            auto const& u2c = meta_index.get_u2c();
+            bits::darray1 d;  // for select_1 on u2c
+            d.build(u2c);
 
-            const uint64_t num_unitigs = meta_index.get_u2c().size();
-            pthash::bit_vector_builder u2c_builder(num_unitigs + 1, 0);
+            const uint64_t num_unitigs = u2c.num_bits();
+            bits::bit_vector::builder u2c_builder(num_unitigs + 1, 0);
 
             auto const& dict = meta_index.get_k2u();
             const uint64_t k = dict.k();
@@ -168,17 +170,15 @@ struct index<ColorSets>::meta_differential_builder {
                 uint64_t old_color_id = permutation[new_color_id];
                 uint64_t old_unitig_id_end = num_unitigs;
                 if (old_color_id < num_color_sets - 1) {
-                    old_unitig_id_end = d.select(meta_index.get_u2c(), old_color_id) + 1;
+                    old_unitig_id_end = d.select(u2c, old_color_id) + 1;
                 }
                 uint64_t old_unitig_id_begin = 0;
-                if (old_color_id > 0) {
-                    old_unitig_id_begin = d.select(meta_index.get_u2c(), old_color_id - 1) + 1;
-                }
+                if (old_color_id > 0) old_unitig_id_begin = d.select(u2c, old_color_id - 1) + 1;
 
                 // num. unitigs that have the same color
                 pos += old_unitig_id_end - old_unitig_id_begin;
                 // cout << "[" << new_color_id << "] " << pos << "\n";
-                assert(pos - 1 < u2c_builder.size());
+                assert(pos - 1 < u2c_builder.num_bits());
 
                 u2c_builder.set(pos - 1, 1);
 
@@ -197,7 +197,8 @@ struct index<ColorSets>::meta_differential_builder {
 
             assert(pos == num_unitigs);
             out.close();
-            idx.m_u2c.build(&u2c_builder);
+            u2c_builder.build(idx.m_u2c);
+            idx.m_u2c_rank1_index.build(idx.m_u2c);
 
             /* build a new sshash::dictionary on the permuted unitigs */
             sshash::build_configuration sshash_config;

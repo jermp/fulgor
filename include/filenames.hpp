@@ -19,11 +19,6 @@ struct filenames {
         return {m_chars.data() + begin, end - begin};
     }
 
-    // uint32_t num_docs() const {
-    //     assert(m_offsets.size() > 0);
-    //     return m_offsets.size() - 1;
-    // }
-
     uint64_t num_bits() const {
         return essentials::vec_bytes(m_offsets) * 8 + essentials::vec_bytes(m_chars) * 8;
     }

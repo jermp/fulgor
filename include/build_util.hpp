@@ -2,7 +2,6 @@
 
 #include "external/sketch/include/sketch/hll.h"
 #include "external/kmeans/include/kmeans.hpp"
-#include "color_sets/meta.hpp"
 
 namespace fulgor {
 
@@ -16,9 +15,12 @@ void build_reference_sketches(index_type const& index,
     const uint64_t num_colors = index.num_colors();
     typename sketch::hll_t::HashType hasher;
     auto const& u2c = index.get_u2c();
+    auto const& u2c_rank1_index = index.get_u2c_rank1_index();
     auto const& ccs = index.get_color_sets();
     const uint64_t num_color_sets = ccs.num_color_sets();
-    const uint64_t num_ones = u2c.num_ones();
+    const uint64_t num_ones = u2c_rank1_index.num_ones();
+    assert(u2c.num_bits() > 0);
+    const uint64_t last_pos = u2c.num_bits() - 1;
     assert(num_color_sets == num_ones);
 
     if (num_ones < num_threads) {
@@ -40,9 +42,9 @@ void build_reference_sketches(index_type const& index,
     {
         uint64_t pop_count = 0;
         uint64_t prev_pos = 0;
-        pthash::bit_vector::unary_iterator unary_it(u2c);
+        auto unary_it = u2c.begin();
         for (uint64_t color_id = 0; color_id != num_color_sets; ++color_id) {
-            uint64_t curr_pos = pop_count != num_ones ? unary_it.next() : (u2c.size() - 1);
+            uint64_t curr_pos = pop_count != num_ones ? unary_it.next() : last_pos;
             uint64_t num_unitigs = curr_pos - prev_pos + 1;
             auto it = ccs.color_set(color_id);
             uint64_t size = it.size();
@@ -59,14 +61,14 @@ void build_reference_sketches(index_type const& index,
 
     {
         uint64_t prev_pos = 0;
-        pthash::bit_vector::unary_iterator unary_it(u2c);
+        auto unary_it = u2c.begin();
         slice s;
         s.begin = 0;
         s.color_id_begin = 0;
         uint64_t cur_load = 0;
 
         for (uint64_t color_id = 0; color_id != num_color_sets; ++color_id) {
-            uint64_t curr_pos = color_id != num_color_sets - 1 ? unary_it.next() : (u2c.size() - 1);
+            uint64_t curr_pos = color_id != num_color_sets - 1 ? unary_it.next() : last_pos;
 
             uint64_t num_unitigs = curr_pos - prev_pos + 1;
             auto it = ccs.color_set(color_id);
@@ -92,14 +94,14 @@ void build_reference_sketches(index_type const& index,
         auto s = thread_slices[thread_id];
         uint64_t prev_pos = s.begin;
         std::vector<uint64_t> hashes;
-        pthash::bit_vector::unary_iterator unary_it(u2c, s.begin);
+        auto unary_it = u2c.get_iterator_at(s.begin);
         for (uint64_t color_id = s.color_id_begin; color_id != s.color_id_end; ++color_id) {
-            uint64_t curr_pos = color_id != num_color_sets - 1 ? unary_it.next() : (u2c.size() - 1);
+            uint64_t curr_pos = color_id != num_color_sets - 1 ? unary_it.next() : last_pos;
             auto it = ccs.color_set(color_id);
             const uint64_t size = it.size();
             hashes.reserve(curr_pos - prev_pos + 1);
             for (uint64_t unitig_id = prev_pos; unitig_id <= curr_pos; ++unitig_id) {
-                assert(unitig_id < u2c.size());
+                assert(unitig_id < u2c.num_bits());
                 assert(index.u2c(unitig_id) == color_id);
                 hashes.push_back(hasher.hash(unitig_id));
             }

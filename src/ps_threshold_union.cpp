@@ -316,30 +316,6 @@ void merge_metadiff(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
     }
 }
 
-uint64_t stream_through_with_multiplicities(sshash::dictionary const& k2u,
-                                            std::string const& sequence,
-                                            std::vector<scored_id>& unitig_ids) {
-    sshash::streaming_query_canonical_parsing query(&k2u);
-    query.start();
-    const uint64_t num_kmers = sequence.length() - k2u.k() + 1;
-    uint64_t num_positive_kmers_in_sequence = 0;
-    for (uint64_t i = 0, prev_unitig_id = -1; i != num_kmers; ++i) {
-        char const* kmer = sequence.data() + i;
-        auto answer = query.lookup_advanced(kmer);
-        if (answer.kmer_id != sshash::constants::invalid_uint64) {  // kmer is positive
-            num_positive_kmers_in_sequence += 1;
-            if (answer.contig_id != prev_unitig_id) {
-                unitig_ids.push_back({answer.contig_id, 1});
-                prev_unitig_id = answer.contig_id;
-            } else {
-                assert(!unitig_ids.empty());
-                unitig_ids.back().score += 1;
-            }
-        }
-    }
-    return num_positive_kmers_in_sequence;
-}
-
 template <typename ColorSets>
 void index<ColorSets>::pseudoalign_threshold_union(std::string const& sequence,
                                                    std::vector<uint32_t>& colors,
@@ -348,8 +324,26 @@ void index<ColorSets>::pseudoalign_threshold_union(std::string const& sequence,
     colors.clear();
 
     std::vector<scored_id> unitig_ids;
-    uint64_t num_positive_kmers_in_sequence =
-        stream_through_with_multiplicities(m_k2u, sequence, unitig_ids);
+    uint64_t num_positive_kmers_in_sequence = 0;
+    { /* stream through with multiplicities */
+        sshash::streaming_query_canonical_parsing<kmer_type> query(&m_k2u);
+        query.start();
+        const uint64_t num_kmers = sequence.length() - m_k2u.k() + 1;
+        for (uint64_t i = 0, prev_unitig_id = -1; i != num_kmers; ++i) {
+            char const* kmer = sequence.data() + i;
+            auto answer = query.lookup_advanced(kmer);
+            if (answer.kmer_id != sshash::constants::invalid_uint64) {  // kmer is positive
+                num_positive_kmers_in_sequence += 1;
+                if (answer.contig_id != prev_unitig_id) {
+                    unitig_ids.push_back({answer.contig_id, 1});
+                    prev_unitig_id = answer.contig_id;
+                } else {
+                    assert(!unitig_ids.empty());
+                    unitig_ids.back().score += 1;
+                }
+            }
+        }
+    }
 
     /* num_positive_kmers_in_sequence must be equal to the sum of the scores  */
     assert(num_positive_kmers_in_sequence ==

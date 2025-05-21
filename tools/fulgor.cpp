@@ -1,8 +1,14 @@
 #include <iostream>
 #include <filesystem>
 
+#include "external/sshash/external/gz/zip_stream.cpp"
+#include "external/sshash/src/build.cpp"
+#include "external/sshash/src/dictionary.cpp"
+#include "external/sshash/src/info.cpp"
+
 #include "include/index_types.hpp"
 #include "src/index.cpp"
+#include "src/color_sets.cpp"
 #include "external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
 
 #include "util.cpp"

@@ -1,7 +1,8 @@
 #pragma once
 
-#include "../index.hpp"
-#include "../build_util.hpp"
+#include "include/index.hpp"
+#include "include/build_util.hpp"
+
 #include <shared_mutex>
 
 namespace fulgor {
@@ -350,9 +351,10 @@ struct index<ColorSets>::meta_builder {
         }
 
         {
-            essentials::logger("step 5. copy u2c and k2u");
+            essentials::logger("step 5. copy u2c + rank1_index and k2u");
             timer.start();
             idx.m_u2c = index.get_u2c();
+            idx.m_u2c_rank1_index = index.get_u2c_rank1_index();
             idx.m_k2u = index.get_k2u();
             timer.stop();
             std::cout << "** copying u2c and k2u took " << timer.elapsed() << " seconds / "
@@ -379,7 +381,9 @@ struct index<ColorSets>::meta_builder {
             uint8_t progress_bar_size = 20;
             uint8_t curr_progress = 0;
             std::string progress_bar(progress_bar_size, ' ');
-            for (uint64_t color_set_id = 0; color_set_id != num_color_sets; ++color_set_id) {
+            uint64_t color_set_id = 0;
+            for (; color_set_id != num_color_sets; ++color_set_id)  //
+            {
                 if (color_set_id >= 1.0 * curr_progress * num_color_sets / progress_bar_size) {
                     progress_bar[curr_progress++] = '#';
                 }
@@ -417,6 +421,8 @@ struct index<ColorSets>::meta_builder {
                     }
                 }
             }
+            std::cout << "\r Progress: [" << progress_bar << "] " << color_set_id << "/"
+                      << num_color_sets << std::endl;
             essentials::logger("DONE!");
         }
     }

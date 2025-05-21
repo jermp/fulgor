@@ -55,7 +55,8 @@ void meta_diff_color(build_configuration const& build_config)  //
                    constants::fulgor_filename_extension.length() - 1) +
         "." + constants::meta_colored_fulgor_filename_extension;
 
-    if(!std::filesystem::exists(meta_diff_build_config.index_filename_to_partition)){ /* first build a meta-colored Fulgor index */
+    if (!std::filesystem::exists(meta_diff_build_config.index_filename_to_partition)) {
+        /* first build a meta-colored Fulgor index */
         meta_color(build_config);
     }
 
@@ -87,8 +88,8 @@ int build(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("filenames_list", "Filenames list.", "-l", true);
     parser.add("file_base_name", "File basename.", "-o", true);
-    parser.add("k", "K-mer length (must be <= " + std::to_string(sshash::constants::max_k) + ").",
-               "-k", true);
+    parser.add("k", "K-mer length (must be <= " + std::to_string(kmer_type::max_k) + ").", "-k",
+               true);
     parser.add("m", "Minimizer length (must be < k).", "-m", true);
     parser.add(
         "tmp_dirname",

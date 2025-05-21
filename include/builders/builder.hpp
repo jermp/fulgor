@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../index.hpp"
-#include "../GGCAT.hpp"
+#include "include/index.hpp"
+#include "include/GGCAT.hpp"
 
 namespace fulgor {
 
@@ -77,7 +77,7 @@ struct index<ColorSets>::builder {
             uint64_t num_threads = m_build_config.num_threads;
             constexpr uint64_t MAX_BUFFER_SIZE = 1 << 28;  // 250e6 uint32_t
 
-            pthash::bit_vector_builder u2c_builder;
+            bits::bit_vector::builder u2c_builder;
 
             /* write unitigs to fasta file for SSHash */
             std::ofstream out(input_filename_for_sshash.c_str());
@@ -161,13 +161,14 @@ struct index<ColorSets>::builder {
             std::cout << "num_distinct_colors " << num_distinct_colors << std::endl;
 
             u2c_builder.set(num_unitigs - 1, 1);
-            idx.m_u2c.build(&u2c_builder);
-            assert(idx.m_u2c.size() == num_unitigs);
-            assert(idx.m_u2c.num_ones() == num_distinct_colors);
+            u2c_builder.build(idx.m_u2c);
+            idx.m_u2c_rank1_index.build(idx.m_u2c);
+            assert(idx.m_u2c.num_bits() == num_unitigs);
+            assert(idx.m_u2c_rank1_index.num_ones() == num_distinct_colors);
 
-            std::cout << "m_u2c.size() " << idx.m_u2c.size() << std::endl;
-            std::cout << "m_u2c.num_ones() " << idx.m_u2c.num_ones() << std::endl;
-            std::cout << "m_u2c.num_zeros() " << idx.m_u2c.num_zeros() << std::endl;
+            std::cout << "m_u2c.num_bits() " << idx.m_u2c.num_bits() << std::endl;
+            std::cout << "m_u2c_rank1_index.num_ones() " << idx.m_u2c_rank1_index.num_ones()
+                      << std::endl;
 
             main_builder.build(idx.m_color_sets);
 

@@ -23,7 +23,7 @@ Please, cite these papers if you use Fulgor.
 * [Compiling the code](#compiling-the-code)
 * [Tools and usage](#tools-and-usage)
 * [Quick start](#quick-start)
-* [Indexing an example Salmonella pangenome](#indexing-an-example-salmonella-pangenome)
+* [Indexing an example Salmonella Enterica pangenome](#indexing-an-example-salmonella-enterica-pangenome)
 * [Pseudoalignment output format](#pseudoalignment-output-format)
 
 
@@ -126,15 +126,18 @@ Then, from `fulgor/build`, run
 to build an index that will be serialized to the file `test_data/salmonella_10.fur`.
 
 
-Indexing an example Salmonella pangenome
-----------------------------------------
+Indexing an example Salmonella Enterica pangenome
+-------------------------------------------------
 
-In this example, we will build a Fulgor index, with k = 31, for the 4,546 Salmonella genomes that can be downloaded from [here](https://zenodo.org/record/1323684).
+In this example, we will build a Fulgor index, with k = 31, for the 4,546 Salmonella genomes that can be downloaded from [here](https://zenodo.org/record/1323684)
+with (assuming you have `wget` installed)
+
+	wget https://zenodo.org/records/1323684/files/Salmonella_enterica.zip
+	unzip Salmonella_enterica.zip
 
 We assume all commands are issue from within the home (`~/`) directory.
 
-After download,
-create a list of all `.fasta` filenames with
+After download, create a list of all `.fasta` filenames with
 
 	find $(pwd)/Salmonella_enterica/Genomes/*.fasta > salmonella_4546_filenames.txt
 
@@ -146,14 +149,14 @@ which will create an index named `~/Salmonella_enterica/salmonella_4546.fur` of 
 
 We can now pseudoalign the reads from SRR801268, as follows.
 
-First, download the reads in `~/` with (assuming you have `wget` installed):
+First, download the reads in `~/` with
 
 	cd
 	wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR801/SRR801268/SRR801268_1.fastq.gz
 
-and then process them with:
+and then process them with
 
-	./fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.fur -q ~/SRR801268_1.fastq.gz -t 8 -o /dev/null
+	./fulgor pseudoalign -i ~/Salmonella_enterica/salmonella_4546.fur -q ~/SRR801268_1.fastq.gz -t 8 --verbose -o /dev/null
 
 	mapped 6584304 reads
 	elapsed = 130133 millisec / 130.133 sec / 2.16888 min / 19.7641 musec/read

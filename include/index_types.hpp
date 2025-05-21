@@ -1,7 +1,5 @@
 #pragma once
 
-#include "include/bit_vector.hpp"
-#include "include/integer_codes.hpp"
 #include "index.hpp"
 
 #include "builders/builder.hpp"

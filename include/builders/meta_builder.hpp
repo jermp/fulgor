@@ -381,7 +381,9 @@ struct index<ColorSets>::meta_builder {
             uint8_t progress_bar_size = 20;
             uint8_t curr_progress = 0;
             std::string progress_bar(progress_bar_size, ' ');
-            for (uint64_t color_set_id = 0; color_set_id != num_color_sets; ++color_set_id) {
+            uint64_t color_set_id = 0;
+            for (; color_set_id != num_color_sets; ++color_set_id)  //
+            {
                 if (color_set_id >= 1.0 * curr_progress * num_color_sets / progress_bar_size) {
                     progress_bar[curr_progress++] = '#';
                 }
@@ -419,6 +421,8 @@ struct index<ColorSets>::meta_builder {
                     }
                 }
             }
+            std::cout << "\r Progress: [" << progress_bar << "] " << color_set_id << "/"
+                      << num_color_sets << std::endl;
             essentials::logger("DONE!");
         }
     }

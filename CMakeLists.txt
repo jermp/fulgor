@@ -50,46 +50,29 @@ include_directories(external/FQFeeder/include)
 include_directories(external/sketch/include)
 include_directories(external/sketch/include/blaze)
 
-## GGCAT ####
+### GGCAT ####
 
 add_custom_target(
-        ggcat_cpp_api
-        COMMAND make
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api
+  ggcat_cpp_api
+  COMMAND make
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api
 )
 set(GGCAT_CPP_BINDINGS ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cpp_bindings.a)
 set(GGCAT_CXX_INTEROP ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cxx_interop.a)
 set(GGCAT_API ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_api.a)
 
 
-## Fulgor ###
-
-set(Z_LIB_SOURCES
-        external/sshash/include/gz/zip_stream.cpp
-)
-
-set(SSHASH_SOURCES
-        external/sshash/include/dictionary.cpp
-        external/sshash/include/info.cpp
-        external/sshash/include/builder/build.cpp
-)
-
-# Create a static lib for SSHash
-add_library(sshash_static STATIC
-        ${Z_LIB_SOURCES}
-        ${SSHASH_SOURCES}
-)
+### Fulgor ###
 
 add_executable(fulgor tools/fulgor.cpp)
-add_dependencies(fulgor ggcat_cpp_api sshash_static)
+add_dependencies(fulgor ggcat_cpp_api)
 target_link_libraries(fulgor
-        sshash_static
-        z
-        ${GGCAT}
-        ${GGCAT_API}
-        ${GGCAT_CPP_BINDINGS}
-        ${GGCAT_CXX_INTEROP}
-        ${CMAKE_DL_LIBS}
+  z
+  ${GGCAT}
+  ${GGCAT_API}
+  ${GGCAT_CPP_BINDINGS}
+  ${GGCAT_CXX_INTEROP}
+  ${CMAKE_DL_LIBS}
 )
 
 if (UNIX)

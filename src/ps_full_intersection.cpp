@@ -343,36 +343,29 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
     }
 }
 
-void stream_through(sshash::dictionary const& k2u, std::string const& sequence,
-                    std::vector<uint64_t>& unitig_ids) {
-    sshash::streaming_query_canonical_parsing query(&k2u);
-    query.start();
-    const uint64_t num_kmers = sequence.length() - k2u.k() + 1;
-    for (uint64_t i = 0, prev_unitig_id = -1; i != num_kmers; ++i) {
-        char const* kmer = sequence.data() + i;
-        auto answer = query.lookup_advanced(kmer);
-        if (answer.kmer_id != sshash::constants::invalid_uint64) {  // kmer is positive
-            if (answer.contig_id != prev_unitig_id) {
-                unitig_ids.push_back(answer.contig_id);
-                prev_unitig_id = answer.contig_id;
-            }
-        }
-    }
-}
-
 template <typename ColorSets>
 void index<ColorSets>::pseudoalign_full_intersection(std::string const& sequence,
                                                      std::vector<uint32_t>& colors) const {
     if (sequence.length() < m_k2u.k()) return;
     colors.clear();
     std::vector<uint64_t> unitig_ids;
-    stream_through(m_k2u, sequence, unitig_ids);
-    intersect_unitigs(unitig_ids, colors);
-}
 
-template <typename ColorSets>
-void index<ColorSets>::intersect_unitigs(std::vector<uint64_t>& unitig_ids,
-                                         std::vector<uint32_t>& colors) const {
+    { /* stream through */
+        sshash::streaming_query_canonical_parsing<kmer_type> query(&m_k2u);
+        query.start();
+        const uint64_t num_kmers = sequence.length() - m_k2u.k() + 1;
+        for (uint64_t i = 0, prev_unitig_id = -1; i != num_kmers; ++i) {
+            char const* kmer = sequence.data() + i;
+            auto answer = query.lookup_advanced(kmer);
+            if (answer.kmer_id != sshash::constants::invalid_uint64) {  // kmer is positive
+                if (answer.contig_id != prev_unitig_id) {
+                    unitig_ids.push_back(answer.contig_id);
+                    prev_unitig_id = answer.contig_id;
+                }
+            }
+        }
+    }
+
     /* here we use it to hold the color class ids;
        in meta_intersect we use it to hold the partition ids */
     std::vector<uint32_t> tmp;

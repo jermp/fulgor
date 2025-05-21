@@ -34,18 +34,18 @@ struct hybrid {
 
         void process(uint32_t const* colors, uint64_t list_size) {
             /* encode list_size */
-            util::write_delta(m_bvb, list_size);
+            bits::util::write_delta(m_bvb, list_size);
             if (list_size < m_sparse_set_threshold_size) {
                 uint32_t prev_val = colors[0];
-                util::write_delta(m_bvb, prev_val);
+                bits::util::write_delta(m_bvb, prev_val);
                 for (uint64_t i = 1; i != list_size; ++i) {
                     uint32_t val = colors[i];
                     assert(val >= prev_val + 1);
-                    util::write_delta(m_bvb, val - (prev_val + 1));
+                    bits::util::write_delta(m_bvb, val - (prev_val + 1));
                     prev_val = val;
                 }
             } else if (list_size < m_very_dense_set_threshold_size) {
-                bit_vector_builder bvb_ints;
+                bits::bit_vector::builder bvb_ints;
                 bvb_ints.resize(m_num_colors);
                 for (uint64_t i = 0; i != list_size; ++i) bvb_ints.set(colors[i]);
                 m_bvb.append(bvb_ints);
@@ -58,12 +58,12 @@ struct hybrid {
                     uint32_t x = colors[i];
                     while (val < x) {
                         if (first) {
-                            util::write_delta(m_bvb, val);
+                            bits::util::write_delta(m_bvb, val);
                             first = false;
                             ++written;
                         } else {
                             assert(val >= prev_val + 1);
-                            util::write_delta(m_bvb, val - (prev_val + 1));
+                            bits::util::write_delta(m_bvb, val - (prev_val + 1));
                             ++written;
                         }
                         prev_val = val;
@@ -74,7 +74,7 @@ struct hybrid {
                 }
                 while (val < m_num_colors) {
                     assert(val >= prev_val + 1);
-                    util::write_delta(m_bvb, val - (prev_val + 1));
+                    bits::util::write_delta(m_bvb, val - (prev_val + 1));
                     prev_val = val;
                     ++val;
                     ++written;
@@ -118,22 +118,20 @@ struct hybrid {
             assert(m_num_lists == m_offsets.size() - 1);
 
             h.m_offsets.encode(m_offsets.begin(), m_offsets.size(), m_offsets.back());
-            h.m_colors.swap(m_bvb.bits());
+            h.m_colors.swap(m_bvb.data());
 
             std::cout << "  total bits for ints = " << h.m_colors.size() * 64 << std::endl;
-            std::cout << "  total bits per offsets = " << h.m_offsets.num_bits() << std::endl;
-            std::cout << "  total bits = " << h.m_offsets.num_bits() + h.m_colors.size() * 64
+            std::cout << "  total bits per offsets = " << 8 * h.m_offsets.num_bytes() << std::endl;
+            std::cout << "  total bits = " << 8 * h.m_offsets.num_bytes() + h.m_colors.size() * 64
                       << std::endl;
-            std::cout << "  offsets: "
-                      << static_cast<double>(h.m_offsets.num_bits()) / m_num_total_integers
+            std::cout << "  offsets: " << (8.0 * h.m_offsets.num_bytes()) / m_num_total_integers
                       << " bits/int" << std::endl;
-            std::cout << "  lists: "
-                      << static_cast<double>(h.m_colors.size() * 64) / m_num_total_integers
+            std::cout << "  lists: " << (64.0 * h.m_colors.size()) / m_num_total_integers
                       << " bits/int" << std::endl;
         }
 
         void clear() {
-            m_offsets.clear();  // constant since uint64_t is trivially destructible
+            m_offsets.clear();
             m_bvb.clear();
             init(m_num_colors);
         }
@@ -145,7 +143,7 @@ struct hybrid {
         uint64_t m_num_lists;
         uint64_t m_num_total_integers;
 
-        bit_vector_builder m_bvb;
+        bits::bit_vector::builder m_bvb;
         std::vector<uint64_t> m_offsets;
     };
 
@@ -167,24 +165,24 @@ struct hybrid {
             m_comp_val = -1;
             m_prev_val = -1;
             m_curr_val = 0;
-            m_it = bit_vector_iterator((m_ptr->m_colors).data(), (m_ptr->m_colors).size(),
-                                       m_colors_begin);
-            m_size = util::read_delta(m_it);
+            m_it = bits::bit_vector::iterator((m_ptr->m_colors).data(), (m_ptr->m_colors).size(),
+                                              m_colors_begin);
+            m_size = bits::util::read_delta(m_it);
             /* set m_type and read the first value */
             if (m_size < m_ptr->m_sparse_set_threshold_size) {
                 m_type = list_type::delta_gaps;
-                m_curr_val = util::read_delta(m_it);
+                m_curr_val = bits::util::read_delta(m_it);
             } else if (m_size < m_ptr->m_very_dense_set_threshold_size) {
                 m_type = list_type::bitmap;
                 m_bitmap_begin = m_it.position();  // after m_size
-                m_it.at_and_clear_low_bits(m_bitmap_begin);
+                m_it.skip_to(m_bitmap_begin);
                 uint64_t pos = m_it.next();
                 assert(pos >= m_bitmap_begin);
                 m_curr_val = pos - m_bitmap_begin;
             } else {
                 m_type = list_type::complement_delta_gaps;
                 m_comp_list_size = m_num_colors - m_size;
-                if (m_comp_list_size > 0) m_comp_val = util::read_delta(m_it);
+                if (m_comp_list_size > 0) m_comp_val = bits::util::read_delta(m_it);
                 next_comp_val();
             }
         }
@@ -196,11 +194,11 @@ struct hybrid {
             m_pos_in_comp_list = 0;
             m_prev_val = -1;
             m_curr_val = 0;
-            m_it = bit_vector_iterator((m_ptr->m_colors).data(), (m_ptr->m_colors).size(),
-                                       m_colors_begin);
-            util::read_delta(m_it); /* skip m_size */
+            m_it = bits::bit_vector::iterator((m_ptr->m_colors).data(), (m_ptr->m_colors).size(),
+                                              m_colors_begin);
+            bits::util::read_delta(m_it); /* skip m_size */
             if (m_comp_list_size > 0) {
-                m_comp_val = util::read_delta(m_it);
+                m_comp_val = bits::util::read_delta(m_it);
             } else {
                 m_comp_val = m_num_colors;
             }
@@ -225,7 +223,7 @@ struct hybrid {
                     return;
                 }
                 m_prev_val = m_curr_val;
-                m_curr_val = util::read_delta(m_it) + (m_prev_val + 1);
+                m_curr_val = bits::util::read_delta(m_it) + (m_prev_val + 1);
             } else {
                 assert(m_type == list_type::bitmap);
                 m_pos_in_list += 1;
@@ -246,7 +244,7 @@ struct hybrid {
                 return;
             }
             m_prev_val = m_comp_val;
-            m_comp_val = util::read_delta(m_it) + (m_prev_val + 1);
+            m_comp_val = bits::util::read_delta(m_it) + (m_prev_val + 1);
         }
 
         void operator++() { next(); }
@@ -276,7 +274,7 @@ struct hybrid {
         uint32_t m_num_colors;
         int m_type;
 
-        bit_vector_iterator m_it;
+        bits::bit_vector::iterator m_it;
         uint32_t m_pos_in_list;
         uint32_t m_size;
 
@@ -293,7 +291,7 @@ struct hybrid {
                 ++m_pos_in_comp_list;
                 if (m_pos_in_comp_list >= m_comp_list_size) break;
                 m_prev_val = m_comp_val;
-                m_comp_val = util::read_delta(m_it) + (m_prev_val + 1);
+                m_comp_val = bits::util::read_delta(m_it) + (m_prev_val + 1);
             }
         }
 
@@ -302,7 +300,7 @@ struct hybrid {
                 ++m_pos_in_comp_list;
                 if (m_pos_in_comp_list >= m_comp_list_size) break;
                 m_prev_val = m_comp_val;
-                m_comp_val = util::read_delta(m_it) + (m_prev_val + 1);
+                m_comp_val = bits::util::read_delta(m_it) + (m_prev_val + 1);
             }
         }
     };
@@ -320,9 +318,9 @@ struct hybrid {
 
     uint64_t num_bits() const {
         return (sizeof(m_num_colors) + sizeof(m_sparse_set_threshold_size) +
-                sizeof(m_very_dense_set_threshold_size)) *
-                   8 +
-               m_offsets.num_bits() + essentials::vec_bytes(m_colors) * 8;
+                sizeof(m_very_dense_set_threshold_size) + m_offsets.num_bytes() +
+                essentials::vec_bytes(m_colors)) *
+               8;
     }
 
     void print_stats() const {
@@ -347,8 +345,8 @@ struct hybrid {
         uint64_t num_total_integers = 0;
         for (uint64_t color_set_id = 0; color_set_id != m_offsets.size() - 1; ++color_set_id) {
             uint64_t offset = m_offsets.access(color_set_id);
-            bit_vector_iterator it(m_colors.data(), m_colors.size(), offset);
-            uint32_t list_size = util::read_delta(it);
+            bits::bit_vector::iterator it(m_colors.data(), m_colors.size(), offset);
+            uint32_t list_size = bits::util::read_delta(it);
             uint64_t num_bits = m_offsets.access(color_set_id + 1) - offset;
             auto bucket_it = std::upper_bound(list_size_upperbounds.begin(),
                                               list_size_upperbounds.end(), list_size);
@@ -393,11 +391,9 @@ struct hybrid {
         std::cout << "  colors: " << static_cast<double>(bits) / integers << " bits/int"
                   << std::endl;
         std::cout << "  offsets: "
-                  << static_cast<double>((sizeof(m_num_colors) +
-                                          sizeof(m_sparse_set_threshold_size) +
-                                          sizeof(m_very_dense_set_threshold_size)) *
-                                             8 +
-                                         m_offsets.num_bits()) /
+                  << ((sizeof(m_num_colors) + sizeof(m_sparse_set_threshold_size) +
+                       sizeof(m_very_dense_set_threshold_size) + m_offsets.num_bytes()) *
+                      8.0) /
                          integers
                   << " bits/int" << std::endl;
     }
@@ -425,7 +421,7 @@ private:
     uint32_t m_num_colors;
     uint32_t m_sparse_set_threshold_size;
     uint32_t m_very_dense_set_threshold_size;
-    sshash::ef_sequence<false> m_offsets;
+    bits::elias_fano<false, false> m_offsets;
     std::vector<uint64_t> m_colors;
 };
 

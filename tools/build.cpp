@@ -87,8 +87,8 @@ int build(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("filenames_list", "Filenames list.", "-l", true);
     parser.add("file_base_name", "File basename.", "-o", true);
-    parser.add("k", "K-mer length (must be <= " + std::to_string(sshash::constants::max_k) + ").",
-               "-k", true);
+    parser.add("k", "K-mer length (must be <= " + std::to_string(kmer_type::max_k) + ").", "-k",
+               true);
     parser.add("m", "Minimizer length (must be < k).", "-m", true);
     parser.add(
         "tmp_dirname",

@@ -2,7 +2,7 @@
 #include <fstream>
 #include <sstream>
 
-#include "external/sshash/include/gz/zip_stream.hpp"
+#include "external/sshash/external/gz/zip_stream.hpp"
 #include "external/FQFeeder/include/FastxParser.hpp"
 #include "external/FQFeeder/src/FastxParser.cpp"
 

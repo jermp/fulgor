@@ -72,7 +72,7 @@ struct meta {
         }
 
     private:
-        pthash::compact_vector::builder m_meta_colors_builder;
+        bits::compact_vector::builder m_meta_colors_builder;
         std::vector<typename ColorSets::builder> m_colors_builders;
 
         uint64_t m_num_colors;
@@ -246,9 +246,9 @@ struct meta {
     uint64_t num_bits() const {
         uint64_t num_bits_colors = sizeof(size_t) * 8;  // for std::vector::size
         for (auto const& c : m_colors) num_bits_colors += c.num_bits();
-        return m_meta_colors_offsets.num_bits() + num_bits_colors +
-               (m_meta_colors.bytes() + essentials::vec_bytes(m_partition_endpoints) +
-                sizeof(m_num_colors)) *
+        return num_bits_colors +
+               (m_meta_colors_offsets.num_bytes() + m_meta_colors.num_bytes() +
+                essentials::vec_bytes(m_partition_endpoints) + sizeof(m_num_colors)) *
                    8;
     }
 
@@ -301,8 +301,8 @@ struct meta {
         std::cout << "  partial colors: " << num_bits_colors / 8 << " bytes ("
                   << (num_bits_colors * 100.0) / num_bits() << "%)\n";
         std::cout << "  meta colors: "
-                  << m_meta_colors.bytes() + m_meta_colors_offsets.num_bits() / 8 << " bytes ("
-                  << ((m_meta_colors.bytes() * 8 + m_meta_colors_offsets.num_bits()) * 100.0) /
+                  << m_meta_colors.num_bytes() + m_meta_colors_offsets.num_bytes() << " bytes ("
+                  << ((m_meta_colors.num_bytes() + m_meta_colors_offsets.num_bytes()) * 8 * 100.0) /
                          num_bits()
                   << "%)\n";
         std::cout << "  other: " << essentials::vec_bytes(m_partition_endpoints) << " bytes ("
@@ -334,8 +334,8 @@ private:
     }
 
     uint32_t m_num_colors;
-    pthash::compact_vector m_meta_colors;
-    sshash::ef_sequence<false> m_meta_colors_offsets;
+    bits::compact_vector m_meta_colors;
+    bits::elias_fano<false, false> m_meta_colors_offsets;
     std::vector<ColorSets> m_colors;
     std::vector<partition_endpoint> m_partition_endpoints;
 };

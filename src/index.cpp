@@ -8,6 +8,7 @@ void index<ColorSets>::print_stats() const {
     assert(total_bits > 0);
     auto const& k2u = get_k2u();
     auto const& u2c = get_u2c();
+    auto const& u2c_rank1_index = get_u2c_rank1_index();
     auto const& color_sets = get_color_sets();
     auto const& filenames = get_filenames();
 
@@ -20,13 +21,17 @@ void index<ColorSets>::print_stats() const {
     std::cout << "  Color sets: " << color_sets.num_bits() / 8 << " bytes / "
               << essentials::convert(color_sets.num_bits() / 8, essentials::GB) << " GB ("
               << (color_sets.num_bits() * 100.0) / total_bits << "%)\n";
-    uint64_t other_bits = u2c.bytes() * 8 + filenames.num_bits();
+    uint64_t other_bits =
+        (u2c.num_bytes() + u2c_rank1_index.num_bytes()) * 8 + filenames.num_bits();
     std::cout << "  Other: " << other_bits / 8 << " bytes / "
               << essentials::convert(other_bits / 8, essentials::GB) << " GB ("
               << (other_bits * 100.0) / total_bits << "%)\n";
-    std::cout << "    Map from unitig_id to color_set_id: " << u2c.bytes() << " bytes / "
-              << essentials::convert(u2c.bytes(), essentials::GB) << " GB ("
-              << (u2c.bytes() * 8 * 100.0) / total_bits << "%)\n";
+    std::cout << "    Map from unitig_id to color_set_id: "
+              << u2c.num_bytes() + u2c_rank1_index.num_bytes() << " bytes / "
+              << essentials::convert(u2c.num_bytes() + u2c_rank1_index.num_bytes(), essentials::GB)
+              << " GB ("
+              << ((u2c.num_bytes() + u2c_rank1_index.num_bytes()) * 8 * 100.0) / total_bits
+              << "%)\n";
     std::cout << "    filenames: " << filenames.num_bits() / 8 << " bytes / "
               << essentials::convert(filenames.num_bits() / 8, essentials::GB) << " GB ("
               << (filenames.num_bits() * 100.0) / total_bits << "%)\n";

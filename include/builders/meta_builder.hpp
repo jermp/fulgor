@@ -1,7 +1,8 @@
 #pragma once
 
-#include "../index.hpp"
-#include "../build_util.hpp"
+#include "include/index.hpp"
+#include "include/build_util.hpp"
+
 #include <shared_mutex>
 
 namespace fulgor {
@@ -350,9 +351,10 @@ struct index<ColorSets>::meta_builder {
         }
 
         {
-            essentials::logger("step 5. copy u2c and k2u");
+            essentials::logger("step 5. copy u2c + rank1_index and k2u");
             timer.start();
             idx.m_u2c = index.get_u2c();
+            idx.m_u2c_rank1_index = index.get_u2c_rank1_index();
             idx.m_k2u = index.get_k2u();
             timer.stop();
             std::cout << "** copying u2c and k2u took " << timer.elapsed() << " seconds / "

@@ -73,7 +73,7 @@ static void print_cmd(int argc, char** argv) {
 std::string filename(std::string const& path) { return path.substr(path.find_last_of("/\\") + 1); }
 
 /* return the number of 64-bit words for num_bits */
-static uint64_t num_64bit_words_for(uint64_t num_bits) { return (num_bits + 64 - 1) / 64; }
+// static uint64_t num_64bit_words_for(uint64_t num_bits) { return (num_bits + 64 - 1) / 64; }
 
 template <typename ForwardIterator>
 bool check_intersection(std::vector<ForwardIterator>& iterators, std::vector<uint32_t> const& got) {
@@ -125,30 +125,30 @@ bool check_intersection(std::vector<ForwardIterator>& iterators, std::vector<uin
     return true;
 }
 
-/*
-    Good reference for built-in functions:
-    http://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html
-*/
+// /*
+//     Good reference for built-in functions:
+//     http://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html
+// */
 
-/* position of the most significant bit (msb) */
-static uint32_t msbll(uint64_t x) {
-    assert(x > 0);                   // if x is 0, the result is undefined
-    return 63 - __builtin_clzll(x);  // count leading zeros (clz)
-}
+// /* position of the most significant bit (msb) */
+// static uint32_t msbll(uint64_t x) {
+//     assert(x > 0);                   // if x is 0, the result is undefined
+//     return 63 - __builtin_clzll(x);  // count leading zeros (clz)
+// }
 
-/* position of the least significant bit (lsb) */
-static uint64_t lsbll(uint64_t x) {
-    assert(x > 0);              // if x is 0, the result is undefined
-    return __builtin_ctzll(x);  // count trailing zeros (ctz)
-}
+// /* position of the least significant bit (lsb) */
+// static uint64_t lsbll(uint64_t x) {
+//     assert(x > 0);              // if x is 0, the result is undefined
+//     return __builtin_ctzll(x);  // count trailing zeros (ctz)
+// }
 
-inline uint8_t lsb(uint64_t x, unsigned long& ret) {
-    if (x) {
-        ret = (unsigned long)__builtin_ctzll(x);
-        return true;
-    }
-    return false;
-}
+// inline uint8_t lsb(uint64_t x, unsigned long& ret) {
+//     if (x) {
+//         ret = (unsigned long)__builtin_ctzll(x);
+//         return true;
+//     }
+//     return false;
+// }
 
 __uint128_t hash128(char const* bytes, uint64_t num_bytes, const uint64_t seed = 1234567890) {
     auto ret = CityHash128WithSeed(bytes, num_bytes, {seed, seed});

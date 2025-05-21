@@ -1,11 +1,17 @@
 #pragma once
 
 #include "external/sshash/include/dictionary.hpp"
-#include "ranked_bit_vector.hpp"
+#include "external/sshash/external/pthash/external/bits/include/integer_codes.hpp"
+#include "external/sshash/external/pthash/external/bits/include/bit_vector.hpp"
+#include "external/sshash/external/pthash/external/bits/include/rank9.hpp"
+
 #include "filenames.hpp"
 #include "util.hpp"
 
 namespace fulgor {
+
+using kmer_type = sshash::default_kmer_t;
+using sshash_type = sshash::dictionary<kmer_type>;
 
 template <typename ColorSets>
 struct index {
@@ -22,15 +28,12 @@ struct index {
     }
 
     /* from unitig_id to color_set_id */
-    uint64_t u2c(uint64_t unitig_id) const { return m_u2c.rank(unitig_id); }
+    uint64_t u2c(uint64_t unitig_id) const { return m_u2c_rank1_index.rank1(m_u2c, unitig_id); }
 
     void pseudoalign_full_intersection(std::string const& sequence,
                                        std::vector<uint32_t>& results) const;
     void pseudoalign_threshold_union(std::string const& sequence, std::vector<uint32_t>& results,
                                      const double threshold) const;
-
-    void intersect_unitigs(std::vector<uint64_t>& unitig_ids,
-                           std::vector<uint32_t>& color_set) const;
 
     std::string_view filename(uint64_t color) const {
         assert(color < num_colors());
@@ -45,8 +48,9 @@ struct index {
     uint64_t num_unitigs() const { return m_k2u.num_contigs(); }
     uint64_t num_color_sets() const { return m_color_sets.num_color_sets(); }
 
-    sshash::dictionary const& get_k2u() const { return m_k2u; }
-    ranked_bit_vector const& get_u2c() const { return m_u2c; }
+    sshash_type const& get_k2u() const { return m_k2u; }
+    bits::bit_vector const& get_u2c() const { return m_u2c; }
+    bits::rank9 const& get_u2c_rank1_index() const { return m_u2c_rank1_index; }
     ColorSets const& get_color_sets() const { return m_color_sets; }
     filenames const& get_filenames() const { return m_filenames; }
 
@@ -61,8 +65,8 @@ struct index {
     }
 
     uint64_t num_bits() const {
-        return m_k2u.num_bits() + m_u2c.bytes() * 8 + m_color_sets.num_bits() +
-               m_filenames.num_bits();
+        return m_k2u.num_bits() + (m_u2c.num_bytes() + m_u2c_rank1_index.num_bytes()) * 8 +
+               m_color_sets.num_bits() + m_filenames.num_bits();
     }
 
 private:
@@ -70,12 +74,14 @@ private:
     static void visit_impl(Visitor& visitor, T&& t) {
         visitor.visit(t.m_k2u);
         visitor.visit(t.m_u2c);
+        visitor.visit(t.m_u2c_rank1_index);
         visitor.visit(t.m_color_sets);
         visitor.visit(t.m_filenames);
     }
 
-    sshash::dictionary m_k2u;  // map: kmer to unitig-id
-    ranked_bit_vector m_u2c;   // map: unitig-id to color-class-id
+    sshash_type m_k2u;
+    bits::bit_vector m_u2c;
+    bits::rank9 m_u2c_rank1_index;
     ColorSets m_color_sets;
     filenames m_filenames;
 };

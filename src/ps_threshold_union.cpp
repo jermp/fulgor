@@ -385,12 +385,7 @@ void index<ColorSets>::pseudoalign_threshold_union(std::string const& sequence,
         }
     }
 
-    /* as Themisto does */
-    uint64_t min_score = static_cast<double>(num_positive_kmers_in_sequence) * threshold;
-
-    /* as Bifrost and Metagraph do */
-    // uint64_t num_kmers_in_sequence = sequence.length() - m_k2u.k() + 1;
-    // uint64_t min_score = static_cast<double>(num_kmers_in_sequence) * threshold;
+    const uint64_t min_score = static_cast<double>(num_positive_kmers_in_sequence) * threshold;
 
     if constexpr (ColorSets::type == index_t::META) {
         merge_meta(iterators, colors, min_score);
@@ -401,6 +396,8 @@ void index<ColorSets>::pseudoalign_threshold_union(std::string const& sequence,
     } else if constexpr (ColorSets::type == index_t::HYBRID) {
         merge(iterators, colors, min_score);
     }
+
+    assert(util::check_union(iterators, colors, min_score));
 }
 
 }  // namespace fulgor

@@ -72,15 +72,16 @@ static void print_cmd(int argc, char** argv) {
 
 std::string filename(std::string const& path) { return path.substr(path.find_last_of("/\\") + 1); }
 
-/* return the number of 64-bit words for num_bits */
-// static uint64_t num_64bit_words_for(uint64_t num_bits) { return (num_bits + 64 - 1) / 64; }
-
 template <typename ForwardIterator>
-bool check_intersection(std::vector<ForwardIterator>& iterators, std::vector<uint32_t> const& got) {
+bool check_intersection(std::vector<ForwardIterator>& iterators,
+                        std::vector<uint32_t> const& got)  //
+{
     if (iterators.empty()) return true;
 
+    /* re-init iterators */
     for (auto& it : iterators) it.rewind();
 
+    /* decompress the color sets */
     const uint32_t num_colors = iterators[0].num_colors();
     std::vector<std::vector<uint32_t>> sets(iterators.size());
     for (uint64_t i = 0; i != iterators.size(); ++i) {
@@ -93,8 +94,8 @@ bool check_intersection(std::vector<ForwardIterator>& iterators, std::vector<uin
         }
     }
 
+    /* compute intersectiom using std::set_intersection */
     std::vector<uint32_t> expected;
-
     if (iterators.size() > 1) {
         std::vector<uint32_t> l = sets[0];
         for (uint64_t i = 1; i != sets.size(); ++i) {
@@ -108,18 +109,68 @@ bool check_intersection(std::vector<ForwardIterator>& iterators, std::vector<uin
         expected.swap(sets[0]);
     }
 
+    /* compare the results */
     if (expected.size() != got.size()) {
         std::cerr << "expected intersection size " << expected.size() << " but got " << got.size()
                   << std::endl;
         return false;
     }
-
     for (uint64_t i = 0; i != got.size(); ++i) {
         if (expected[i] != got[i]) {
             std::cerr << "error at " << i << "/" << got.size() << ": expected " << expected[i]
                       << " but got " << got[i] << std::endl;
             return false;
         }
+    }
+
+    return true;
+}
+
+template <typename ForwardIterator>
+bool check_union(std::vector<ForwardIterator>& iterators,                     //
+                 std::vector<uint32_t> const& got, const uint64_t min_score)  //
+{
+    if (iterators.empty()) return true;
+
+    /* re-init iterators */
+    for (auto& p : iterators) p.item.rewind();
+
+    /* compute the num. occs of each color */
+    const uint32_t num_colors = iterators[0].item.num_colors();
+    std::vector<uint32_t> scores(num_colors, 0);
+    for (auto& [it, score] : iterators) {
+        uint32_t val = it.value();
+        while (val < num_colors) {
+            scores[val] += score;
+            it.next();
+            val = it.value();
+        }
+    }
+
+    /* compare the results */
+    uint64_t expected_size = 0;
+    auto it = got.begin();
+    for (uint64_t i = 0; i != num_colors; ++i) {
+        if (scores[i] >= min_score) {
+            if (it == got.end()) {
+                std::cerr << "error: more elements than expected in thershold-union result"
+                          << std::endl;
+                return false;
+            }
+            if (i != *it) {
+                std::cerr << "error at " << expected_size << "/" << got.size() << ": expected " << i
+                          << " but got " << *it << std::endl;
+                return false;
+            }
+            ++expected_size;
+            ++it;
+        }
+    }
+
+    if (expected_size != got.size()) {
+        std::cerr << "expected thershold-union size " << expected_size << " but got " << got.size()
+                  << std::endl;
+        return false;
     }
 
     return true;

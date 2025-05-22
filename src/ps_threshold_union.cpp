@@ -21,6 +21,7 @@ void merge(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors, int6
     std::vector<int32_t> scores(num_colors, 0);
     for (auto& it : iterators) {
         if (it.item.type() == list_type::complement_delta_gaps) {
+            it.item.reinit_for_complemented_set_iteration();
             min_score -= it.score;
             while (it.item.comp_value() < num_colors) {
                 scores[it.item.comp_value()] -= it.score;

@@ -20,7 +20,7 @@ std::string to_string(pseudoalignment_algorithm algo, double threshold) {
             o = "full-intersection";
             break;
         case pseudoalignment_algorithm::THRESHOLD_UNION:
-            o = "threshold-union (t = " + std::to_string(threshold) + ")";
+            o = "threshold-union (threshold = " + std::to_string(threshold) + ")";
             break;
     }
     return o;

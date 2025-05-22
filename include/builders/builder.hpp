@@ -72,7 +72,7 @@ struct index<ColorSets>::builder {
             timer.start();
 
             uint64_t num_unitigs = 0;
-            uint64_t num_distinct_colors = 0;
+            uint64_t num_distinct_color_sets = 0;
 
             uint64_t num_threads = m_build_config.num_threads;
             constexpr uint64_t MAX_BUFFER_SIZE = 1 << 28;  // 250e6 uint32_t
@@ -108,16 +108,17 @@ struct index<ColorSets>::builder {
             };
 
             m_ccdbg.loop_through_unitigs([&](ggcat::Slice<char> const unitig,
-                                             ggcat::Slice<uint32_t> const colors, bool same_color) {
+                                             ggcat::Slice<uint32_t> const color_set,
+                                             bool same_color_set) {
                 assert(curr_thread >= 0);
                 assert(curr_thread < num_threads);
                 try {
-                    if (!same_color) {
-                        num_distinct_colors += 1;
+                    if (!same_color_set) {
+                        num_distinct_color_sets += 1;
                         if (num_unitigs > 0) u2c_builder.set(num_unitigs - 1, 1);
 
                         /* fill buffers */
-                        if (!thread_buffers[curr_thread].insert(colors.data, colors.size)) {
+                        if (!thread_buffers[curr_thread].insert(color_set.data, color_set.size)) {
                             threads[curr_thread] = std::thread(process_and_append, curr_thread);
                             const uint32_t next_thread = (curr_thread + 1) % num_threads;
                             if (threads[next_thread].joinable()) { threads[next_thread].join(); }
@@ -125,7 +126,7 @@ struct index<ColorSets>::builder {
                             curr_thread = next_thread;
 
                             thread_buffers[curr_thread].clear();
-                            thread_buffers[curr_thread].insert(colors.data, colors.size);
+                            thread_buffers[curr_thread].insert(color_set.data, color_set.size);
                         }
                     }
                     u2c_builder.push_back(0);
@@ -158,13 +159,13 @@ struct index<ColorSets>::builder {
             assert(num_unitigs < (uint64_t(1) << 32));
 
             std::cout << "num_unitigs " << num_unitigs << std::endl;
-            std::cout << "num_distinct_colors " << num_distinct_colors << std::endl;
+            std::cout << "num_distinct_color_sets " << num_distinct_color_sets << std::endl;
 
             u2c_builder.set(num_unitigs - 1, 1);
             u2c_builder.build(idx.m_u2c);
             idx.m_u2c_rank1_index.build(idx.m_u2c);
             assert(idx.m_u2c.num_bits() == num_unitigs);
-            assert(idx.m_u2c_rank1_index.num_ones() == num_distinct_colors);
+            assert(idx.m_u2c_rank1_index.num_ones() == num_distinct_color_sets);
 
             std::cout << "m_u2c.num_bits() " << idx.m_u2c.num_bits() << std::endl;
             std::cout << "m_u2c_rank1_index.num_ones() " << idx.m_u2c_rank1_index.num_ones()
@@ -214,9 +215,9 @@ struct index<ColorSets>::builder {
         {
             essentials::logger("step 5. check correctness...");
             m_ccdbg.loop_through_unitigs(
-                [&](ggcat::Slice<char> const unitig,      //
-                    ggcat::Slice<uint32_t> const colors,  //
-                    bool /* same_color */)                //
+                [&](ggcat::Slice<char> const unitig,         //
+                    ggcat::Slice<uint32_t> const color_set,  //
+                    bool /* same_color_set */)               //
                 {
                     auto lookup_result = idx.m_k2u.lookup_advanced(unitig.data);
                     const uint64_t unitig_id = lookup_result.contig_id;
@@ -231,15 +232,15 @@ struct index<ColorSets>::builder {
                     }
                     auto fwd_it = idx.m_color_sets.color_set(color_id);
                     const uint64_t size = fwd_it.size();
-                    if (size != colors.size) {
-                        std::cout << "got colors list of size " << size << " but expected "
-                                  << colors.size << std::endl;
+                    if (size != color_set.size) {
+                        std::cout << "got color_set size " << size << " but expected "
+                                  << color_set.size << std::endl;
                         return;
                     }
                     for (uint64_t i = 0; i != size; ++i, ++fwd_it) {
                         uint32_t ref = *fwd_it;
-                        if (ref != colors.data[i]) {
-                            std::cout << "got ref " << ref << " but expected " << colors.data[i]
+                        if (ref != color_set.data[i]) {
+                            std::cout << "got ref " << ref << " but expected " << color_set.data[i]
                                       << std::endl;
                             return;
                         }

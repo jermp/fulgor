@@ -36,7 +36,7 @@ struct index<ColorSets>::meta_differential_builder {
             essentials::logger("step 2. building differential partial/meta colors");
             timer.start();
 
-            std::vector<hybrid> pc = meta_index.get_color_sets().partial_colors();
+            std::vector<hybrid> const& pc = meta_index.get_color_sets().partial_colors();
             assert(pc.size() == num_partitions);
 
             for (uint64_t i = 0; i < num_partitions; i++) {

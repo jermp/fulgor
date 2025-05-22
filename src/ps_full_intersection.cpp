@@ -44,7 +44,7 @@ void intersect(std::vector<Iterator>& iterators,       //
     const uint32_t num_colors = iterators[0].num_colors();
     uint32_t num_sparse = 0;
     while (num_sparse != iterators.size() &&
-           iterators[num_sparse].type() != list_type::complement_delta_gaps) {
+           iterators[num_sparse].encoding_type() != encoding_t::complement_delta_gaps) {
         ++num_sparse;
     }
 
@@ -102,7 +102,7 @@ void intersect(std::vector<Iterator>& iterators,       //
 
     /* traditional intersection code based on next_geq() and next() */
 
-    assert(iterators[0].type() != list_type::complement_delta_gaps);
+    assert(iterators[0].encoding_type() != encoding_t::complement_delta_gaps);
     uint32_t candidate = iterators[0].value();
     uint64_t i = 1;
     uint64_t size = num_sparse;

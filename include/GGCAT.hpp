@@ -31,7 +31,7 @@ struct GGCAT {
 
         std::string basename =
             build_config.tmp_dirname + "/" + util::filename(build_config.file_base_name);
-        m_color_sets_file = basename + ".ggcat.colors.dat";
+        m_color_sets_file = basename + ".ggcat.color_sets.dat";
         m_graph_file = basename + ".ggcat.fa";
         m_k = build_config.k;
 
@@ -58,18 +58,18 @@ struct GGCAT {
         }
 
         constexpr bool forward_only = false;
-        constexpr bool output_colors = true;
+        constexpr bool output_color_sets = true;
         constexpr size_t min_multiplicity = 1;
         m_instance->build_graph_from_files(
             ggcat::Slice<std::string>(m_filenames.data(), m_filenames.size()), m_graph_file, m_k,
             build_config.num_threads, forward_only, min_multiplicity,
-            ggcat::ExtraElaborationStep_UnitigLinks, output_colors,
+            ggcat::ExtraElaborationStep_UnitigLinks, output_color_sets,
             ggcat::Slice<std::string>(color_names.data(), color_names.size()));
     }
 
-    void loop_through_unitigs(std::function<void(ggcat::Slice<char> const /* unitig */,      //
-                                                 ggcat::Slice<uint32_t> const /* colors */,  //
-                                                 bool /* same_color */)>
+    void loop_through_unitigs(std::function<void(ggcat::Slice<char> const /* unitig */,         //
+                                                 ggcat::Slice<uint32_t> const /* color_set */,  //
+                                                 bool /* same_color_set */)>
                                   callback,
                               uint64_t num_threads = 1) const  //
     {

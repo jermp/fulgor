@@ -61,9 +61,9 @@ struct meta {
         void build(meta& m) {
             m.m_num_colors = m_num_colors;
             m_meta_colors_builder.build(m.m_meta_colors);
-            m.m_colors.resize(m_colors_builders.size());
+            m.m_partial_color_sets.resize(m_colors_builders.size());
             for (uint64_t i = 0; i != m_colors_builders.size(); ++i) {
-                m_colors_builders[i].build(m.m_colors[i]);
+                m_colors_builders[i].build(m.m_partial_color_sets[i]);
             }
             m.m_meta_colors_offsets.encode(m_meta_colors_offsets.begin(),
                                            m_meta_colors_offsets.size(),
@@ -140,8 +140,9 @@ struct meta {
                 partition_id = update_partition_id(meta_color, partition_id);
                 uint32_t num_lists_before =
                     (m_ptr->m_partition_endpoints)[partition_id].num_lists_before;
-                n +=
-                    (m_ptr->m_colors)[partition_id].color_set(meta_color - num_lists_before).size();
+                n += (m_ptr->m_partial_color_sets)[partition_id]
+                         .color_set(meta_color - num_lists_before)
+                         .size();
             }
             return n;
         }
@@ -176,8 +177,8 @@ struct meta {
             m_partition_upper_bound = endpoints[m_partition_id + 1].docid_lower_bound;
 
             uint32_t num_lists_before = endpoints[m_partition_id].num_lists_before;
-            m_curr_partition_it =
-                (m_ptr->m_colors)[m_partition_id].color_set(m_curr_meta_color - num_lists_before);
+            m_curr_partition_it = (m_ptr->m_partial_color_sets)[m_partition_id].color_set(
+                m_curr_meta_color - num_lists_before);
             m_curr_partition_size = m_curr_partition_it.size();
             assert(m_curr_partition_size > 0);
             m_pos_in_curr_partition = 0;
@@ -233,7 +234,7 @@ struct meta {
         return forward_iterator(this, begin);
     }
 
-    std::vector<ColorSets> partial_colors() const { return m_colors; }
+    std::vector<ColorSets> const& partial_colors() const { return m_partial_color_sets; }
 
     uint32_t num_colors() const { return m_num_colors; }
 
@@ -245,7 +246,7 @@ struct meta {
 
     uint64_t num_bits() const {
         uint64_t num_bits_colors = sizeof(size_t) * 8;  // for std::vector::size
-        for (auto const& c : m_colors) num_bits_colors += c.num_bits();
+        for (auto const& c : m_partial_color_sets) num_bits_colors += c.num_bits();
         return num_bits_colors +
                (m_meta_colors_offsets.num_bytes() + m_meta_colors.num_bytes() +
                 essentials::vec_bytes(m_partition_endpoints) + sizeof(m_num_colors)) *
@@ -270,14 +271,14 @@ private:
         visitor.visit(t.m_num_colors);
         visitor.visit(t.m_meta_colors);
         visitor.visit(t.m_meta_colors_offsets);
-        visitor.visit(t.m_colors);
+        visitor.visit(t.m_partial_color_sets);
         visitor.visit(t.m_partition_endpoints);
     }
 
     uint32_t m_num_colors;
     bits::compact_vector m_meta_colors;
     bits::elias_fano<false, false> m_meta_colors_offsets;
-    std::vector<ColorSets> m_colors;
+    std::vector<ColorSets> m_partial_color_sets;
     std::vector<partition_endpoint> m_partition_endpoints;
 };
 

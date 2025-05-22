@@ -36,7 +36,8 @@ struct differential {
         }
 
         void encode_list(uint64_t cluster_id, std::vector<uint32_t> const& representative,
-                         uint64_t it_size, function<void()> next, function<uint64_t()> get) {
+                         uint64_t it_size, function<void()> next, function<uint64_t()> get)  //
+        {
             std::vector<uint32_t> differential_list;
             uint64_t ref_size = representative.size();
             differential_list.reserve(ref_size + it_size);
@@ -75,8 +76,10 @@ struct differential {
             uint64_t size = differential_list.size();
             bits::util::write_delta(m_bvb, size);
             bits::util::write_delta(m_bvb, it_size);
-            m_num_total_integers +=
-                size + 2;  // size plus differential_list size plus original list size
+
+            // size plus differential_list size plus original list size
+            m_num_total_integers += size + 2;
+
             m_num_lists += 1;
 
             if (size > 0) {
@@ -182,8 +185,7 @@ struct differential {
 
         uint32_t num_colors() const { return m_ptr->m_num_colors; }
         uint64_t differential_list_size() const { return m_differential_list_size; }
-
-        int type() const { return list_type::differential_list; }
+        int encoding_type() const { return encoding_t::symmetric_difference; }
 
         uint64_t representative_begin() const { return m_representative_begin; }
 
@@ -308,31 +310,6 @@ private:
     bits::bit_vector m_color_sets;
     bits::bit_vector m_clusters;
     bits::rank9 m_clusters_rank1_index;
-
-    std::vector<uint64_t> read_representative_set(uint64_t begin) const {
-        auto it = m_color_sets.get_iterator_at(begin);
-        uint64_t size = bits::util::read_delta(it);
-        if (size == 0) return {};
-        std::vector<uint64_t> set(size);
-        set[0] = bits::util::read_delta(it);
-        for (uint64_t i = 1; i != size; ++i) {
-            set[i] = set[i - 1] + bits::util::read_delta(it) + 1;
-        }
-        return set;
-    }
-
-    std::vector<uint64_t> read_differential_set(uint64_t begin) const {
-        auto it = m_color_sets.get_iterator_at(begin);
-        uint64_t size = bits::util::read_delta(it);
-        bits::util::read_delta(it);  // skip color_set size
-        if (size == 0) return {};
-        std::vector<uint64_t> set(size);
-        set[0] = bits::util::read_delta(it);
-        for (uint64_t i = 1; i != size; ++i) {
-            set[i] = set[i - 1] + bits::util::read_delta(it) + 1;
-        }
-        return set;
-    }
 };
 
 }  // namespace fulgor

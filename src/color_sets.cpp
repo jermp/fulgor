@@ -57,7 +57,7 @@ void hybrid::print_stats() const  //
             uint64_t n = num_ints_per_bucket[i];
             integers += n;
             bits += num_bits_per_bucket[i];
-            std::cout << "num. lists of size > " << (curr_list_size_upper_bound - bucket_size)
+            std::cout << "  num. lists of size > " << (curr_list_size_upper_bound - bucket_size)
                       << " and <= " << curr_list_size_upper_bound << ": " << num_lists_per_bucket[i]
                       << " (" << (num_lists_per_bucket[i] * 100.0) / num_lists
                       << "%) -- integers: " << n << " (" << (n * 100.0) / num_total_integers
@@ -90,24 +90,23 @@ void meta<ColorSets>::print_stats() const  //
     uint64_t num_partial_colors_sparse = 0;
     uint64_t num_total_partial_colors = 0;
 
-    for (auto const& c : m_colors) {
-        // c.print_stats();
-
-        uint64_t n = c.num_color_sets();
+    for (auto const& pcs : m_partial_color_sets) {
+        // pcs.print_stats();
+        const uint64_t n = pcs.num_color_sets();
         num_total_partial_colors += n;
         for (uint64_t i = 0; i != n; ++i) {
-            auto it = c.color_set(i);
-            if (it.type() == list_type::complement_delta_gaps) {
+            auto it = pcs.color_set(i);
+            if (it.encoding_type() == encoding_t::complement_delta_gaps) {
                 ++num_partial_colors_very_dense;
-            } else if (it.type() == list_type::bitmap) {
+            } else if (it.encoding_type() == encoding_t::bitmap) {
                 ++num_partial_colors_dense;
             } else {
-                assert(it.type() == list_type::delta_gaps);
+                assert(it.encoding_type() == encoding_t::delta_gaps);
                 ++num_partial_colors_sparse;
             }
         }
 
-        num_bits_colors += c.num_bits();
+        num_bits_colors += pcs.num_bits();
     }
 
     assert(num_total_partial_colors > 0);
@@ -251,7 +250,7 @@ void meta_differential::print_stats() const  //
              m_partition_sets_partitions_rank1_index.num_bytes());
 
     uint64_t num_bits_partial_color_sets = 0;
-    for (auto const& c : m_partial_colors) num_bits_partial_color_sets += c.num_bits();
+    for (auto const& pcs : m_partial_color_sets) num_bits_partial_color_sets += pcs.num_bits();
 
     assert(num_bits() > 0);
     std::cout << "  partial color sets: " << num_bits_partial_color_sets / 8 << " bytes ("

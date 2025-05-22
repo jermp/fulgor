@@ -48,7 +48,7 @@ void index<ColorSets>::print_stats() const {
               << static_cast<double>(color_sets.num_bits()) / num_ints_in_color_sets
               << " bits/int)\n";
     std::cout << "k: " << k2u.k() << '\n';
-    std::cout << "m: " << k2u.m() << " (minimizer length used in K2U)\n";
+    std::cout << "m: " << k2u.m() << " (minimizer length used in SSHash)\n";
     std::cout << "Number of kmers in dBG: " << k2u.size() << " ("
               << static_cast<double>(k2u.num_bits()) / k2u.size() << " bits/kmer)\n";
     std::cout << "Number of unitigs in dBG: " << k2u.num_contigs() << std::endl;

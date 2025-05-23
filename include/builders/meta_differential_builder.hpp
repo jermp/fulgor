@@ -45,7 +45,7 @@ struct index<ColorSets>::meta_differential_builder {
                 dp.permute(pc[i]);
 
                 differential::builder diff_builder;
-                diff_builder.init_colors_builder(dp.num_colors());
+                diff_builder.init_color_sets_builder(dp.num_colors());
 
                 auto const& permutation = dp.permutation();
                 auto const& references = dp.references();
@@ -58,7 +58,7 @@ struct index<ColorSets>::meta_differential_builder {
                 }
                 for (auto& [cluster_id, color_id] : permutation) {
                     auto it = pc[i].color_set(color_id);
-                    diff_builder.encode_list(
+                    diff_builder.encode_color_set(
                         cluster_id, references[cluster_id], it.size(), [&it]() -> void { ++it; },
                         [&it]() -> uint64_t { return *it; });
                     partial_permutations[i][color_id] = original_id++;
@@ -88,19 +88,18 @@ struct index<ColorSets>::meta_differential_builder {
             uint64_t num_partition_sets = 0;
             for (uint64_t color_id = 0; color_id < num_color_sets; color_id++) {
                 auto it = meta_index.get_color_sets().color_set(color_id);
-                uint64_t size = it.meta_color_list_size();
-
-                std::vector<uint64_t> partition_list(size);
+                const uint64_t size = it.meta_color_set_size();
+                std::vector<uint64_t> partition_set(size);
                 for (uint64_t i = 0; i < size; ++i, it.next_partition_id()) {
-                    partition_list[i] = it.partition_id();
+                    partition_set[i] = it.partition_id();
                 }
-                if (meta_partitions.count(partition_list) == 0) {
-                    meta_partitions[partition_list] = num_partition_sets++;
-                    partition_sets.push_back(partition_list);
+                if (meta_partitions.count(partition_set) == 0) {
+                    meta_partitions[partition_set] = num_partition_sets++;
+                    partition_sets.push_back(partition_set);
                     counts.push_back(0);
                 }
-                color_set_to_partition_set[color_id] = meta_partitions[partition_list];
-                counts[meta_partitions[partition_list]]++;
+                color_set_to_partition_set[color_id] = meta_partitions[partition_set];
+                counts[meta_partitions[partition_set]]++;
             }
 
             builder.init_meta_color_partition_sets(num_partition_sets);
@@ -123,19 +122,18 @@ struct index<ColorSets>::meta_differential_builder {
                 uint64_t original_color_id = permutation[permuted_id];
                 uint64_t partition_set_id = color_set_to_partition_set[original_color_id];
                 auto it = meta_index.get_color_sets().color_set(original_color_id);
-                uint64_t size = it.meta_color_list_size();
+                const uint64_t size = it.meta_color_set_size();
                 std::vector<uint64_t> relative_colors;
                 relative_colors.reserve(size);
-
                 for (uint64_t i = 0; i < size; i++, it.next_partition_id()) {
                     it.update_partition();
                     uint64_t partition_id = partition_sets[partition_set_id][i];
                     relative_colors.push_back(
                         partial_permutations[partition_id]
-                                            [it.meta_color() - it.num_lists_before()]);
+                                            [it.meta_color() - it.num_color_sets_before()]);
                 }
-                builder.process_metacolors(partition_set_id, partition_sets[partition_set_id],
-                                           relative_colors);
+                builder.process_metacolor_set(partition_set_id, partition_sets[partition_set_id],
+                                              relative_colors);
             }
 
             builder.build(idx.m_color_sets);

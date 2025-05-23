@@ -232,12 +232,13 @@ struct index<ColorSets>::differential_builder {
             timer.start();
 
             typename ColorSets::builder colors_builder;
-            colors_builder.init_colors_builder(index.num_colors());
+            colors_builder.init_color_sets_builder(index.num_colors());
 
-            for (auto& reference : references) { colors_builder.encode_representative(reference); }
+            for (auto& reference : references) colors_builder.encode_representative(reference);
+
             for (auto& [cluster_id, color_id] : permutation) {
                 auto it = index.color_set(color_id);
-                colors_builder.encode_list(
+                colors_builder.encode_color_set(
                     cluster_id, references[cluster_id], it.size(), [&it]() -> void { ++it; },
                     [&it]() -> uint64_t { return *it; });
             }

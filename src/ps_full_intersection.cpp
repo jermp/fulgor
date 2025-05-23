@@ -254,7 +254,7 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
     }
 
     std::sort(iterators.begin(), iterators.end(), [](auto const& x, auto const& y) {
-        return x.meta_color_list_size() < y.meta_color_list_size();
+        return x.meta_color_set_size() < y.meta_color_set_size();
     });
 
     /* step 1: determine partitions in common */
@@ -327,10 +327,10 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
                 std::transform(iterators.begin(), end_it, back_inserter(diff_iterators),
                                [](Iterator a) { return a.partition_it(); });
                 uint32_t lower_bound =
-                    iterators[0].partition_upper_bound() - diff_iterators[0].num_colors();
+                    iterators[0].partition_max_color() - diff_iterators[0].num_colors();
                 diff_intersect(diff_iterators, colors, lower_bound);
             } else {
-                const uint32_t num_colors = iterators[0].partition_upper_bound();
+                const uint32_t num_colors = iterators[0].partition_max_color();
                 next_geq_intersect(iterators.begin(), end_it, colors, num_colors);
             }
         }

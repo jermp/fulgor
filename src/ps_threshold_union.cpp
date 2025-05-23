@@ -84,7 +84,7 @@ void merge_meta(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
             it.item.next_geq_partition_id(partition_id);
             if (it.item.partition_id() == partition_id) {
                 it.item.update_partition();
-                upper_bound = it.item.partition_upper_bound();
+                upper_bound = it.item.partition_max_color();
             }
         }
 
@@ -250,7 +250,7 @@ void merge_metadiff(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
             return a_part < b_part;
         });
 
-        lower_bound = iterators.front().item.partition_lower_bound();
+        lower_bound = iterators.front().item.partition_min_color();
         num_partition_colors = iterators.front().item.partition_it().num_colors();
 
         uint32_t partition_score = 0;

@@ -12,10 +12,10 @@ struct hybrid {
         void init(uint64_t num_colors) {
             m_num_colors = num_colors;
 
-            /* if list contains < sparse_set_threshold_size ints, code it with gaps+delta */
+            /* if set contains < sparse_set_threshold_size ints, code it with gaps+delta */
             m_sparse_set_threshold_size = 0.25 * m_num_colors;
 
-            /* if list contains > very_dense_set_threshold_size ints, code it as a complementary set
+            /* if set contains > very_dense_set_threshold_size ints, code it as a complementary set
                with gaps+delta */
             m_very_dense_set_threshold_size = 0.75 * m_num_colors;
             /* otherwise: code it as a bitmap of m_num_colors bits */
@@ -32,9 +32,9 @@ struct hybrid {
             m_num_total_integers = 0;
         }
 
-        void process(uint32_t const* color_set, const uint64_t size) {
-            /* encode size */
-            bits::util::write_delta(m_bvb, size);
+        void process(uint32_t const* color_set, const uint64_t size)  //
+        {
+            bits::util::write_delta(m_bvb, size); /* encode size */
             if (size < m_sparse_set_threshold_size) {
                 uint32_t prev_val = color_set[0];
                 bits::util::write_delta(m_bvb, prev_val);
@@ -45,10 +45,10 @@ struct hybrid {
                     prev_val = val;
                 }
             } else if (size < m_very_dense_set_threshold_size) {
-                bits::bit_vector::builder bvb_ints;
-                bvb_ints.resize(m_num_colors);
-                for (uint64_t i = 0; i != size; ++i) bvb_ints.set(color_set[i]);
-                m_bvb.append(bvb_ints);
+                bits::bit_vector::builder bvb;
+                bvb.resize(m_num_colors);
+                for (uint64_t i = 0; i != size; ++i) bvb.set(color_set[i]);
+                m_bvb.append(bvb);
             } else {
                 bool first = true;
                 uint32_t val = 0;
@@ -80,7 +80,7 @@ struct hybrid {
                     ++written;
                 }
                 assert(val == m_num_colors);
-                /* complementary_list_size = m_num_colors - size */
+                /* complementary_set_size = m_num_colors - size */
                 assert(m_num_colors - size <= m_num_colors);
                 assert(written == m_num_colors - size);
             }
@@ -94,14 +94,12 @@ struct hybrid {
 
         void append(hybrid::builder& hb) {
             if (hb.m_num_color_sets == 0) return;
-
             m_bvb.append(hb.m_bvb);
             assert(m_offsets.size() > 0);
             uint64_t delta = m_offsets.back();
-
             m_offsets.reserve(m_offsets.size() + hb.m_offsets.size());
-            for (uint64_t offset_id = 1; offset_id < hb.m_offsets.size(); offset_id++) {
-                m_offsets.push_back(hb.m_offsets[offset_id] + delta);
+            for (uint64_t i = 1; i != hb.m_offsets.size(); ++i) {
+                m_offsets.push_back(hb.m_offsets[i] + delta);
             }
             m_num_color_sets += hb.m_num_color_sets;
             m_num_total_integers += hb.m_num_total_integers;
@@ -160,7 +158,7 @@ struct hybrid {
         }
 
         void rewind() {
-            m_pos_in_list = 0;
+            m_pos_in_set = 0;
             m_pos_in_comp_set = 0;
             m_comp_set_size = 0;
             m_comp_val = -1;
@@ -216,8 +214,8 @@ struct hybrid {
                 }
                 next_comp_val();
             } else if (m_encoding_type == encoding_t::delta_gaps) {
-                m_pos_in_list += 1;
-                if (m_pos_in_list >= m_size) {  // saturate
+                m_pos_in_set += 1;
+                if (m_pos_in_set >= m_size) {  // saturate
                     m_curr_val = m_num_colors;
                     return;
                 }
@@ -225,8 +223,8 @@ struct hybrid {
                 m_curr_val = bits::util::read_delta(m_it) + (m_prev_val + 1);
             } else {
                 assert(m_encoding_type == encoding_t::bitmap);
-                m_pos_in_list += 1;
-                if (m_pos_in_list >= m_size) {  // saturate
+                m_pos_in_set += 1;
+                if (m_pos_in_set >= m_size) {  // saturate
                     m_curr_val = m_num_colors;
                     return;
                 }
@@ -274,7 +272,7 @@ struct hybrid {
         int m_encoding_type;
 
         bits::bit_vector::iterator m_it;
-        uint32_t m_pos_in_list;
+        uint32_t m_pos_in_set;
         uint32_t m_size;
 
         uint32_t m_pos_in_comp_set;

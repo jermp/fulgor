@@ -157,7 +157,7 @@ struct index<ColorSets>::meta_builder {
             timer.start();
 
             atomic_uint64_t num_integers_in_metacolor_sets = 0;
-            uint64_t num_partial_color_set_sets = 0;
+            uint64_t num_partial_color_sets = 0;
 
             typename ColorSets::builder color_sets_builder;
 
@@ -286,25 +286,24 @@ struct index<ColorSets>::meta_builder {
                 if (t.joinable()) t.join();
             }
 
-            std::vector<uint64_t> num_partial_color_set_sets_before;
+            std::vector<uint64_t> num_partial_color_sets_before;
             std::vector<uint32_t> num_sets_in_partition;
-            num_partial_color_set_sets_before.reserve(num_partitions);
+            num_partial_color_sets_before.reserve(num_partitions);
             num_sets_in_partition.reserve(num_partitions);
-            num_partial_color_set_sets = 0;
+            num_partial_color_sets = 0;
             for (uint64_t partition_id = 0; partition_id != num_partitions; ++partition_id) {
-                num_partial_color_set_sets_before.push_back(num_partial_color_set_sets);
-                uint64_t num_partial_color_set_sets_in_partition = hashes[partition_id].size();
-                num_partial_color_set_sets += num_partial_color_set_sets_in_partition;
-                num_sets_in_partition.push_back(num_partial_color_set_sets_in_partition);
-                std::cout << "num_partial_color_set_sets_in_partition-" << partition_id << ": "
-                          << num_partial_color_set_sets_in_partition << std::endl;
+                num_partial_color_sets_before.push_back(num_partial_color_sets);
+                uint64_t num_partial_color_sets_in_partition = hashes[partition_id].size();
+                num_partial_color_sets += num_partial_color_sets_in_partition;
+                num_sets_in_partition.push_back(num_partial_color_sets_in_partition);
+                std::cout << "num_partial_color_sets_in_partition-" << partition_id << ": "
+                          << num_partial_color_sets_in_partition << std::endl;
             }
 
-            std::cout << "total num. partial color sets = " << num_partial_color_set_sets
-                      << std::endl;
+            std::cout << "total num. partial color sets = " << num_partial_color_sets << std::endl;
 
             color_sets_builder.init_meta_color_sets_builder(
-                num_integers_in_metacolor_sets + num_color_sets, num_partial_color_set_sets,
+                num_integers_in_metacolor_sets + num_color_sets, num_partial_color_sets,
                 p.partition_size(), num_sets_in_partition);
 
             std::vector<uint32_t> metacolor_set;
@@ -338,7 +337,7 @@ struct index<ColorSets>::meta_builder {
                                           sizeof(uint32_t));
                     /* transform the partial_color_set_id into a global id */
                     metacolor_set.push_back(partial_color_set_id +
-                                            num_partial_color_set_sets_before[partition_id]);
+                                            num_partial_color_sets_before[partition_id]);
                 }
                 color_sets_builder.process_metacolor_set(metacolor_set.data(),
                                                          metacolor_set.size());

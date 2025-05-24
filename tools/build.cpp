@@ -1,84 +1,113 @@
 using namespace fulgor;
 
-void meta_color(build_configuration const& build_config) {
-    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-    timer.start();
-
-    meta_index_type index;
-    typename meta_index_type::meta_builder builder(build_config);
-    builder.build(index);
-    index.print_stats();
-
-    timer.stop();
-    essentials::logger("DONE");
-    std::cout << "** building the index took " << timer.elapsed() << " seconds / "
-              << timer.elapsed() / 60 << " minutes" << std::endl;
-
+void meta_color(build_configuration const& build_config, const bool force)  //
+{
     std::string output_filename = build_config.index_filename_to_partition.substr(
                                       0, build_config.index_filename_to_partition.length() -
                                              constants::fulgor_filename_extension.length() - 1) +
                                   "." + constants::meta_colored_fulgor_filename_extension;
-    essentials::logger("saving index to disk...");
-    essentials::save(index, output_filename.c_str());
-    essentials::logger("DONE");
-}
 
-void diff_color(build_configuration const& build_config) {
+    if (std::filesystem::exists(output_filename)) {
+        std::cerr << "An index with the name '" << output_filename << "' alreay exists."
+                  << std::endl;
+        if (force) {
+            std::cerr << "Option '--force' specified: re-building the index." << std::endl;
+        } else {
+            std::cerr << "Use option '--force' to re-build the index." << std::endl;
+            return;
+        }
+    }
+
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();
-
-    differential_index_type index;
-    typename differential_index_type::differential_builder builder(build_config);
+    meta_index_type index;
+    typename meta_index_type::meta_builder builder(build_config);
     builder.build(index);
     index.print_stats();
-
     timer.stop();
     essentials::logger("DONE");
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
-    std::string output_filename = build_config.index_filename_to_partition.substr(
-                                      0, build_config.index_filename_to_partition.length() -
-                                             constants::fulgor_filename_extension.length() - 1) +
-                                  "." + constants::diff_colored_fulgor_filename_extension;
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");
 }
 
-void meta_diff_color(build_configuration const& build_config)  //
+void diff_color(build_configuration const& build_config, const bool force)  //
 {
+    std::string output_filename = build_config.index_filename_to_partition.substr(
+                                      0, build_config.index_filename_to_partition.length() -
+                                             constants::fulgor_filename_extension.length() - 1) +
+                                  "." + constants::diff_colored_fulgor_filename_extension;
+
+    if (std::filesystem::exists(output_filename)) {
+        std::cerr << "An index with the name '" << output_filename << "' alreay exists."
+                  << std::endl;
+        if (force) {
+            std::cerr << "Option '--force' specified: re-building the index." << std::endl;
+        } else {
+            std::cerr << "Use option '--force' to re-build the index." << std::endl;
+            return;
+        }
+    }
+
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+    timer.start();
+    differential_index_type index;
+    typename differential_index_type::differential_builder builder(build_config);
+    builder.build(index);
+    index.print_stats();
+    timer.stop();
+    essentials::logger("DONE");
+    std::cout << "** building the index took " << timer.elapsed() << " seconds / "
+              << timer.elapsed() / 60 << " minutes" << std::endl;
+
+    essentials::logger("saving index to disk...");
+    essentials::save(index, output_filename.c_str());
+    essentials::logger("DONE");
+}
+
+void meta_diff_color(build_configuration const& build_config, const bool force)  //
+{
+    std::string output_filename =
+        build_config.index_filename_to_partition.substr(
+            0, build_config.index_filename_to_partition.length() -
+                   constants::meta_colored_fulgor_filename_extension.length() - 1) +
+        "." + constants::meta_diff_colored_fulgor_filename_extension;
+
+    if (std::filesystem::exists(output_filename)) {
+        std::cerr << "An index with the name '" << output_filename << "' alreay exists."
+                  << std::endl;
+        if (force) {
+            std::cerr << "Option '--force' specified: re-building the index." << std::endl;
+        } else {
+            std::cerr << "Use option '--force' to re-build the index." << std::endl;
+            return;
+        }
+    }
+
+    /* first build a meta-colored Fulgor index */
+    meta_color(build_config, force);
+
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+    timer.start();
     build_configuration meta_diff_build_config = build_config;
     meta_diff_build_config.index_filename_to_partition =
         build_config.index_filename_to_partition.substr(
             0, build_config.index_filename_to_partition.length() -
                    constants::fulgor_filename_extension.length() - 1) +
         "." + constants::meta_colored_fulgor_filename_extension;
-
-    if (!std::filesystem::exists(meta_diff_build_config.index_filename_to_partition)) {
-        /* first build a meta-colored Fulgor index */
-        meta_color(build_config);
-    }
-
-    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-    timer.start();
-
     meta_differential_index_type index;
     typename meta_differential_index_type::meta_differential_builder builder(
         meta_diff_build_config);
     builder.build(index);
     index.print_stats();
-
     timer.stop();
     essentials::logger("DONE");
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
-    std::string output_filename =
-        meta_diff_build_config.index_filename_to_partition.substr(
-            0, meta_diff_build_config.index_filename_to_partition.length() -
-                   constants::meta_colored_fulgor_filename_extension.length() - 1) +
-        "." + constants::meta_diff_colored_fulgor_filename_extension;
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");
@@ -129,25 +158,29 @@ int build(int argc, char** argv) {
         build_config.num_threads = parser.get<uint64_t>("num_threads");
     }
 
-    if (std::filesystem::exists(output_filename) and !force) {
+    if (std::filesystem::exists(output_filename)) {
         std::cerr << "An index with the name '" << output_filename << "' alreay exists."
                   << std::endl;
-        std::cerr << "Use option '--force' to re-build the index." << std::endl;
-        if (build_config.meta_colored and build_config.diff_colored) {
-            std::cerr << "Consider using: \"./fulgor color -i " << output_filename << " -d "
-                      << build_config.tmp_dirname << " -t "
-                      << std::to_string(build_config.num_threads) << " --diff --meta\""
-                      << std::endl;
-        } else if (build_config.meta_colored) {
-            std::cerr << "Consider using: \"./fulgor color -i " << output_filename << " -d "
-                      << build_config.tmp_dirname << " -t "
-                      << std::to_string(build_config.num_threads) << " --meta\"" << std::endl;
-        } else if (build_config.diff_colored) {
-            std::cerr << "Consider using: \"./fulgor color -i " << output_filename << " -d "
-                      << build_config.tmp_dirname << " -t "
-                      << std::to_string(build_config.num_threads) << " --diff\"" << std::endl;
+        if (force) {
+            std::cerr << "Option '--force' specified: re-building the index." << std::endl;
+        } else {
+            std::cerr << "Use option '--force' to re-build the index." << std::endl;
+            if (build_config.meta_colored and build_config.diff_colored) {
+                std::cerr << "Consider using: \"./fulgor color -i " << output_filename << " -d "
+                          << build_config.tmp_dirname << " -t "
+                          << std::to_string(build_config.num_threads) << " --diff --meta\""
+                          << std::endl;
+            } else if (build_config.meta_colored) {
+                std::cerr << "Consider using: \"./fulgor color -i " << output_filename << " -d "
+                          << build_config.tmp_dirname << " -t "
+                          << std::to_string(build_config.num_threads) << " --meta\"" << std::endl;
+            } else if (build_config.diff_colored) {
+                std::cerr << "Consider using: \"./fulgor color -i " << output_filename << " -d "
+                          << build_config.tmp_dirname << " -t "
+                          << std::to_string(build_config.num_threads) << " --diff\"" << std::endl;
+            }
+            return 1;
         }
-        return 1;
     }
 
     auto k = parser.get<uint64_t>("k");
@@ -179,11 +212,11 @@ int build(int argc, char** argv) {
     essentials::logger("DONE");
 
     if (build_config.meta_colored and build_config.diff_colored) {
-        meta_diff_color(build_config);
+        meta_diff_color(build_config, force);
     } else if (build_config.meta_colored) {
-        meta_color(build_config);
+        meta_color(build_config, force);
     } else if (build_config.diff_colored) {
-        diff_color(build_config);
+        diff_color(build_config, force);
     }
 
     return 0;
@@ -200,6 +233,8 @@ int color(int argc, char** argv) {
     parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
     parser.add("check", "Check correctness after index construction (it might take some time).",
                "--check", false, true);
+    parser.add("force", "Re-build the index even when an index with the same name is found.",
+               "--force", false, true);
     parser.add("meta", "Build a meta-colored index.", "--meta", false, true);
     parser.add("diff", "Build a differential-colored index.", "--diff", false, true);
 
@@ -227,13 +262,14 @@ int color(int argc, char** argv) {
     build_config.check = parser.get<bool>("check");
     build_config.meta_colored = parser.get<bool>("meta");
     build_config.diff_colored = parser.get<bool>("diff");
+    bool force = parser.get<bool>("force");
 
     if (build_config.meta_colored and build_config.diff_colored) {
-        meta_diff_color(build_config);
+        meta_diff_color(build_config, force);
     } else if (build_config.meta_colored) {
-        meta_color(build_config);
+        meta_color(build_config, force);
     } else if (build_config.diff_colored) {
-        diff_color(build_config);
+        diff_color(build_config, force);
     } else {
         std::cerr << "Either \"--meta\" or \"--diff\" should be specified." << std::endl;
         return 1;

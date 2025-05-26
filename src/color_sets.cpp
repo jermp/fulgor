@@ -83,7 +83,7 @@ void hybrid::print_stats() const  //
 template <typename ColorSets>
 void meta<ColorSets>::print_stats() const  //
 {
-    std::cout << "Color statistics:\n";
+    std::cout << "Color sets statistics:\n";
     std::cout << "  Number of partitions: " << num_partitions() << '\n';
     uint64_t num_bits_colors = 0;
 
@@ -145,7 +145,7 @@ void meta<ColorSets>::print_stats() const  //
 
 void differential::print_stats() const  //
 {
-    std::cout << "Color statistics:\n";
+    std::cout << "Color sets statistics:\n";
     std::cout << "  Number of partitions: " << num_partitions() << std::endl;
 
     uint64_t num_bits_representative_offsets = m_representative_offsets.num_bytes() * 8;
@@ -244,7 +244,7 @@ void differential::print_stats() const  //
 
 void meta_differential::print_stats() const  //
 {
-    std::cout << "Color statistics:\n";
+    std::cout << "Color sets statistics:\n";
     std::cout << "  Number of partitions: " << num_partitions() << '\n';
     std::cout << "  Number of partition sets: " << num_partition_sets() << '\n';
 

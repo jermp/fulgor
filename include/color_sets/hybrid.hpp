@@ -12,27 +12,29 @@ struct hybrid {
         void init(uint64_t num_colors) {
             m_num_colors = num_colors;
 
-            /* if set contains < sparse_set_threshold_size ints, code it with gaps+delta */
+            /*
+                If set contains < sparse_set_threshold_size ints, code it with gaps+delta;
+                if set contains > very_dense_set_threshold_size ints, code it as a complementary set
+                with gaps+delta; otherwise: code it as a bitmap of m_num_colors bits.
+             */
             m_sparse_set_threshold_size = 0.25 * m_num_colors;
-
-            /* if set contains > very_dense_set_threshold_size ints, code it as a complementary set
-               with gaps+delta */
             m_very_dense_set_threshold_size = 0.75 * m_num_colors;
-            /* otherwise: code it as a bitmap of m_num_colors bits */
 
-            std::cout << "m_num_colors " << m_num_colors << std::endl;
-            std::cout << "m_sparse_set_threshold_size " << m_sparse_set_threshold_size << std::endl;
-            std::cout << "m_very_dense_set_threshold_size " << m_very_dense_set_threshold_size
-                      << std::endl;
+            // std::cout << "m_num_colors " << m_num_colors << std::endl;
+            // std::cout << "m_sparse_set_threshold_size " << m_sparse_set_threshold_size <<
+            // std::endl; std::cout << "m_very_dense_set_threshold_size " <<
+            // m_very_dense_set_threshold_size
+            //           << std::endl;
 
-            m_bvb.reserve(320 * essentials::GB);
             m_offsets.push_back(0);
 
             m_num_color_sets = 0;
             m_num_total_integers = 0;
         }
 
-        void process(uint32_t const* color_set, const uint64_t size)  //
+        void reserve_num_bits(uint64_t num_bits) { m_bvb.reserve(num_bits); }
+
+        void encode_color_set(uint32_t const* color_set, const uint64_t size)  //
         {
             bits::util::write_delta(m_bvb, size); /* encode size */
             if (size < m_sparse_set_threshold_size) {

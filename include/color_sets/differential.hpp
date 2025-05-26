@@ -17,6 +17,8 @@ struct differential {
             m_num_sets = 0;
         }
 
+        void reserve_num_bits(uint64_t num_bits) { m_bvb.reserve(num_bits); }
+
         void encode_representative(std::vector<uint32_t> const& representative) {
             uint64_t size = representative.size();
             bits::util::write_delta(m_bvb, size);

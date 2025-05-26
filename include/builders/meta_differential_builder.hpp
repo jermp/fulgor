@@ -33,7 +33,7 @@ struct index<ColorSets>::meta_differential_builder {
         std::vector<std::vector<uint64_t>> partial_permutations(num_partitions);
 
         {
-            essentials::logger("step 2. building differential partial/meta colors");
+            essentials::logger("step 2. building differential partial/meta color sets");
             timer.start();
 
             std::vector<hybrid> const& pc = meta_index.get_color_sets().partial_colors();
@@ -46,6 +46,7 @@ struct index<ColorSets>::meta_differential_builder {
 
                 differential::builder diff_builder;
                 diff_builder.init_color_sets_builder(dp.num_colors());
+                diff_builder.reserve_num_bits(16 * essentials::GB * 8);
 
                 auto const& permutation = dp.permutation();
                 auto const& references = dp.references();
@@ -70,15 +71,15 @@ struct index<ColorSets>::meta_differential_builder {
             }
 
             timer.stop();
-            std::cout << "** building partial/meta colors took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            std::cout << "** building partial/meta color sets took " << timer.elapsed()
+                      << " seconds / " << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
 
         std::vector<uint64_t> permutation(num_color_sets);
 
         {
-            essentials::logger("step 5. build differential-meta colors");
+            essentials::logger("step 5. build differential-meta color sets");
             timer.start();
 
             std::vector<uint32_t> counts;
@@ -139,7 +140,7 @@ struct index<ColorSets>::meta_differential_builder {
             builder.build(idx.m_color_sets);
 
             timer.stop();
-            std::cout << "** building differential-meta colors took " << timer.elapsed()
+            std::cout << "** building differential-meta color sets took " << timer.elapsed()
                       << " seconds / " << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }

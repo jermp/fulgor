@@ -228,25 +228,32 @@ struct index<ColorSets>::differential_builder {
         std::cout << "num_partitions = " << num_partitions << std::endl;
 
         {
-            essentials::logger("step 4. building differential colors");
+            essentials::logger("step 4. building differential color sets");
             timer.start();
 
-            typename ColorSets::builder colors_builder;
-            colors_builder.init_color_sets_builder(index.num_colors());
+            typename ColorSets::builder color_sets_builder;
+            color_sets_builder.init_color_sets_builder(index.num_colors());
+            color_sets_builder.reserve_num_bits(16 * essentials::GB * 8);
 
-            for (auto& reference : references) colors_builder.encode_representative(reference);
+            for (auto& reference : references) color_sets_builder.encode_representative(reference);
 
             for (auto& [cluster_id, color_id] : permutation) {
                 auto it = index.color_set(color_id);
-                colors_builder.encode_color_set(
+                color_sets_builder.encode_color_set(
                     cluster_id, references[cluster_id], it.size(), [&it]() -> void { ++it; },
                     [&it]() -> uint64_t { return *it; });
             }
-            colors_builder.build(idx.m_color_sets);
+            color_sets_builder.build(idx.m_color_sets);
+
+            timer.stop();
+            std::cout << "** building color sets took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
         }
 
         {
-            essentials::logger("step 5. permute unitigs and rebuild sshash");
+            essentials::logger("step 5. permute unitigs and rebuild k2u");
+            timer.start();
 
             const std::string permuted_unitigs_filename =
                 m_build_config.tmp_dirname + "/permuted_unitigs.fa";
@@ -271,7 +278,7 @@ struct index<ColorSets>::differential_builder {
                     old_unitig_id_end = d.select(u2c, old_color_id) + 1;
                 }
                 uint64_t old_unitig_id_begin = 0;
-                if (old_color_id > 0) { old_unitig_id_begin = d.select(u2c, old_color_id - 1) + 1; }
+                if (old_color_id > 0) old_unitig_id_begin = d.select(u2c, old_color_id - 1) + 1;
 
                 // num. unitigs that have the same color
                 pos += old_unitig_id_end - old_unitig_id_begin;
@@ -310,6 +317,11 @@ struct index<ColorSets>::differential_builder {
             try {  // remove unitig file
                 std::remove(permuted_unitigs_filename.c_str());
             } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
+
+            timer.stop();
+            std::cout << "** permuting unitigs and rebuilding k2u took " << timer.elapsed()
+                      << " seconds / " << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
         }
 
         {

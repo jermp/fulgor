@@ -70,11 +70,10 @@ void diff_color(build_configuration const& build_config, const bool force)  //
 
 void meta_diff_color(build_configuration const& build_config, const bool force)  //
 {
-    std::string output_filename =
-        build_config.index_filename_to_partition.substr(
-            0, build_config.index_filename_to_partition.length() -
-                   constants::meta_colored_fulgor_filename_extension.length() - 1) +
-        "." + constants::meta_diff_colored_fulgor_filename_extension;
+    std::string output_filename = build_config.index_filename_to_partition.substr(
+                                      0, build_config.index_filename_to_partition.length() -
+                                             constants::fulgor_filename_extension.length() - 1) +
+                                  "." + constants::meta_diff_colored_fulgor_filename_extension;
 
     if (std::filesystem::exists(output_filename)) {
         std::cerr << "An index with the name '" << output_filename << "' alreay exists."
@@ -231,6 +230,7 @@ int color(int argc, char** argv) {
             constants::default_tmp_dirname + "'.",
         "-d", false);
     parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
+    parser.add("verbose", "Verbose output during construction.", "--verbose", false, true);
     parser.add("check", "Check correctness after index construction (it might take some time).",
                "--check", false, true);
     parser.add("force", "Re-build the index even when an index with the same name is found.",
@@ -262,6 +262,7 @@ int color(int argc, char** argv) {
     build_config.check = parser.get<bool>("check");
     build_config.meta_colored = parser.get<bool>("meta");
     build_config.diff_colored = parser.get<bool>("diff");
+    build_config.verbose = parser.get<bool>("verbose");
     bool force = parser.get<bool>("force");
 
     if (build_config.meta_colored and build_config.diff_colored) {

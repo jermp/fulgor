@@ -13,7 +13,7 @@
 
 namespace fulgor {
 
-enum class index_t { HYBRID, DIFF, META, META_DIFF };
+enum index_t { HYBRID, DIFF, META, META_DIFF };
 enum encoding_t { delta_gaps, bitmap, complement_delta_gaps, symmetric_difference };
 
 namespace constants {
@@ -73,7 +73,7 @@ struct build_configuration {
 
 namespace util {
 
-static void print_cmd(int argc, char** argv) {
+void print_cmd(int argc, char** argv) {
     for (int i = 0; i != argc; ++i) std::cout << argv[i] << ' ';
     std::cout << std::endl;
 }

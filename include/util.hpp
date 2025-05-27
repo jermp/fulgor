@@ -17,6 +17,7 @@ enum class index_t { HYBRID, DIFF, META, META_DIFF };
 enum encoding_t { delta_gaps, bitmap, complement_delta_gaps, symmetric_difference };
 
 namespace constants {
+
 constexpr double invalid_threshold = -1.0;
 constexpr uint64_t default_ram_limit_in_GiB = 8;
 static const std::string default_tmp_dirname(".");
@@ -24,6 +25,13 @@ static const std::string fulgor_filename_extension("fur");
 static const std::string meta_colored_fulgor_filename_extension("mfur");
 static const std::string diff_colored_fulgor_filename_extension("dfur");
 static const std::string meta_diff_colored_fulgor_filename_extension("mdfur");
+
+namespace current_version_number {
+constexpr uint8_t x = 4;
+constexpr uint8_t y = 0;
+constexpr uint8_t z = 0;
+}  // namespace current_version_number
+
 }  // namespace constants
 
 struct build_configuration {
@@ -71,6 +79,12 @@ static void print_cmd(int argc, char** argv) {
 }
 
 std::string filename(std::string const& path) { return path.substr(path.find_last_of("/\\") + 1); }
+
+void check_version_number(essentials::version_number const& vnum) {
+    if (vnum.x != constants::current_version_number::x) {
+        throw std::runtime_error("MAJOR index version mismatch: Fulgor index needs rebuilding");
+    }
+}
 
 template <typename ForwardIterator>
 bool check_intersection(std::vector<ForwardIterator>& iterators,

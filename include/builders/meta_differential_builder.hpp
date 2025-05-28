@@ -44,6 +44,9 @@ struct index<ColorSets>::meta_differential_builder {
                 differential_permuter dp(m_build_config);
                 dp.permute(pc[i]);
 
+                essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+                timer.start();
+
                 differential::builder diff_builder;
                 diff_builder.init_color_sets_builder(dp.num_colors());
                 diff_builder.reserve_num_bits(16 * essentials::GB * 8);
@@ -67,7 +70,12 @@ struct index<ColorSets>::meta_differential_builder {
                 differential d;
                 diff_builder.build(d);
                 builder.process_partition(d);
-                d.print_stats();
+                // d.print_stats();
+
+                timer.stop();
+                std::cout << "  ** building the color sets for partition " << i << " took "
+                          << timer.elapsed() << " seconds / " << timer.elapsed() / 60 << " minutes"
+                          << std::endl;
             }
 
             timer.stop();

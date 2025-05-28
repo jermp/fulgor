@@ -311,6 +311,7 @@ struct index<ColorSets>::differential_builder {
             sshash_config.canonical_parsing = dict.canonicalized();
             sshash_config.verbose = m_build_config.verbose;
             sshash_config.tmp_dirname = m_build_config.tmp_dirname;
+            sshash_config.num_threads = m_build_config.num_threads;
             sshash_config.print();
             idx.m_k2u.build(permuted_unitigs_filename, sshash_config);
             assert(idx.get_k2u().size() == dict.size());

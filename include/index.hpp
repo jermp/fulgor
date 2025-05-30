@@ -25,7 +25,8 @@ struct index {
     index()
         : m_vnum(constants::current_version_number::x,  //
                  constants::current_version_number::y,  //
-                 constants::current_version_number::z) {}
+                 constants::current_version_number::z)  //
+    {}
 
     typename color_sets_type::iterator_type color_set(uint64_t color_set_id) const {
         assert(color_set_id < num_color_sets());

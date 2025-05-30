@@ -6,7 +6,16 @@ struct differential {
     static const index_t type = index_t::DIFF;
 
     struct builder {
-        builder() : m_prev_cluster_id(0) {
+        builder()
+            : m_num_total_integers(0)
+            , m_num_sets(0) {
+            m_color_set_offsets.push_back(0);
+            m_representative_offsets.push_back(0);
+        }
+        builder(uint32_t num_colors)
+            : m_num_total_integers(0)
+            , m_num_sets(0)
+            , m_num_colors(num_colors) {
             m_color_set_offsets.push_back(0);
             m_representative_offsets.push_back(0);
         }
@@ -19,6 +28,30 @@ struct differential {
 
         void reserve_num_bits(uint64_t num_bits) { m_bvb.reserve(num_bits); }
 
+        void process_partition(std::vector<uint32_t> const& representative){
+            m_curr_representative = representative;
+            if (m_clusters.num_bits() > 0) m_clusters.set(m_clusters.num_bits() - 1);
+
+            uint64_t size = representative.size();
+
+            bits::util::write_delta(m_bvb, size);
+            m_num_total_integers += size + 1;  // size plus size number
+            m_num_sets += 1;
+
+            if (size > 0) {
+                uint32_t prev_val = representative[0];
+                bits::util::write_delta(m_bvb, prev_val);
+                for (uint64_t i = 1; i < size; ++i) {
+                    uint32_t val = representative[i];
+                    assert(val >= prev_val + 1);
+                    bits::util::write_delta(m_bvb, val - (prev_val + 1));
+                    prev_val = val;
+                }
+            }
+            m_representative_offsets.push_back(m_bvb.num_bits());
+        }
+
+        /*DEPRECATED*/
         void encode_representative(std::vector<uint32_t> const& representative) {
             uint64_t size = representative.size();
             bits::util::write_delta(m_bvb, size);
@@ -37,6 +70,66 @@ struct differential {
             m_representative_offsets.push_back(m_bvb.num_bits());
         }
 
+        template<typename Iterator>
+        void process_color_set(Iterator& it){
+            uint64_t it_size = it.size();
+            uint64_t rp_size = m_curr_representative.size();
+            std::vector<uint32_t> diff_set;
+            diff_set.reserve(m_num_colors);
+
+            m_clusters.push_back(m_first_of_partition);
+            m_first_of_partition = false;
+
+            uint64_t i = 0, j = 0;
+            while (i < it_size && j < rp_size) {
+                if (*it == m_curr_representative[j]) {
+                    i += 1;
+                    j += 1;
+                    ++it;
+                } else if (*it < m_curr_representative[j]) {
+                    diff_set.push_back(*it);
+                    i += 1;
+                    ++it;
+                } else {
+                    diff_set.push_back(m_curr_representative[j]);
+                    j += 1;
+                }
+            }
+            while (i < it_size) {
+                diff_set.push_back(*it);
+                ++it;
+                i += 1;
+            }
+            while (j < rp_size) {
+                diff_set.push_back(m_curr_representative[j]);
+                j += 1;
+            }
+
+            uint64_t size = diff_set.size();
+            bits::util::write_delta(m_bvb, size);
+            bits::util::write_delta(m_bvb, it_size);
+
+            // size plus diff_set size plus original set size
+            m_num_total_integers += size + 2;
+
+            m_num_sets += 1;
+
+            if (size > 0) {
+                uint32_t prev_val = diff_set[0];
+                bits::util::write_delta(m_bvb, prev_val);
+                for (uint64_t pos = 1; pos < size; ++pos) {
+                    uint32_t val = diff_set[pos];
+                    assert(val >= prev_val + 1);
+                    bits::util::write_delta(m_bvb, val - (prev_val + 1));
+                    prev_val = val;
+                }
+            }
+
+            uint64_t last_offset = m_representative_offsets[m_representative_offsets.size() - 1];
+            m_color_set_offsets.push_back(m_bvb.num_bits() - last_offset);
+        }
+
+        /*DEPRECATED*/
         void encode_color_set(uint64_t cluster_id, std::vector<uint32_t> const& representative,
                               uint64_t it_size, function<void()> next, function<uint64_t()> get)  //
         {
@@ -44,11 +137,13 @@ struct differential {
             uint64_t ref_size = representative.size();
             differential_set.reserve(ref_size + it_size);
 
+            /*
             if (cluster_id != m_prev_cluster_id) {
                 m_prev_cluster_id = cluster_id;
                 m_clusters.set(m_clusters.num_bits() - 1);
             }
             m_clusters.push_back(false);
+            */
 
             uint64_t i = 0, j = 0;
             while (i < it_size && j < ref_size) {
@@ -99,6 +194,30 @@ struct differential {
             m_color_set_offsets.push_back(m_bvb.num_bits() - last_offset);
         }
 
+        void append(differential::builder& db) {
+            if (db.m_color_set_offsets.size() - 1 == 0) return;
+            m_bvb.append(db.m_bvb);
+            m_num_total_integers += db.m_num_total_integers;
+            m_num_sets += db.m_num_sets;
+            m_clusters.set(m_clusters.num_bits() - 1);
+            m_clusters.append(db.m_clusters);
+
+            assert(m_representative_offsets.size() > 0);
+            uint64_t rp_delta = m_representative_offsets.back();
+            m_representative_offsets.reserve(m_representative_offsets.size() + db.m_representative_offsets.size());
+            for (uint64_t i = 1; i != db.m_representative_offsets.size(); ++i){
+                m_representative_offsets.push_back(db.m_representative_offsets[i] + rp_delta);
+            }
+
+            assert(m_color_set_offsets.size() > 0);
+            uint64_t df_delta = m_color_set_offsets.back();
+            m_color_set_offsets.reserve(m_color_set_offsets.size() + db.m_color_set_offsets.size());
+            for (uint64_t i = 1; i != db.m_color_set_offsets.size(); ++i){
+                m_color_set_offsets.push_back(db.m_color_set_offsets[i] + df_delta);
+            }
+
+        }
+
         void build(differential& d) {
             d.m_num_colors = m_num_colors;
             m_bvb.build(d.m_color_sets);
@@ -136,8 +255,10 @@ struct differential {
         uint64_t m_num_total_integers, m_num_sets;
 
         uint64_t m_num_colors;
-        uint64_t m_prev_cluster_id;
+        bool m_first_of_partition;
         std::vector<uint64_t> m_representative_offsets, m_color_set_offsets;
+
+        std::vector<uint32_t> m_curr_representative;
     };
 
     struct forward_iterator {

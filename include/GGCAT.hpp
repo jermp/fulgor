@@ -57,6 +57,11 @@ struct GGCAT {
             color_names.push_back(std::to_string(i));
         }
 
+        if (std::filesystem::exists(m_graph_file)){
+            cout << "GGCAT files found, skipped GGCAT construction" << endl;
+            return;
+        }
+
         constexpr bool forward_only = false;
         constexpr bool output_color_sets = true;
         constexpr size_t min_multiplicity = 1;

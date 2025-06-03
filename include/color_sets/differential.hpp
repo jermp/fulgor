@@ -8,17 +8,11 @@ struct differential {
     struct builder {
         builder()
             : m_num_total_integers(0)
-            , m_num_sets(0) {
-            m_color_set_offsets.push_back(0);
-            m_representative_offsets.push_back(0);
-        }
+            , m_num_sets(0) { }
         builder(uint32_t num_colors)
             : m_num_total_integers(0)
             , m_num_sets(0)
-            , m_num_colors(num_colors) {
-            m_color_set_offsets.push_back(0);
-            m_representative_offsets.push_back(0);
-        }
+            , m_num_colors(num_colors) { }
 
         void init_color_sets_builder(uint64_t num_colors) {
             m_num_colors = num_colors;
@@ -29,6 +23,7 @@ struct differential {
         void reserve_num_bits(uint64_t num_bits) { m_bvb.reserve(num_bits); }
 
         void process_partition(std::vector<uint32_t> const& representative){
+            m_representative_offsets.push_back(m_bvb.num_bits());
             m_curr_representative = representative;
             if (m_clusters.num_bits() > 0) m_clusters.set(m_clusters.num_bits() - 1);
 
@@ -48,7 +43,6 @@ struct differential {
                     prev_val = val;
                 }
             }
-            m_representative_offsets.push_back(m_bvb.num_bits());
         }
 
         /*DEPRECATED*/
@@ -72,13 +66,13 @@ struct differential {
 
         template<typename Iterator>
         void process_color_set(Iterator& it){
+            m_color_set_offsets.push_back(m_bvb.num_bits());
             uint64_t it_size = it.size();
             uint64_t rp_size = m_curr_representative.size();
             std::vector<uint32_t> diff_set;
             diff_set.reserve(m_num_colors);
 
-            m_clusters.push_back(m_first_of_partition);
-            m_first_of_partition = false;
+            m_clusters.push_back(false);
 
             uint64_t i = 0, j = 0;
             while (i < it_size && j < rp_size) {
@@ -125,8 +119,6 @@ struct differential {
                 }
             }
 
-            uint64_t last_offset = m_representative_offsets[m_representative_offsets.size() - 1];
-            m_color_set_offsets.push_back(m_bvb.num_bits() - last_offset);
         }
 
         /*DEPRECATED*/
@@ -196,6 +188,7 @@ struct differential {
 
         void append(differential::builder& db) {
             if (db.m_color_set_offsets.size() - 1 == 0) return;
+            uint64_t delta = m_bvb.num_bits();
             m_bvb.append(db.m_bvb);
             m_num_total_integers += db.m_num_total_integers;
             m_num_sets += db.m_num_sets;
@@ -203,17 +196,15 @@ struct differential {
             m_clusters.append(db.m_clusters);
 
             assert(m_representative_offsets.size() > 0);
-            uint64_t rp_delta = m_representative_offsets.back();
             m_representative_offsets.reserve(m_representative_offsets.size() + db.m_representative_offsets.size());
-            for (uint64_t i = 1; i != db.m_representative_offsets.size(); ++i){
-                m_representative_offsets.push_back(db.m_representative_offsets[i] + rp_delta);
+            for (uint64_t i = 0; i != db.m_representative_offsets.size(); ++i){
+                m_representative_offsets.push_back(db.m_representative_offsets[i] + delta);
             }
 
             assert(m_color_set_offsets.size() > 0);
-            uint64_t df_delta = m_color_set_offsets.back();
             m_color_set_offsets.reserve(m_color_set_offsets.size() + db.m_color_set_offsets.size());
-            for (uint64_t i = 1; i != db.m_color_set_offsets.size(); ++i){
-                m_color_set_offsets.push_back(db.m_color_set_offsets[i] + df_delta);
+            for (uint64_t i = 0; i != db.m_color_set_offsets.size(); ++i){
+                m_color_set_offsets.push_back(db.m_color_set_offsets[i] + delta);
             }
 
         }
@@ -221,11 +212,15 @@ struct differential {
         void build(differential& d) {
             d.m_num_colors = m_num_colors;
             m_bvb.build(d.m_color_sets);
+
+            m_clusters.set(m_clusters.num_bits() - 1);
             m_clusters.build(d.m_clusters);
             d.m_clusters_rank1_index.build(d.m_clusters);
+            std::cout << "Processing representatives" << std::endl;
             d.m_representative_offsets.encode(m_representative_offsets.begin(),  //
                                               m_representative_offsets.size(),   //
                                               m_representative_offsets.back());
+            std::cout << "Processing differential sets" << std::endl;
             d.m_color_set_offsets.encode(m_color_set_offsets.begin(),  //
                                          m_color_set_offsets.size(),   //
                                          m_color_set_offsets.back());
@@ -255,7 +250,6 @@ struct differential {
         uint64_t m_num_total_integers, m_num_sets;
 
         uint64_t m_num_colors;
-        bool m_first_of_partition;
         std::vector<uint64_t> m_representative_offsets, m_color_set_offsets;
 
         std::vector<uint32_t> m_curr_representative;
@@ -387,15 +381,14 @@ struct differential {
 
     forward_iterator color_set(uint64_t color_id) const {
         assert(color_id < num_color_sets());
-        uint64_t last_representative = m_representative_offsets.access(num_partitions());
-        uint64_t set_begin = m_color_set_offsets.access(color_id) + last_representative;
+        uint64_t set_begin = m_color_set_offsets.access(color_id);
         uint64_t representative_begin =
             m_representative_offsets.access(m_clusters_rank1_index.rank1(m_clusters, color_id));
         return forward_iterator(this, set_begin, representative_begin);
     }
 
-    uint64_t num_color_sets() const { return m_color_set_offsets.size() - 1; }
-    uint64_t num_partitions() const { return m_clusters_rank1_index.num_ones() + 1; }
+    uint64_t num_color_sets() const { return m_color_set_offsets.size(); }
+    uint64_t num_partitions() const { return m_representative_offsets.size(); }
     uint64_t num_colors() const { return m_num_colors; }
 
     uint64_t num_bits() const {

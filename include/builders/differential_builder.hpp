@@ -222,6 +222,7 @@ struct index<ColorSets>::differential_builder {
         auto const& permutation = p.permutation();
         const uint64_t num_partitions = p.num_partitions();
         const uint64_t num_color_sets = index.num_color_sets();
+        const uint64_t num_colors = index.num_colors();
         std::cout << "num_partitions = " << num_partitions << std::endl;
 
         {
@@ -255,15 +256,18 @@ struct index<ColorSets>::differential_builder {
             s.end = num_color_sets;
             thread_slices.push_back(s);
             
-            std::vector<typename ColorSets::builder> thread_builders(thread_slices.size(), m_build_config.num_colors);
+            std::vector<typename ColorSets::builder> thread_builders(thread_slices.size(), num_colors);
             std::vector<std::thread> threads(thread_slices.size());
             
             auto encode_color_sets = [&](uint64_t thread_id) {
                 auto& color_sets_builder = thread_builders[thread_id];
                 auto& [begin, end] = thread_slices[thread_id];
                 color_sets_builder.reserve_num_bits(16 * essentials::GB * 8);
+                stringstream ss;
+                ss << thread_id << ": " << begin << " -> " << end << '\n';
+                cout << ss.str() << flush;
 
-                std::vector<uint32_t> group_endpoints;
+                std::vector<uint64_t> group_endpoints;
                 uint64_t curr_group = permutation[begin].first + 1; // different from first group
                 for (uint64_t i = begin; i < end; i++){
                     auto& [group_id, color_set_id] = permutation[i];
@@ -273,19 +277,23 @@ struct index<ColorSets>::differential_builder {
                 }
                 group_endpoints.push_back(end);
                 
-                std::vector<uint32_t> distribution(num_color_sets, 0);
+                std::vector<uint32_t> distribution(num_colors, 0);
                 for (uint64_t group = 0; group < group_endpoints.size()-1; ++group) {
                     uint64_t g_begin = group_endpoints[group];
                     uint64_t g_end = group_endpoints[group+1];
                     std::vector<uint32_t> representative;
+                    representative.reserve(num_colors);
 
                     for (uint64_t i = g_begin; i < g_end; ++i) {
                         auto& [group_id, color_set_id] = permutation[i];
                         auto it = index.color_set(color_set_id);
-                        for(; *it != num_color_sets; ++it) distribution[*it]++;
+                        uint64_t it_size = it.size();
+                        for(uint64_t pos = 0; pos < it_size; ++pos, ++it) {
+                            distribution[*it]++;
+                        }
                     }
                     uint64_t g_size = g_end - g_begin;
-                    for (uint64_t color = 0; color < num_color_sets; ++color){
+                    for (uint64_t color = 0; color < num_colors; ++color){
                         if (distribution[color] >= ceil(1. * g_size / 2.)) representative.push_back(color);
                     }
                     color_sets_builder.process_partition(representative);
@@ -412,7 +420,7 @@ struct index<ColorSets>::differential_builder {
                 if (res_it.size() != exp_it.size()) {
                     std::cout << "Error while checking color " << color_set_id
                               << ", different sizes: expected " << exp_it.size() << " but got "
-                              << res_it.size() << ")" << std::endl;
+                              << res_it.size() << std::endl;
                     continue;
                 }
 

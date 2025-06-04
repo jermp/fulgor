@@ -273,6 +273,7 @@ struct index<ColorSets>::differential_builder {
                     auto& [group_id, color_set_id] = permutation[i];
                     if (group_id != curr_group) {
                         group_endpoints.push_back(i);
+                        curr_group = group_id;
                     }
                 }
                 group_endpoints.push_back(end);

@@ -77,7 +77,8 @@ struct differential_permuter {
 
             const uint64_t num_color_sets = index.num_color_sets();
             m_num_colors = index.num_colors();
-            m_color_sets_ids.resize(num_color_sets);
+            std::vector<uint32_t> color_sets_ids;
+            color_sets_ids.resize(num_color_sets);
 
             auto clusters_pos = m_partition_size;
             uint64_t clusters_size = 0;
@@ -104,32 +105,18 @@ struct differential_permuter {
             }
 
             for (uint64_t i = 0; i != num_color_sets; ++i) {
-                m_color_sets_ids[permutation[i]] = color_set_ids[i];
+                color_sets_ids[permutation[i]] = color_set_ids[i];
             }
 
             std::cout << "Computed " << m_num_partitions << " partitions\n";
 
             m_permutation.resize(num_color_sets);
-            m_references.resize(m_num_partitions);
-            std::vector<uint32_t> distribution(m_num_colors, 0);
-            uint64_t cluster_size = 0;
-            for (uint64_t color_set_id = 0, cluster_id = 0; color_set_id != num_color_sets + 1;
-                 ++color_set_id, ++cluster_size) {
-                if (color_set_id == m_partition_size[cluster_id + 1]) {
-                    auto& reference = m_references[cluster_id];
-                    for (uint32_t i = 0; i != m_num_colors; ++i) {
-                        if (distribution[i] >= ceil(1. * cluster_size / 2.)) {
-                            reference.emplace_back(i);
-                        }
-                    }
-                    fill(distribution.begin(), distribution.end(), 0);
+            for (uint64_t i = 0, cluster_id = 0; i != num_color_sets + 1; ++i) {
+                if (i == m_partition_size[cluster_id + 1]) {
                     cluster_id++;
-                    cluster_size = 0;
-                    if (color_set_id == num_color_sets) break;
+                    if (i == num_color_sets) break;
                 }
-                auto it = index.color_set(m_color_sets_ids[color_set_id]);
-                for (uint32_t i = 0; i != it.size(); ++i, ++it) distribution[*it]++;
-                m_permutation[color_set_id] = {cluster_id, m_color_sets_ids[color_set_id]};
+                m_permutation[i] = {cluster_id, color_sets_ids[i]};
             }
 
             timer.stop();
@@ -141,16 +128,12 @@ struct differential_permuter {
     uint64_t num_partitions() const { return m_num_partitions; }
     uint64_t num_colors() const { return m_num_colors; }
     std::vector<std::pair<uint32_t, uint32_t>> permutation() const { return m_permutation; }
-    std::vector<uint32_t> color_sets_ids() const { return m_color_sets_ids; }
-    std::vector<std::vector<uint32_t>> references() const { return m_references; }
 
 private:
     build_configuration m_build_config;
     uint64_t m_num_partitions, m_num_colors;
     std::vector<std::pair<uint32_t, uint32_t>> m_permutation;
-    std::vector<std::vector<uint32_t>> m_references;
     std::vector<uint32_t> m_partition_size;
-    std::vector<uint32_t> m_color_sets_ids;
 
     uint64_t cluster(std::string filename, kmeans::cluster_data& clustering_data,
                      std::vector<uint64_t>& color_set_ids) {
@@ -225,6 +208,8 @@ struct index<ColorSets>::differential_builder {
     void build(index& idx) {
         if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
 
+        const uint32_t num_threads = m_build_config.num_threads;
+
         index_type index;
         essentials::logger("step 1. loading index to be differentiated...");
         essentials::load(index, m_build_config.index_filename_to_partition.c_str());
@@ -235,29 +220,105 @@ struct index<ColorSets>::differential_builder {
         differential_permuter p(m_build_config);
         p.permute(index);
         auto const& permutation = p.permutation();
-        auto const& references = p.references();
-
         const uint64_t num_partitions = p.num_partitions();
         const uint64_t num_color_sets = index.num_color_sets();
+        const uint64_t num_colors = index.num_colors();
         std::cout << "num_partitions = " << num_partitions << std::endl;
 
         {
             essentials::logger("step 4. building differential color sets");
             timer.start();
 
-            typename ColorSets::builder color_sets_builder;
-            color_sets_builder.init_color_sets_builder(index.num_colors());
-            color_sets_builder.reserve_num_bits(16 * essentials::GB * 8);
+            struct slice {
+                uint64_t begin, end;
+            };
+            std::vector<slice> thread_slices;
 
-            for (auto& reference : references) color_sets_builder.encode_representative(reference);
-
-            for (auto& [cluster_id, color_set_id] : permutation) {
-                auto it = index.color_set(color_set_id);
-                color_sets_builder.encode_color_set(
-                    cluster_id, references[cluster_id], it.size(), [&it]() -> void { ++it; },
-                    [&it]() -> uint64_t { return *it; });
+            uint64_t load = 0;
+            for(uint32_t color_set_id = 0; color_set_id < num_color_sets; ++color_set_id){
+                load += index.color_set(color_set_id).size();
             }
-            color_sets_builder.build(idx.m_color_sets);
+            const uint64_t load_per_thread = load/num_threads;
+
+            slice s = {0, 0};
+            uint64_t curr_load = 0;
+            uint64_t prev_cluster = permutation[0].first;
+            for (uint64_t i = 0; i < num_color_sets; ++i){
+                auto& [cluster_id, color_set_id] = permutation[i];
+                if (cluster_id != prev_cluster && curr_load >= load_per_thread){
+                    s.end = i;
+                    thread_slices.push_back(s);
+                    s.begin = i;
+                    curr_load = 0;
+                }
+                curr_load += index.color_set(color_set_id).size();
+            }
+            s.end = num_color_sets;
+            thread_slices.push_back(s);
+            
+            std::vector<typename ColorSets::builder> thread_builders(thread_slices.size(), num_colors);
+            std::vector<std::thread> threads(thread_slices.size());
+            
+            auto encode_color_sets = [&](uint64_t thread_id) {
+                auto& color_sets_builder = thread_builders[thread_id];
+                auto& [begin, end] = thread_slices[thread_id];
+                color_sets_builder.reserve_num_bits(16 * essentials::GB * 8);
+                stringstream ss;
+                ss << thread_id << ": " << begin << " -> " << end << '\n';
+                cout << ss.str() << flush;
+
+                std::vector<uint64_t> group_endpoints;
+                uint64_t curr_group = permutation[begin].first + 1; // different from first group
+                for (uint64_t i = begin; i < end; i++){
+                    auto& [group_id, color_set_id] = permutation[i];
+                    if (group_id != curr_group) {
+                        group_endpoints.push_back(i);
+                        curr_group = group_id;
+                    }
+                }
+                group_endpoints.push_back(end);
+                
+                std::vector<uint32_t> distribution(num_colors, 0);
+                for (uint64_t group = 0; group < group_endpoints.size()-1; ++group) {
+                    uint64_t g_begin = group_endpoints[group];
+                    uint64_t g_end = group_endpoints[group+1];
+                    std::vector<uint32_t> representative;
+                    representative.reserve(num_colors);
+
+                    for (uint64_t i = g_begin; i < g_end; ++i) {
+                        auto& [group_id, color_set_id] = permutation[i];
+                        auto it = index.color_set(color_set_id);
+                        uint64_t it_size = it.size();
+                        for(uint64_t pos = 0; pos < it_size; ++pos, ++it) {
+                            distribution[*it]++;
+                        }
+                    }
+                    uint64_t g_size = g_end - g_begin;
+                    for (uint64_t color = 0; color < num_colors; ++color){
+                        if (distribution[color] >= ceil(1. * g_size / 2.)) representative.push_back(color);
+                    }
+                    color_sets_builder.process_partition(representative);
+
+                    for (uint64_t i = g_begin; i < g_end; ++i) {
+                        auto& [group_id, color_set_id] = permutation[i];
+                        auto it = index.color_set(color_set_id);
+                        color_sets_builder.process_color_set(it);
+                    }
+                    std::fill(distribution.begin(), distribution.end(), 0);
+                }
+            };
+
+            for (uint64_t thread_id = 0; thread_id < thread_slices.size(); thread_id++){
+                threads[thread_id] = std::thread(encode_color_sets, thread_id);
+            }
+            for (auto& t : threads){
+                if (t.joinable()) t.join();
+            }
+
+            for (uint64_t thread_id = 1; thread_id < thread_builders.size(); thread_id++){
+                thread_builders[0].append(thread_builders[thread_id]);
+            }
+            thread_builders[0].build(idx.m_color_sets);
 
             timer.stop();
             std::cout << "** building color sets took " << timer.elapsed() << " seconds / "
@@ -360,7 +421,7 @@ struct index<ColorSets>::differential_builder {
                 if (res_it.size() != exp_it.size()) {
                     std::cout << "Error while checking color " << color_set_id
                               << ", different sizes: expected " << exp_it.size() << " but got "
-                              << res_it.size() << ")" << std::endl;
+                              << res_it.size() << std::endl;
                     continue;
                 }
 

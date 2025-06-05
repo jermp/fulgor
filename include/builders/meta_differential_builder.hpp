@@ -52,18 +52,20 @@ struct index<ColorSets>::meta_differential_builder {
                 diff_builder.reserve_num_bits(16 * essentials::GB * 8);
 
                 auto const& permutation = dp.permutation();
-                auto const& references = dp.references();
+                //TEMP
+                vector<vector<uint32_t>> temp;
+                auto const& representatives = temp;//dp.representatives();
 
                 partial_permutations[i].resize(permutation.size());
                 uint64_t original_id = 0;
 
-                for (auto& reference : references) {
-                    diff_builder.encode_representative(reference);
+                for (auto& representative : representatives) {
+                    diff_builder.encode_representative(representative);
                 }
                 for (auto& [cluster_id, color_id] : permutation) {
                     auto it = pc[i].color_set(color_id);
                     diff_builder.encode_color_set(
-                        cluster_id, references[cluster_id], it.size(), [&it]() -> void { ++it; },
+                        cluster_id, representatives[cluster_id], it.size(), [&it]() -> void { ++it; },
                         [&it]() -> uint64_t { return *it; });
                     partial_permutations[i][color_id] = original_id++;
                 }

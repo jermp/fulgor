@@ -182,10 +182,9 @@ void differential::print_stats() const  //
             prev_position = it.position();
         }
     }
-    uint64_t last_representative = m_representative_offsets.access(num_partitions());
     for (uint64_t color_id = 0; color_id < num_color_sets(); color_id++)  //
     {
-        uint64_t color_set_begin = m_color_set_offsets.access(color_id) + last_representative;
+        uint64_t color_set_begin = m_color_set_offsets.access(color_id);
         auto it = m_color_sets.get_iterator_at(color_set_begin);
         uint64_t prev_position = it.position();
 

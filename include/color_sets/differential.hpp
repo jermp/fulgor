@@ -45,25 +45,6 @@ struct differential {
             }
         }
 
-        /*DEPRECATED*/
-        void encode_representative(std::vector<uint32_t> const& representative) {
-            uint64_t size = representative.size();
-            bits::util::write_delta(m_bvb, size);
-            m_num_total_integers += size + 1;  // size plus size number
-            m_num_sets += 1;
-            if (size > 0) {
-                uint32_t prev_val = representative[0];
-                bits::util::write_delta(m_bvb, prev_val);
-                for (uint64_t i = 1; i < size; ++i) {
-                    uint32_t val = representative[i];
-                    assert(val >= prev_val + 1);
-                    bits::util::write_delta(m_bvb, val - (prev_val + 1));
-                    prev_val = val;
-                }
-            }
-            m_representative_offsets.push_back(m_bvb.num_bits());
-        }
-
         template<typename Iterator>
         void process_color_set(Iterator& it){
             m_color_set_offsets.push_back(m_bvb.num_bits());
@@ -119,71 +100,6 @@ struct differential {
                 }
             }
 
-        }
-
-        /*DEPRECATED*/
-        void encode_color_set(uint64_t cluster_id, std::vector<uint32_t> const& representative,
-                              uint64_t it_size, function<void()> next, function<uint64_t()> get)  //
-        {
-            std::vector<uint32_t> differential_set;
-            uint64_t ref_size = representative.size();
-            differential_set.reserve(ref_size + it_size);
-
-            /*
-            if (cluster_id != m_prev_cluster_id) {
-                m_prev_cluster_id = cluster_id;
-                m_clusters.set(m_clusters.num_bits() - 1);
-            }
-            m_clusters.push_back(false);
-            */
-
-            uint64_t i = 0, j = 0;
-            while (i < it_size && j < ref_size) {
-                if (get() == representative[j]) {
-                    i += 1;
-                    j += 1;
-                    next();
-                } else if (get() < representative[j]) {
-                    differential_set.push_back(get());
-                    i += 1;
-                    next();
-                } else {
-                    differential_set.push_back(representative[j]);
-                    j += 1;
-                }
-            }
-            while (i < it_size) {
-                differential_set.push_back(get());
-                next();
-                i += 1;
-            }
-            while (j < ref_size) {
-                differential_set.push_back(representative[j]);
-                j += 1;
-            }
-
-            uint64_t size = differential_set.size();
-            bits::util::write_delta(m_bvb, size);
-            bits::util::write_delta(m_bvb, it_size);
-
-            // size plus differential_set size plus original set size
-            m_num_total_integers += size + 2;
-
-            m_num_sets += 1;
-
-            if (size > 0) {
-                uint32_t prev_val = differential_set[0];
-                bits::util::write_delta(m_bvb, prev_val);
-                for (uint64_t pos = 1; pos < size; ++pos) {
-                    uint32_t val = differential_set[pos];
-                    assert(val >= prev_val + 1);
-                    bits::util::write_delta(m_bvb, val - (prev_val + 1));
-                    prev_val = val;
-                }
-            }
-
-            uint64_t last_offset = m_representative_offsets[m_representative_offsets.size() - 1];
-            m_color_set_offsets.push_back(m_bvb.num_bits() - last_offset);
         }
 
         void append(differential::builder& db) {

@@ -127,7 +127,7 @@ struct index<ColorSets>::meta_differential_builder {
                             auto& [group_id, color_set_id] = permutation[i];
                             auto it = meta_partition.color_set(color_set_id);
                             color_sets_builder.process_color_set(it);
-                            partial_permutations[meta_partition_id][color_set_id] = i; //check!!
+                            partial_permutations[meta_partition_id][color_set_id] = i; //see if can be moved outside
                         }
                         std::fill(distribution.begin(), distribution.end(), 0);
                     }
@@ -159,65 +159,86 @@ struct index<ColorSets>::meta_differential_builder {
             timer.reset();
         }
 
-        std::vector<uint64_t> permutation(num_color_sets);
+        std::vector<uint32_t> permutation(num_color_sets);
 
         {
             essentials::logger("step 5. build differential-meta color sets");
             timer.start();
 
-            std::vector<uint32_t> counts;
-            std::map<std::vector<uint64_t>, uint64_t> meta_partitions;
-            std::vector<std::vector<uint64_t>> partition_sets;
-            std::vector<uint64_t> color_set_to_partition_set(num_color_sets);
-            uint64_t num_partition_sets = 0;
-            for (uint64_t color_id = 0; color_id < num_color_sets; color_id++) {
-                auto it = meta_index.get_color_sets().color_set(color_id);
-                const uint64_t size = it.meta_color_set_size();
-                std::vector<uint64_t> partition_set(size);
-                for (uint64_t i = 0; i < size; ++i, it.next_partition_id()) {
-                    partition_set[i] = it.partition_id();
+            std::vector<uint32_t> endpoints = {0};
+            std::vector<meta<hybrid>::iterator_type> iterators;
+            std::queue<std::pair<uint32_t, uint32_t>> slices;
+            slices.emplace(0, num_color_sets);
+
+            for (uint64_t color_set_id = 0; color_set_id < num_color_sets; color_set_id++) {
+                permutation[color_set_id] = color_set_id;
+                iterators.push_back(meta_index.color_set(color_set_id));
+            }
+            while (!slices.empty()) {
+                auto [start, end] = slices.front();
+                slices.pop();
+
+                std::sort(permutation.begin() + start, permutation.begin() + end, [&](const int a, const int b){
+                    auto& it_a = iterators[a];
+                    auto& it_b = iterators[b];
+                    uint32_t val_a = it_a.partition_id();
+                    uint32_t val_b = it_b.partition_id();
+
+                    return val_a < val_b;
+                });
+
+                uint32_t prev = iterators[permutation[start]].partition_id();
+                if (prev == num_partitions) goto broken;
+                iterators[permutation[start]].next_partition_id();
+                for (uint64_t pos = start + 1; pos < end; pos++){
+                    uint32_t color_set_id = permutation[pos];
+                    auto& it = iterators[color_set_id];
+                    uint32_t partition_id = it.partition_id();
+                    
+                    if (partition_id != prev){
+                        endpoints.push_back(pos);
+                        slices.emplace(start, pos);
+                        prev = partition_id;
+                        start = pos;
+                    }
+                    if (partition_id == num_partitions) goto broken;
+                    it.next_partition_id();
                 }
-                if (meta_partitions.count(partition_set) == 0) {
-                    meta_partitions[partition_set] = num_partition_sets++;
-                    partition_sets.push_back(partition_set);
-                    counts.push_back(0);
-                }
-                color_set_to_partition_set[color_id] = meta_partitions[partition_set];
-                counts[meta_partitions[partition_set]]++;
+                slices.emplace(start, end);
+                broken:;
             }
 
-            builder.init_meta_color_partition_sets(num_partition_sets);
-            for (uint64_t partition_set_id = 0; partition_set_id < num_partition_sets;
-                 partition_set_id++) {
-                builder.process_meta_color_partition_set(partition_sets[partition_set_id]);
-            }
+            std::sort(endpoints.begin(), endpoints.end());
+            builder.init_meta_color_partition_sets(endpoints.size());
 
-            std::vector<uint64_t> cum_sum = {0};
-            uint64_t prev_val = 0;
-            for (uint64_t count : counts) {
-                prev_val += count;
-                cum_sum.push_back(prev_val);
-            }
-
-            for (uint64_t color_id = 0; color_id < num_color_sets; color_id++) {
-                permutation[cum_sum[color_set_to_partition_set[color_id]]++] = color_id;
-            }
+            uint64_t partition_set_id = 0;
             for (uint64_t permuted_id = 0; permuted_id < num_color_sets; permuted_id++) {
-                uint64_t original_color_id = permutation[permuted_id];
-                uint64_t partition_set_id = color_set_to_partition_set[original_color_id];
-                auto it = meta_index.get_color_sets().color_set(original_color_id);
+                uint64_t color_set_id = permutation[permuted_id];
+
+                if (permuted_id == endpoints[partition_set_id]){
+                    auto it = meta_index.color_set(color_set_id);
+                    uint32_t size = it.meta_color_set_size();
+                    std::vector<uint32_t> partition_set(size);
+                    for (uint32_t i = 0; i < size; ++i, it.next_partition_id()) {
+                        partition_set[i] = it.partition_id();
+                    }
+                    builder.process_meta_color_partition_set(partition_set);
+                    partition_set_id++;
+                }
+
+                auto it = meta_index.color_set(color_set_id);
                 const uint64_t size = it.meta_color_set_size();
-                std::vector<uint64_t> relative_colors;
+                std::vector<uint32_t> relative_colors;
                 relative_colors.reserve(size);
+
                 for (uint64_t i = 0; i < size; i++, it.next_partition_id()) {
                     it.update_partition();
-                    uint64_t partition_id = partition_sets[partition_set_id][i];
+                    uint64_t partition_id = it.partition_id(); 
                     relative_colors.push_back(
                         partial_permutations[partition_id]
                                             [it.meta_color() - it.num_color_sets_before()]);
                 }
-                builder.process_metacolor_set(partition_set_id, partition_sets[partition_set_id],
-                                              relative_colors);
+                builder.process_metacolor_set(relative_colors);
             }
 
             builder.build(idx.m_color_sets);

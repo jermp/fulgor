@@ -39,8 +39,10 @@ struct index<ColorSets>::meta_differential_builder {
             std::vector<hybrid> const& pc = meta_index.get_color_sets().partial_colors();
             assert(pc.size() == num_partitions);
 
-            for (uint64_t meta_partition_id = 0; meta_partition_id < num_partitions; meta_partition_id++) {
-                std::cout << " Partition " << meta_partition_id << " / " << num_partitions-1 << std::endl;
+            for (uint64_t meta_partition_id = 0; meta_partition_id < num_partitions;
+                 meta_partition_id++) {
+                std::cout << " Partition " << meta_partition_id << " / " << num_partitions - 1
+                          << std::endl;
                 auto& meta_partition = pc[meta_partition_id];
                 const uint64_t num_partition_color_sets = meta_partition.num_color_sets();
                 const uint64_t num_partition_colors = meta_partition.num_colors();
@@ -59,17 +61,18 @@ struct index<ColorSets>::meta_differential_builder {
                 std::vector<slice> thread_slices;
 
                 uint64_t load = 0;
-                for(uint32_t color_set_id = 0; color_set_id < num_partition_color_sets; ++color_set_id){
+                for (uint32_t color_set_id = 0; color_set_id < num_partition_color_sets;
+                     ++color_set_id) {
                     load += meta_partition.color_set(color_set_id).size();
                 }
-                const uint64_t load_per_thread = load/num_threads;
+                const uint64_t load_per_thread = load / num_threads;
 
                 slice s = {0, 0};
                 uint64_t curr_load = 0;
                 uint64_t prev_cluster = permutation[0].first;
-                for (uint64_t i = 0; i < num_partition_color_sets; ++i){
+                for (uint64_t i = 0; i < num_partition_color_sets; ++i) {
                     auto& [cluster_id, color_set_id] = permutation[i];
-                    if (cluster_id != prev_cluster && curr_load >= load_per_thread){
+                    if (cluster_id != prev_cluster && curr_load >= load_per_thread) {
                         s.end = i;
                         thread_slices.push_back(s);
                         s.begin = i;
@@ -79,18 +82,20 @@ struct index<ColorSets>::meta_differential_builder {
                 }
                 s.end = num_partition_color_sets;
                 thread_slices.push_back(s);
-                
-                std::vector<differential::builder> thread_builders(thread_slices.size(), num_partition_colors);
+
+                std::vector<differential::builder> thread_builders(thread_slices.size(),
+                                                                   num_partition_colors);
                 std::vector<std::thread> threads(thread_slices.size());
-                
+
                 auto encode_color_sets = [&](uint64_t thread_id) {
                     auto& color_sets_builder = thread_builders[thread_id];
                     auto& [begin, end] = thread_slices[thread_id];
                     color_sets_builder.reserve_num_bits(16 * essentials::GB * 8);
 
                     std::vector<uint64_t> group_endpoints;
-                    uint64_t curr_group = permutation[begin].first + 1; // different from first group
-                    for (uint64_t i = begin; i < end; i++){
+                    uint64_t curr_group =
+                        permutation[begin].first + 1;  // different from first group
+                    for (uint64_t i = begin; i < end; i++) {
                         auto& [group_id, color_set_id] = permutation[i];
                         if (group_id != curr_group) {
                             group_endpoints.push_back(i);
@@ -98,11 +103,11 @@ struct index<ColorSets>::meta_differential_builder {
                         }
                     }
                     group_endpoints.push_back(end);
-                    
+
                     std::vector<uint32_t> distribution(num_partition_colors, 0);
-                    for (uint64_t group = 0; group < group_endpoints.size()-1; ++group) {
+                    for (uint64_t group = 0; group < group_endpoints.size() - 1; ++group) {
                         uint64_t g_begin = group_endpoints[group];
-                        uint64_t g_end = group_endpoints[group+1];
+                        uint64_t g_end = group_endpoints[group + 1];
                         std::vector<uint32_t> representative;
                         representative.reserve(num_partition_colors);
 
@@ -110,13 +115,14 @@ struct index<ColorSets>::meta_differential_builder {
                             auto& [group_id, color_set_id] = permutation[i];
                             auto it = meta_partition.color_set(color_set_id);
                             uint64_t it_size = it.size();
-                            for(uint64_t pos = 0; pos < it_size; ++pos, ++it) {
+                            for (uint64_t pos = 0; pos < it_size; ++pos, ++it) {
                                 distribution[*it]++;
                             }
                         }
                         uint64_t g_size = g_end - g_begin;
-                        for (uint64_t color = 0; color < num_partition_colors; ++color){
-                            if (distribution[color] >= ceil(1. * g_size / 2.)) representative.push_back(color);
+                        for (uint64_t color = 0; color < num_partition_colors; ++color) {
+                            if (distribution[color] >= ceil(1. * g_size / 2.))
+                                representative.push_back(color);
                         }
                         color_sets_builder.process_partition(representative);
 
@@ -129,19 +135,19 @@ struct index<ColorSets>::meta_differential_builder {
                     }
                 };
 
-                for (uint64_t i = 0; i < num_partition_color_sets; i++){
+                for (uint64_t i = 0; i < num_partition_color_sets; i++) {
                     auto& [group_id, color_set_id] = permutation[i];
                     partial_permutations[meta_partition_id][color_set_id] = i;
                 }
 
-                for (uint64_t thread_id = 0; thread_id < thread_slices.size(); thread_id++){
+                for (uint64_t thread_id = 0; thread_id < thread_slices.size(); thread_id++) {
                     threads[thread_id] = std::thread(encode_color_sets, thread_id);
                 }
-                for (auto& t : threads){
+                for (auto& t : threads) {
                     if (t.joinable()) t.join();
                 }
 
-                for (uint64_t thread_id = 1; thread_id < thread_builders.size(); thread_id++){
+                for (uint64_t thread_id = 1; thread_id < thread_builders.size(); thread_id++) {
                     thread_builders[0].append(thread_builders[thread_id]);
                 }
                 differential d;
@@ -149,9 +155,9 @@ struct index<ColorSets>::meta_differential_builder {
                 builder.process_partition(d);
 
                 timer.stop();
-                std::cout << "  ** building the color sets for partition " << meta_partition_id << " took "
-                          << timer.elapsed() << " seconds / " << timer.elapsed() / 60 << " minutes"
-                          << std::endl;
+                std::cout << "  ** building the color sets for partition " << meta_partition_id
+                          << " took " << timer.elapsed() << " seconds / " << timer.elapsed() / 60
+                          << " minutes" << std::endl;
             }
 
             timer.stop();
@@ -179,14 +185,15 @@ struct index<ColorSets>::meta_differential_builder {
                 auto [start, end] = slices.front();
                 slices.pop();
 
-                std::sort(permutation.begin() + start, permutation.begin() + end, [&](const int a, const int b){
-                    auto& it_a = iterators[a];
-                    auto& it_b = iterators[b];
-                    uint32_t val_a = it_a.partition_id();
-                    uint32_t val_b = it_b.partition_id();
+                std::sort(permutation.begin() + start, permutation.begin() + end,
+                          [&](const int a, const int b) {
+                              auto& it_a = iterators[a];
+                              auto& it_b = iterators[b];
+                              uint32_t val_a = it_a.partition_id();
+                              uint32_t val_b = it_b.partition_id();
 
-                    return val_a < val_b;
-                });
+                              return val_a < val_b;
+                          });
 
                 uint32_t prev = iterators[permutation[start]].partition_id();
                 bool broken = false;
@@ -214,9 +221,7 @@ struct index<ColorSets>::meta_differential_builder {
                     it.next_partition_id();
                 }
 
-                if (!broken) {
-                    slices.emplace(start, end);
-                }
+                if (!broken) { slices.emplace(start, end); }
             }
 
             std::sort(endpoints.begin(), endpoints.end());
@@ -226,7 +231,7 @@ struct index<ColorSets>::meta_differential_builder {
             for (uint64_t permuted_id = 0; permuted_id < num_color_sets; permuted_id++) {
                 uint64_t color_set_id = permutation[permuted_id];
 
-                if (permuted_id == endpoints[partition_set_id]){
+                if (permuted_id == endpoints[partition_set_id]) {
                     auto it = meta_index.color_set(color_set_id);
                     uint32_t size = it.meta_color_set_size();
                     std::vector<uint32_t> partition_set(size);
@@ -244,7 +249,7 @@ struct index<ColorSets>::meta_differential_builder {
 
                 for (uint64_t i = 0; i < size; i++, it.next_partition_id()) {
                     it.update_partition();
-                    uint64_t partition_id = it.partition_id(); 
+                    uint64_t partition_id = it.partition_id();
                     relative_colors.push_back(
                         partial_permutations[partition_id]
                                             [it.meta_color() - it.num_color_sets_before()]);

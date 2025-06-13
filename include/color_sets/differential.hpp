@@ -102,7 +102,7 @@ struct differential {
 
         }
 
-        void append(differential::builder& db) {
+        void append(differential::builder const& db) {
             if (db.m_color_set_offsets.size() - 1 == 0) return;
             uint64_t delta = m_bvb.num_bits();
             m_bvb.append(db.m_bvb);

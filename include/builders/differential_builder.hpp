@@ -263,9 +263,6 @@ struct index<ColorSets>::differential_builder {
                 auto& color_sets_builder = thread_builders[thread_id];
                 auto& [begin, end] = thread_slices[thread_id];
                 color_sets_builder.reserve_num_bits(16 * essentials::GB * 8);
-                stringstream ss;
-                ss << thread_id << ": " << begin << " -> " << end << '\n';
-                cout << ss.str() << flush;
 
                 std::vector<uint64_t> group_endpoints;
                 uint64_t curr_group = permutation[begin].first + 1; // different from first group

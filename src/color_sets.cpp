@@ -138,8 +138,6 @@ void meta<ColorSets>::print_stats() const  //
     std::cout << "  other: " << essentials::vec_bytes(m_partition_endpoints) << " bytes ("
               << ((essentials::vec_bytes(m_partition_endpoints) * 8) * 100.0) / num_bits()
               << "%)\n";
-    std::cout << "  partition endpoints: ";
-    for (auto p : m_partition_endpoints) std::cout << p.min_color << " ";
     std::cout << std::endl;
 }
 

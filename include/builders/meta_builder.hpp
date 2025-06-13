@@ -418,7 +418,7 @@ struct index<ColorSets>::meta_builder {
                 for (uint64_t i = 0; i != got_size; ++i, ++it_got) {
                     if (permuted_set[i] != *it_got) {
                         std::cout << "\033[1;31m"
-                                  << "got ref " << *it_got << " BUT expected " << permuted_set[i]
+                                  << "got ref " << *it_got << " but expected " << permuted_set[i]
                                   << "(color_set: " << color_set_id << ")"
                                   << "\033[0m" << std::endl;
                         return;

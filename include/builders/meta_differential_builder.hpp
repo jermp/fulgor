@@ -48,7 +48,7 @@ struct index<ColorSets>::meta_differential_builder {
                 differential_permuter dp(m_build_config);
                 dp.permute(meta_partition);
                 auto const& permutation = dp.permutation();
-                partial_permutations[meta_partition_id].resize(permutation.size());
+                partial_permutations[meta_partition_id].resize(num_partition_color_sets);
 
                 essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
                 timer.start();
@@ -87,9 +87,6 @@ struct index<ColorSets>::meta_differential_builder {
                     auto& color_sets_builder = thread_builders[thread_id];
                     auto& [begin, end] = thread_slices[thread_id];
                     color_sets_builder.reserve_num_bits(16 * essentials::GB * 8);
-                    stringstream ss;
-                    ss << thread_id << ": " << begin << " -> " << end << '\n';
-                    cout << ss.str() << flush;
 
                     std::vector<uint64_t> group_endpoints;
                     uint64_t curr_group = permutation[begin].first + 1; // different from first group
@@ -127,11 +124,16 @@ struct index<ColorSets>::meta_differential_builder {
                             auto& [group_id, color_set_id] = permutation[i];
                             auto it = meta_partition.color_set(color_set_id);
                             color_sets_builder.process_color_set(it);
-                            partial_permutations[meta_partition_id][color_set_id] = i; //see if can be moved outside
+                            // partial_permutations[meta_partition_id][color_set_id] = i; //see if can be moved outside
                         }
                         std::fill(distribution.begin(), distribution.end(), 0);
                     }
                 };
+
+                for (uint64_t i = 0; i < num_partition_color_sets; i++){
+                    auto& [group_id, color_set_id] = permutation[i];
+                    partial_permutations[meta_partition_id][color_set_id] = i;
+                }
 
                 for (uint64_t thread_id = 0; thread_id < thread_slices.size(); thread_id++){
                     threads[thread_id] = std::thread(encode_color_sets, thread_id);

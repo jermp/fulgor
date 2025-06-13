@@ -124,7 +124,6 @@ struct index<ColorSets>::meta_differential_builder {
                             auto& [group_id, color_set_id] = permutation[i];
                             auto it = meta_partition.color_set(color_set_id);
                             color_sets_builder.process_color_set(it);
-                            // partial_permutations[meta_partition_id][color_set_id] = i; //see if can be moved outside
                         }
                         std::fill(distribution.begin(), distribution.end(), 0);
                     }
@@ -190,24 +189,34 @@ struct index<ColorSets>::meta_differential_builder {
                 });
 
                 uint32_t prev = iterators[permutation[start]].partition_id();
-                if (prev == num_partitions) goto broken;
+                bool broken = false;
+
+                if (prev == num_partitions) continue;
+
                 iterators[permutation[start]].next_partition_id();
-                for (uint64_t pos = start + 1; pos < end; pos++){
+                for (uint64_t pos = start + 1; pos < end; pos++) {
                     uint32_t color_set_id = permutation[pos];
                     auto& it = iterators[color_set_id];
                     uint32_t partition_id = it.partition_id();
-                    
-                    if (partition_id != prev){
+
+                    if (partition_id != prev) {
                         endpoints.push_back(pos);
                         slices.emplace(start, pos);
                         prev = partition_id;
                         start = pos;
                     }
-                    if (partition_id == num_partitions) goto broken;
+
+                    if (partition_id == num_partitions) {
+                        broken = true;
+                        break;
+                    }
+
                     it.next_partition_id();
                 }
-                slices.emplace(start, end);
-                broken:;
+
+                if (!broken) {
+                    slices.emplace(start, end);
+                }
             }
 
             std::sort(endpoints.begin(), endpoints.end());

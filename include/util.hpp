@@ -84,6 +84,15 @@ void check_version_number(essentials::version_number const& vnum) {
     }
 }
 
+/*
+    Return the largest power of 2 that is <= n.
+    Note: could use bitwise tricks for more efficiency.
+*/
+uint64_t largest_power_of_2(const uint64_t n) {
+    if (n == 0) return 0;
+    return 1 << static_cast<uint64_t>(std::floor(std::log2(n)));
+}
+
 template <typename ForwardIterator>
 bool check_intersection(std::vector<ForwardIterator>& iterators,
                         std::vector<uint32_t> const& got)  //

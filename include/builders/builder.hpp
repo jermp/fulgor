@@ -195,7 +195,7 @@ struct index<ColorSets>::builder {
             sshash_config.canonical = true;
             sshash_config.verbose = m_build_config.verbose;
             sshash_config.tmp_dirname = m_build_config.tmp_dirname;
-            sshash_config.num_threads = m_build_config.num_threads;
+            sshash_config.num_threads = util::largest_power_of_2(m_build_config.num_threads);
             sshash_config.print();
             idx.m_k2u.build(input_filename_for_sshash, sshash_config);
             try {  // remove unitig file

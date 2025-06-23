@@ -44,7 +44,6 @@ struct build_configuration {
         , tmp_dirname(constants::default_tmp_dirname)
         //
         , verbose(false)
-        , canonical_parsing(true)
         , check(false)
         //
         , meta_colored(false)
@@ -64,7 +63,6 @@ struct build_configuration {
     std::string index_filename_to_partition;
 
     bool verbose;
-    bool canonical_parsing;
     bool check;
 
     bool meta_colored;

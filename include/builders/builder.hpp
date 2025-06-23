@@ -192,7 +192,7 @@ struct index<ColorSets>::builder {
             sshash::build_configuration sshash_config;
             sshash_config.k = m_build_config.k;
             sshash_config.m = m_build_config.m;
-            sshash_config.canonical_parsing = m_build_config.canonical_parsing;
+            sshash_config.canonical = true;
             sshash_config.verbose = m_build_config.verbose;
             sshash_config.tmp_dirname = m_build_config.tmp_dirname;
             sshash_config.num_threads = m_build_config.num_threads;

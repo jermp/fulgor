@@ -3,8 +3,6 @@
 #include "include/index.hpp"
 #include "include/build_util.hpp"
 
-#include <map>
-
 namespace fulgor {
 
 template <typename ColorSets>

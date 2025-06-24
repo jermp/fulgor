@@ -31,7 +31,11 @@ struct GGCAT {
 
         std::string basename =
             build_config.tmp_dirname + "/" + util::filename(build_config.file_base_name);
-        m_color_sets_file = basename + ".ggcat.color_sets.dat";
+
+        /* This is the name given to the file by GGCAT itself.
+           Do not change it. */
+        m_color_sets_file = basename + ".ggcat.colors.dat";
+
         m_graph_file = basename + ".ggcat.fa";
         m_k = build_config.k;
 

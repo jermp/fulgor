@@ -57,8 +57,8 @@ struct GGCAT {
             color_names.push_back(std::to_string(i));
         }
 
-        if (std::filesystem::exists(m_graph_file)){
-            cout << "GGCAT files found, skipped GGCAT construction" << endl;
+        if (std::filesystem::exists(m_graph_file) and std::filesystem::exists(m_color_sets_file)) {
+            std::cout << "GGCAT files found, skipped GGCAT construction" << std::endl;
             return;
         }
 

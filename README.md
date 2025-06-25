@@ -8,13 +8,13 @@
 
 **Fulgor** is a *colored de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
 
-The Fulgor index is described in the following papers:
+The Fulgor index is described in the following papers.
 
 - [**Fulgor: A Fast and Compact k-mer Index for Large-Scale Matching and Color Queries**](https://almob.biomedcentral.com/articles/10.1186/s13015-024-00251-9) (Algorithms for Molecular Biology, ALMOB 2024), and
-
 - [**Meta-colored compacted de Bruijn graphs**](https://link.springer.com/chapter/10.1007/978-1-0716-3989-4_9) (International Conference on Research in Computational Molecular Biology, RECOMB 2024).
-
 - [**Where the patterns are: repetition-aware compression for colored de Bruijn graphs**](https://www.liebertpub.com/doi/10.1089/cmb.2024.0714) (Journal of Computational Biology, JCB 2024).
+- [**Fast pseudoalignment queries on compressed
+colored de Bruijn graphs**](https://jermp.github.io/assets/pdf/papers/WABI2025.pdf) (International Conference on Algorithms for Bioinformatics, WABI 2025).
 
 Please, cite these papers if you use Fulgor.
 

@@ -20,6 +20,19 @@ bool is_hybrid(std::string const& index_filename) {
 }
 
 template <typename FulgorIndex>
+void verify(std::string const& index_filename) {
+    FulgorIndex index;
+    essentials::version_number vnum(constants::current_version_number::x,   //
+                                    constants::current_version_number::y,   //
+                                    constants::current_version_number::z);  //
+    essentials::loader l(index_filename.c_str());
+    l.visit(vnum);
+    std::cout << "read version number = " << vnum.to_string() << std::endl;
+    util::check_version_number(vnum);
+    essentials::logger("OK: Fulgor index is compatible with current library version.");
+}
+
+template <typename FulgorIndex>
 void print_stats(std::string const& index_filename) {
     FulgorIndex index;
     essentials::logger("loading index from disk...");
@@ -46,6 +59,27 @@ void dump(std::string const& index_filename, std::string const& basename) {
     essentials::load(index, index_filename.c_str());
     essentials::logger("DONE");
     index.dump(basename);
+}
+
+int verify(int argc, char** argv) {
+    cmd_line_parser::parser parser(argc, argv);
+    parser.add("index_filename", "The Fulgor index filename.", "-i", true);
+    if (!parser.parse()) return 1;
+    util::print_cmd(argc, argv);
+    auto index_filename = parser.get<std::string>("index_filename");
+    if (is_meta(index_filename)) {
+        verify<meta_index_type>(index_filename);
+    } else if (is_meta_diff(index_filename)) {
+        verify<meta_differential_index_type>(index_filename);
+    } else if (is_diff(index_filename)) {
+        verify<differential_index_type>(index_filename);
+    } else if (is_hybrid(index_filename)) {
+        verify<index_type>(index_filename);
+    } else {
+        std::cerr << "Wrong filename supplied." << std::endl;
+        return 1;
+    }
+    return 0;
 }
 
 int stats(int argc, char** argv) {

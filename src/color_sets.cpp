@@ -83,7 +83,7 @@ void hybrid::print_stats() const  //
 template <typename ColorSets>
 void meta<ColorSets>::print_stats() const  //
 {
-    std::cout << "Color statistics:\n";
+    std::cout << "Color sets statistics:\n";
     std::cout << "  Number of partitions: " << num_partitions() << '\n';
     uint64_t num_bits_colors = 0;
 
@@ -138,14 +138,12 @@ void meta<ColorSets>::print_stats() const  //
     std::cout << "  other: " << essentials::vec_bytes(m_partition_endpoints) << " bytes ("
               << ((essentials::vec_bytes(m_partition_endpoints) * 8) * 100.0) / num_bits()
               << "%)\n";
-    std::cout << "  partition endpoints: ";
-    for (auto p : m_partition_endpoints) std::cout << p.min_color << " ";
     std::cout << std::endl;
 }
 
 void differential::print_stats() const  //
 {
-    std::cout << "Color statistics:\n";
+    std::cout << "Color sets statistics:\n";
     std::cout << "  Number of partitions: " << num_partitions() << std::endl;
 
     uint64_t num_bits_representative_offsets = m_representative_offsets.num_bytes() * 8;
@@ -182,10 +180,9 @@ void differential::print_stats() const  //
             prev_position = it.position();
         }
     }
-    uint64_t last_representative = m_representative_offsets.access(num_partitions());
     for (uint64_t color_id = 0; color_id < num_color_sets(); color_id++)  //
     {
-        uint64_t color_set_begin = m_color_set_offsets.access(color_id) + last_representative;
+        uint64_t color_set_begin = m_color_set_offsets.access(color_id);
         auto it = m_color_sets.get_iterator_at(color_set_begin);
         uint64_t prev_position = it.position();
 
@@ -244,7 +241,7 @@ void differential::print_stats() const  //
 
 void meta_differential::print_stats() const  //
 {
-    std::cout << "Color statistics:\n";
+    std::cout << "Color sets statistics:\n";
     std::cout << "  Number of partitions: " << num_partitions() << '\n';
     std::cout << "  Number of partition sets: " << num_partition_sets() << '\n';
 

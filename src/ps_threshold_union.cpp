@@ -1,7 +1,7 @@
 #include <numeric>  // for std::accumulate
 
 #include "include/index.hpp"
-#include "external/sshash/include/query/streaming_query_canonical_parsing.hpp"
+#include "external/sshash/include/streaming_query.hpp"
 
 namespace fulgor {
 
@@ -327,8 +327,8 @@ void index<ColorSets>::pseudoalign_threshold_union(std::string const& sequence,
     std::vector<scored_id> unitig_ids;
     uint64_t num_positive_kmers_in_sequence = 0;
     { /* stream through with multiplicities */
-        sshash::streaming_query_canonical_parsing<kmer_type> query(&m_k2u);
-        query.start();
+        sshash::streaming_query<kmer_type, true> query(&m_k2u);
+        query.reset();
         const uint64_t num_kmers = sequence.length() - m_k2u.k() + 1;
         for (uint64_t i = 0, prev_unitig_id = -1; i != num_kmers; ++i) {
             char const* kmer = sequence.data() + i;

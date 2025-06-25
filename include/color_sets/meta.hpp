@@ -45,13 +45,18 @@ struct meta {
             m_color_sets_builders[partition_id].init(num_colors_in_partition);
         }
 
-        void process_color_set(uint64_t partition_id, uint32_t const* color_set,
-                               const uint64_t size) {
+        void reserve_num_bits(uint64_t partition_id, uint64_t num_bits) {
             assert(partition_id < m_color_sets_builders.size());
-            m_color_sets_builders[partition_id].process(color_set, size);
+            m_color_sets_builders[partition_id].reserve_num_bits(num_bits);
         }
 
-        void process_metacolor_set(uint32_t const* metacolor_set, const uint64_t size) {
+        void encode_color_set(uint64_t partition_id, uint32_t const* color_set,
+                              const uint64_t size) {
+            assert(partition_id < m_color_sets_builders.size());
+            m_color_sets_builders[partition_id].encode_color_set(color_set, size);
+        }
+
+        void encode_metacolor_set(uint32_t const* metacolor_set, const uint64_t size) {
             assert(size < (1ULL << m_meta_color_sets_builder.width()));
             m_meta_color_sets_builder.push_back(size);
             for (uint64_t i = 0; i != size; ++i) {

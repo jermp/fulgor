@@ -13,10 +13,11 @@
 
 namespace fulgor {
 
-enum class index_t { HYBRID, DIFF, META, META_DIFF };
+enum index_t { HYBRID, DIFF, META, META_DIFF };
 enum encoding_t { delta_gaps, bitmap, complement_delta_gaps, symmetric_difference };
 
 namespace constants {
+
 constexpr double invalid_threshold = -1.0;
 constexpr uint64_t default_ram_limit_in_GiB = 8;
 static const std::string default_tmp_dirname(".");
@@ -24,6 +25,13 @@ static const std::string fulgor_filename_extension("fur");
 static const std::string meta_colored_fulgor_filename_extension("mfur");
 static const std::string diff_colored_fulgor_filename_extension("dfur");
 static const std::string meta_diff_colored_fulgor_filename_extension("mdfur");
+
+namespace current_version_number {
+constexpr uint8_t x = 4;
+constexpr uint8_t y = 0;
+constexpr uint8_t z = 0;
+}  // namespace current_version_number
+
 }  // namespace constants
 
 struct build_configuration {
@@ -36,7 +44,6 @@ struct build_configuration {
         , tmp_dirname(constants::default_tmp_dirname)
         //
         , verbose(false)
-        , canonical_parsing(true)
         , check(false)
         //
         , meta_colored(false)
@@ -56,7 +63,6 @@ struct build_configuration {
     std::string index_filename_to_partition;
 
     bool verbose;
-    bool canonical_parsing;
     bool check;
 
     bool meta_colored;
@@ -65,12 +71,27 @@ struct build_configuration {
 
 namespace util {
 
-static void print_cmd(int argc, char** argv) {
+void print_cmd(int argc, char** argv) {
     for (int i = 0; i != argc; ++i) std::cout << argv[i] << ' ';
     std::cout << std::endl;
 }
 
 std::string filename(std::string const& path) { return path.substr(path.find_last_of("/\\") + 1); }
+
+void check_version_number(essentials::version_number const& vnum) {
+    if (vnum.x != constants::current_version_number::x) {
+        throw std::runtime_error("MAJOR index version mismatch: Fulgor index needs rebuilding");
+    }
+}
+
+/*
+    Return the largest power of 2 that is <= n.
+    Note: could use bitwise tricks for more efficiency.
+*/
+uint64_t largest_power_of_2(const uint64_t n) {
+    if (n == 0) return 0;
+    return 1 << static_cast<uint64_t>(std::floor(std::log2(n)));
+}
 
 template <typename ForwardIterator>
 bool check_intersection(std::vector<ForwardIterator>& iterators,

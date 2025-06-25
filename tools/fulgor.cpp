@@ -18,23 +18,25 @@
 
 int help(char* arg0) {
     std::cout << "== Fulgor: a colored de Bruijn graph index "
-                 "================================"
+                 "========================================"
               << std::endl
               << std::endl;
 
     std::cout << "Usage: " << arg0 << " <tool> ...\n\n";
 
-    std::cout << "Tools:\n"
-              << "  build              build a Fulgor index\n"
-              << "  pseudoalign        perform pseudoalignment to a Fulgor index\n"
-              << "  stats              print index statistics\n"
-              << "  print-filenames    print all reference filenames\n"
-              << std::endl;
+    std::cout
+        << "Tools:\n"
+        << "  build              build an index\n"
+        << "  pseudoalign        perform pseudoalignment to an index\n"
+        << "  verify             verify that index works correctly with current library version\n"
+        << "  stats              print index statistics\n"
+        << "  print-filenames    print all reference filenames\n"
+        << std::endl;
 
     std::cout << "Advanced tools:\n"
-              << "  permute            permute the reference names of a Fulgor index\n"
-              << "  dump               write unitigs and color sets in text format\n"
-              << "  color              build a meta- or a diff- or a meta-diff- Fulgor index\n"
+              << "  permute            permute the reference names of an index\n"
+              << "  dump               write unitigs and color sets of an index in text format\n"
+              << "  color              build a meta- or a diff- or a meta-diff- index\n"
               << std::endl;
 
     return 1;
@@ -50,6 +52,8 @@ int main(int argc, char** argv) {
         return build(argc - 1, argv + 1);
     } else if (tool == "pseudoalign") {
         return pseudoalign(argc - 1, argv + 1);
+    } else if (tool == "verify") {
+        return verify(argc - 1, argv + 1);
     } else if (tool == "stats") {
         return stats(argc - 1, argv + 1);
     } else if (tool == "print-filenames") {

@@ -86,8 +86,17 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
         }
     }
 
+    std::string meta_filename = build_config.index_filename_to_partition.substr(
+                                      0, build_config.index_filename_to_partition.length() -
+                                             constants::fulgor_filename_extension.length() - 1) +
+                                  "." + constants::meta_colored_fulgor_filename_extension;
+
     /* first build a meta-colored Fulgor index */
-    meta_color(build_config, force);
+    if (!std::filesystem::exists(meta_filename)) {
+        meta_color(build_config, force);
+    } else {
+        std::cout << ".mfur file found, skipping meta partitioning" << std::endl;
+    }
 
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();

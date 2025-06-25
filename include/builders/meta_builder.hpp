@@ -153,7 +153,7 @@ struct index<ColorSets>::meta_builder {
         std::cout << "max_partition_size = " << max_partition_size << std::endl;
 
         {
-            essentials::logger("step 4. building partial/meta colors");
+            essentials::logger("step 4. building partial/meta color sets");
             timer.start();
 
             atomic_uint64_t num_integers_in_metacolor_sets = 0;
@@ -166,6 +166,7 @@ struct index<ColorSets>::meta_builder {
                 auto endpoints = p.partition_endpoints(partition_id);
                 uint64_t num_colors_in_partition = endpoints.end - endpoints.begin;
                 color_sets_builder.init_partition(partition_id, num_colors_in_partition);
+                color_sets_builder.reserve_num_bits(partition_id, 8 * essentials::GB * 8);
             }
 
             std::vector<std::unordered_map<__uint128_t,            // key
@@ -210,8 +211,8 @@ struct index<ColorSets>::meta_builder {
                     if (it == hashes[partition_id].cend()) {  // new partial color
                         partial_color_set_id = hashes[partition_id].size();
                         hashes[partition_id].insert({hash, partial_color_set_id});
-                        color_sets_builder.process_color_set(partition_id, partial_color_set.data(),
-                                                             partial_color_set.size());
+                        color_sets_builder.encode_color_set(partition_id, partial_color_set.data(),
+                                                            partial_color_set.size());
                     } else {
                         partial_color_set_id = (*it).second;
                     }
@@ -339,8 +340,7 @@ struct index<ColorSets>::meta_builder {
                     metacolor_set.push_back(partial_color_set_id +
                                             num_partial_color_sets_before[partition_id]);
                 }
-                color_sets_builder.process_metacolor_set(metacolor_set.data(),
-                                                         metacolor_set.size());
+                color_sets_builder.encode_metacolor_set(metacolor_set.data(), metacolor_set.size());
                 metacolor_set.clear();
             }
 
@@ -349,8 +349,8 @@ struct index<ColorSets>::meta_builder {
             color_sets_builder.build(idx.m_color_sets);
 
             timer.stop();
-            std::cout << "** building partial/meta colors took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            std::cout << "** building partial/meta color sets took " << timer.elapsed()
+                      << " seconds / " << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
 
@@ -401,10 +401,9 @@ struct index<ColorSets>::meta_builder {
                 const uint64_t got_size = it_got.size();
 
                 if (exp_size != got_size) {
-                    std::cout << "\033[1;31m"
-                              << "got colors set of size " << got_size << " but expected "
-                              << exp_size << " (color_set: " << color_set_id << ")\033[0m"
-                              << std::endl;
+                    std::cout << "\033[1;31m" << "got colors set of size " << got_size
+                              << " but expected " << exp_size << " (color_set: " << color_set_id
+                              << ")\033[0m" << std::endl;
                     return;
                 }
 
@@ -417,9 +416,8 @@ struct index<ColorSets>::meta_builder {
 
                 for (uint64_t i = 0; i != got_size; ++i, ++it_got) {
                     if (permuted_set[i] != *it_got) {
-                        std::cout << "\033[1;31m"
-                                  << "got ref " << *it_got << " BUT expected " << permuted_set[i]
-                                  << "(color_set: " << color_set_id << ")"
+                        std::cout << "\033[1;31m" << "got ref " << *it_got << " but expected "
+                                  << permuted_set[i] << "(color_set: " << color_set_id << ")"
                                   << "\033[0m" << std::endl;
                         return;
                     }

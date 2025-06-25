@@ -22,6 +22,12 @@ struct index {
     struct differential_builder;
     struct meta_differential_builder;
 
+    index()
+        : m_vnum(constants::current_version_number::x,  //
+                 constants::current_version_number::y,  //
+                 constants::current_version_number::z)  //
+    {}
+
     typename color_sets_type::iterator_type color_set(uint64_t color_set_id) const {
         assert(color_set_id < num_color_sets());
         return m_color_sets.color_set(color_set_id);
@@ -67,13 +73,16 @@ struct index {
     }
 
     uint64_t num_bits() const {
-        return m_k2u.num_bits() + (m_u2c.num_bytes() + m_u2c_rank1_index.num_bytes()) * 8 +
+        return m_k2u.num_bits() +
+               (sizeof(m_vnum) + m_u2c.num_bytes() + m_u2c_rank1_index.num_bytes()) * 8 +
                m_color_sets.num_bits() + m_filenames.num_bits();
     }
 
 private:
     template <typename Visitor, typename T>
     static void visit_impl(Visitor& visitor, T&& t) {
+        visitor.visit(t.m_vnum);
+        util::check_version_number(t.m_vnum);
         visitor.visit(t.m_k2u);
         visitor.visit(t.m_u2c);
         visitor.visit(t.m_u2c_rank1_index);
@@ -81,6 +90,7 @@ private:
         visitor.visit(t.m_filenames);
     }
 
+    essentials::version_number m_vnum;
     sshash_type m_k2u;
     bits::bit_vector m_u2c;
     bits::rank9 m_u2c_rank1_index;

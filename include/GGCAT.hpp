@@ -31,7 +31,11 @@ struct GGCAT {
 
         std::string basename =
             build_config.tmp_dirname + "/" + util::filename(build_config.file_base_name);
-        m_color_sets_file = basename + ".ggcat.color_sets.dat";
+
+        /* This is the name given to the file by GGCAT itself.
+           Do not change it. */
+        m_color_sets_file = basename + ".ggcat.colors.dat";
+
         m_graph_file = basename + ".ggcat.fa";
         m_k = build_config.k;
 
@@ -55,6 +59,11 @@ struct GGCAT {
         color_names.reserve(m_filenames.size());
         for (uint64_t i = 0; i != m_filenames.size(); ++i) {
             color_names.push_back(std::to_string(i));
+        }
+
+        if (std::filesystem::exists(m_graph_file) and std::filesystem::exists(m_color_sets_file)) {
+            std::cout << "GGCAT files found, skipped GGCAT construction" << std::endl;
+            return;
         }
 
         constexpr bool forward_only = false;

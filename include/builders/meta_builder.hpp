@@ -2,6 +2,8 @@
 
 #include "include/index.hpp"
 #include "include/build_util.hpp"
+#include "include/color_sets/meta.hpp"
+#include "include/color_sets/hybrid.hpp"
 
 #include <shared_mutex>
 
@@ -16,90 +18,93 @@ struct permuter {
         : m_build_config(build_config), m_num_partitions(0), m_max_partition_size(0) {}
 
     void permute(index_type const& index) {
-        essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+        build_sketches(index);
+        cluster_sketches(index.num_colors(), index.get_filenames());
 
-        {
-            essentials::logger("step 2. build sketches");
-            timer.start();
-            constexpr uint64_t p = 10;  // use 2^p bytes per HLL sketch
-            build_reference_sketches(index, p, m_build_config.num_threads,
-                                     m_build_config.tmp_dirname + "/sketches.bin");
-            timer.stop();
-            std::cout << "** building sketches took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
-            timer.reset();
+    }
+
+    void build_sketches(index_type const& index){
+        essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+        essentials::logger("step 2. build sketches");
+        timer.start();
+        constexpr uint64_t p = 10;  // use 2^p bytes per HLL sketch
+        build_reference_sketches(index, p, m_build_config.num_threads,
+                                 m_build_config.tmp_dirname + "/sketches.bin");
+        timer.stop();
+        std::cout << "** building sketches took " << timer.elapsed() << " seconds / "
+                  << timer.elapsed() / 60 << " minutes" << std::endl;
+        timer.reset();
+    }
+
+    template<typename Filenames>
+    void cluster_sketches(const uint64_t num_colors, Filenames const& filenames) {
+        essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+        essentials::logger("step 3. clustering sketches");
+        timer.start();
+
+        std::ifstream in(m_build_config.tmp_dirname + "/sketches.bin", std::ios::binary);
+        if (!in.is_open()) throw std::runtime_error("error in opening file");
+
+        std::vector<kmeans::point> points;
+        uint64_t num_bytes_per_point = 0;
+        uint64_t num_points = 0;
+        in.read(reinterpret_cast<char*>(&num_bytes_per_point), sizeof(uint64_t));
+        in.read(reinterpret_cast<char*>(&num_points), sizeof(uint64_t));
+        points.resize(num_points, kmeans::point(num_bytes_per_point));
+        for (auto& point : points) {
+            in.read(reinterpret_cast<char*>(point.data()), num_bytes_per_point);
+        }
+        in.close();
+
+        std::remove((m_build_config.tmp_dirname + "/sketches.bin").c_str());
+
+        kmeans::clustering_parameters params;
+
+        /* kmeans_divisive */
+        constexpr float min_delta = 0.0001;
+        constexpr float max_iteration = 10;
+        constexpr uint64_t min_cluster_size = 50;
+        constexpr uint64_t seed = 0;
+        params.set_min_delta(min_delta);
+        params.set_max_iteration(max_iteration);
+        params.set_min_cluster_size(min_cluster_size);
+        params.set_random_seed(seed);
+        params.set_num_threads(m_build_config.num_threads);
+        auto clustering_data = kmeans::kmeans_divisive(points.begin(), points.end(), params);
+
+        timer.stop();
+        std::cout << "** clustering sketches took " << timer.elapsed() << " seconds / "
+                  << timer.elapsed() / 60 << " minutes" << std::endl;
+        timer.reset();
+
+        m_num_partitions = clustering_data.num_clusters;
+
+        m_partition_size.resize(m_num_partitions + 1, 0);
+        for (auto c : clustering_data.clusters) m_partition_size[c] += 1;
+
+        /* take prefix sums */
+        uint64_t val = 0;
+        for (auto& size : m_partition_size) {
+            if (size > m_max_partition_size) m_max_partition_size = size;
+            uint64_t tmp = size;
+            size = val;
+            val += tmp;
         }
 
-        {
-            essentials::logger("step 3. clustering sketches");
-            timer.start();
+        /* build permutation */
+        auto counts = m_partition_size;  // copy
+        m_permutation.resize(num_colors);
+        assert(clustering_data.clusters.size() == num_colors);
+        for (uint64_t i = 0; i != num_colors; ++i) {
+            uint32_t cluster_id = clustering_data.clusters[i];
+            m_permutation[i] = counts[cluster_id];
+            counts[cluster_id] += 1;
+        }
 
-            std::ifstream in(m_build_config.tmp_dirname + "/sketches.bin", std::ios::binary);
-            if (!in.is_open()) throw std::runtime_error("error in opening file");
-
-            std::vector<kmeans::point> points;
-            uint64_t num_bytes_per_point = 0;
-            uint64_t num_points = 0;
-            in.read(reinterpret_cast<char*>(&num_bytes_per_point), sizeof(uint64_t));
-            in.read(reinterpret_cast<char*>(&num_points), sizeof(uint64_t));
-            points.resize(num_points, kmeans::point(num_bytes_per_point));
-            for (auto& point : points) {
-                in.read(reinterpret_cast<char*>(point.data()), num_bytes_per_point);
-            }
-            in.close();
-
-            std::remove((m_build_config.tmp_dirname + "/sketches.bin").c_str());
-
-            kmeans::clustering_parameters params;
-
-            /* kmeans_divisive */
-            constexpr float min_delta = 0.0001;
-            constexpr float max_iteration = 10;
-            constexpr uint64_t min_cluster_size = 50;
-            constexpr uint64_t seed = 0;
-            params.set_min_delta(min_delta);
-            params.set_max_iteration(max_iteration);
-            params.set_min_cluster_size(min_cluster_size);
-            params.set_random_seed(seed);
-            params.set_num_threads(m_build_config.num_threads);
-            auto clustering_data = kmeans::kmeans_divisive(points.begin(), points.end(), params);
-
-            timer.stop();
-            std::cout << "** clustering sketches took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
-            timer.reset();
-
-            m_num_partitions = clustering_data.num_clusters;
-
-            m_partition_size.resize(m_num_partitions + 1, 0);
-            for (auto c : clustering_data.clusters) m_partition_size[c] += 1;
-
-            /* take prefix sums */
-            uint64_t val = 0;
-            for (auto& size : m_partition_size) {
-                if (size > m_max_partition_size) m_max_partition_size = size;
-                uint64_t tmp = size;
-                size = val;
-                val += tmp;
-            }
-
-            const uint64_t num_colors = index.num_colors();
-
-            /* build permutation */
-            auto counts = m_partition_size;  // copy
-            m_permutation.resize(num_colors);
-            assert(clustering_data.clusters.size() == num_colors);
-            for (uint64_t i = 0; i != num_colors; ++i) {
-                uint32_t cluster_id = clustering_data.clusters[i];
-                m_permutation[i] = counts[cluster_id];
-                counts[cluster_id] += 1;
-            }
-
-            /* permute filenames */
-            m_filenames.resize(num_colors);
-            for (uint64_t i = 0; i != num_colors; ++i) {
-                m_filenames[m_permutation[i]] = index.filename(i);
-            }
+        /* permute filenames */
+        m_filenames.resize(num_colors);
+        for (uint64_t i = 0; i != num_colors; ++i) {
+            m_filenames[m_permutation[i]] = filenames[i];
         }
     }
 
@@ -123,13 +128,13 @@ private:
     std::vector<std::string> m_filenames;
 };
 
-template <typename ColorSets>
-struct index<ColorSets>::meta_builder {
-    meta_builder() {}
+template <>
+struct index<meta<hybrid>>::builder {
+    builder() {}
 
-    meta_builder(build_configuration const& build_config) : m_build_config(build_config) {}
+    builder(build_configuration const& build_config) : m_build_config(build_config) {}
 
-    void build(index& idx) {
+    void color(index& idx) {
         if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
 
         index_type index;
@@ -159,7 +164,7 @@ struct index<ColorSets>::meta_builder {
             atomic_uint64_t num_integers_in_metacolor_sets = 0;
             uint64_t num_partial_color_sets = 0;
 
-            typename ColorSets::builder color_sets_builder;
+            meta<hybrid>::builder color_sets_builder;
 
             color_sets_builder.init_color_sets_builder(num_colors, num_partitions);
             for (uint64_t partition_id = 0; partition_id != num_partitions; ++partition_id) {
@@ -429,8 +434,362 @@ struct index<ColorSets>::meta_builder {
         }
     }
 
+    void build(index& idx) {
+        if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
+
+        essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+
+        {
+            essentials::logger("step 1. build meta-colored compacted dBG");
+            timer.start();
+
+            m_ccdbg.build(m_build_config);
+            m_build_config.num_colors = m_ccdbg.num_colors();
+
+            timer.stop();
+            std::cout << "** building the ccdBG took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
+
+        const uint64_t num_colors = m_build_config.num_colors;
+        std::string input_filename_for_sshash = m_build_config.tmp_dirname + "/" +
+                                                util::filename(m_build_config.file_base_name) +
+                                                ".sshash.fa";
+        
+        {
+            essentials::logger("step 2. build sketches");
+            cout << num_colors << endl;
+            timer.start();
+
+            const uint64_t p = 10;
+            typename sketch::hll_t::HashType hasher;
+            std::vector<sketch::hll_t> sketches(num_colors, sketch::hll_t(p));
+
+            uint64_t unitig_id = 0;
+            m_ccdbg.loop_through_unitigs([&](ggcat::Slice<char> const unitig,
+                                             ggcat::Slice<uint32_t> const color_set,
+                                             bool same_color_set) {
+                uint64_t hash = hasher.hash(unitig_id);
+                for(uint64_t i = 0; i < color_set.size; ++i) {
+                    sketches[color_set.data[i]].add(hash);
+                }
+                unitig_id++;
+            });
+
+            std::ofstream out(m_build_config.tmp_dirname + "/sketches.bin", std::ios::binary);
+            if (!out.is_open()) throw std::runtime_error("cannot open file");
+            const uint64_t num_bytes = 1ULL << p;
+            out.write(reinterpret_cast<char const*>(&num_bytes), 8);
+            out.write(reinterpret_cast<char const*>(&num_colors), 8);
+            for (auto const& x : sketches) {
+                assert(x.m() == num_bytes);
+                assert(x.m() == x.core().size());
+                uint8_t const* data = x.data();
+                out.write(reinterpret_cast<char const*>(data), num_bytes);
+            }
+            out.close();
+
+            timer.stop();
+            std::cout << "** building sketches took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
+
+        permuter p(m_build_config);
+        p.cluster_sketches(num_colors, m_ccdbg.filenames());
+
+        const uint64_t num_partitions = p.num_partitions();
+        const uint64_t max_partition_size = p.max_partition_size();
+        const auto& permutation = p.permutation();
+        std::cout << "num_partitions = " << num_partitions << std::endl;
+        std::cout << "max_partition_size = " << max_partition_size << std::endl;
+
+        {
+            essentials::logger("step 3. build m_u2c and partial/meta colors");
+            timer.start();
+
+            uint64_t num_unitigs = 0;
+            uint64_t num_distinct_colors = 0;
+
+            bits::bit_vector::builder u2c_builder;
+            /* write unitigs to fasta file for SSHash */
+            std::ofstream out(input_filename_for_sshash.c_str());
+            if (!out.is_open()) throw std::runtime_error("cannot open output file");
+
+            std::ofstream metacolors_out(m_build_config.tmp_dirname + "/metacolors.bin",
+                                         std::ios::binary);
+            if (!metacolors_out.is_open()) throw std::runtime_error("error in opening file");
+            uint64_t num_integers_in_metacolors = 0;
+            uint64_t num_partial_colors = 0;
+            std::vector<uint32_t> partial_color;
+            std::vector<uint32_t> permuted_list;
+            partial_color.reserve(max_partition_size);
+            permuted_list.reserve(num_colors);
+
+            meta<hybrid>::builder color_sets_builder;
+            color_sets_builder.init_color_sets_builder(num_colors, num_partitions);
+            for (uint64_t partition_id = 0; partition_id != num_partitions; ++partition_id) {
+                auto endpoints = p.partition_endpoints(partition_id);
+                uint64_t num_colors_in_partition = endpoints.end - endpoints.begin;
+                color_sets_builder.init_partition(partition_id, num_colors_in_partition);
+                color_sets_builder.reserve_num_bits(partition_id, 8 * essentials::GB * 8);
+            }
+            uint64_t partition_id = 0;
+            uint32_t meta_color_list_size = 0;
+
+            std::vector<std::unordered_map<__uint128_t,            // key
+                                           uint32_t,               // value
+                                           util::hasher_uint128_t  // key's hasher
+                                           >>
+                    hashes;  // (hash, id)
+            hashes.resize(num_partitions);
+
+            auto hash_and_compress = [&]() {
+                assert(!partial_color.empty());
+                auto hash = util::hash128(reinterpret_cast<char const*>(partial_color.data()),
+                        partial_color.size() * sizeof(uint32_t));
+                uint32_t partial_color_id = 0;
+                auto it = hashes[partition_id].find(hash);
+                if (it == hashes[partition_id].cend()) {  // new partial color
+                    partial_color_id = hashes[partition_id].size();
+                    hashes[partition_id].insert({hash, partial_color_id});
+                    color_sets_builder.encode_color_set(partition_id, partial_color.data(),
+                            partial_color.size());
+                } else {
+                    partial_color_id = (*it).second;
+                }
+
+                /*  write meta color: (partition_id, partial_color_id)
+                 *  Note: at this stage, partial_color_id is relative
+                 *  to its partition (is not global yet).
+                 *  */
+                metacolors_out.write(reinterpret_cast<char const*>(&partition_id),
+                        sizeof(uint32_t));
+                metacolors_out.write(reinterpret_cast<char const*>(&partial_color_id),
+                        sizeof(uint32_t));
+
+                partial_color.clear();
+                meta_color_list_size += 1;
+            };
+
+
+            m_ccdbg.loop_through_unitigs([&](ggcat::Slice<char> const unitig,
+                                             ggcat::Slice<uint32_t> const color_set,
+                                             bool same_color_set) {
+                try {
+                    if (!same_color_set) {
+                        num_distinct_colors += 1;
+                        if (num_unitigs > 0) u2c_builder.set(num_unitigs - 1, 1);
+
+                        std::vector<uint32_t> permuted_list(color_set.size);
+                        for(uint64_t i = 0; i < color_set.size; ++i){
+                            permuted_list[i] = permutation[color_set.data[i]];
+                        }
+                        std::sort(permuted_list.begin(), permuted_list.end());
+
+                        meta_color_list_size = 0;
+                        partition_id = 0;
+                        partition_endpoint curr_partition = p.partition_endpoints(0);
+                        assert(partial_color.empty());
+
+                        metacolors_out.write(reinterpret_cast<char const*>(&meta_color_list_size),
+                                             sizeof(uint32_t));
+
+                        for (uint64_t i = 0; i != color_set.size; ++i) {
+                            uint32_t ref_id = permuted_list[i];
+                            while (ref_id >= curr_partition.end) {
+                                if (!partial_color.empty()) hash_and_compress();
+                                partition_id += 1;
+                                curr_partition = p.partition_endpoints(partition_id);
+                            }
+                            assert(ref_id >= curr_partition.begin);
+                            partial_color.push_back(ref_id - curr_partition.begin);
+                        }
+                        if (!partial_color.empty()) hash_and_compress();
+
+                        num_integers_in_metacolors += meta_color_list_size;
+
+                        /* write size of meta color list */
+                        uint64_t current_pos = metacolors_out.tellp();
+                        uint64_t num_bytes_in_meta_color_list =
+                                2 * meta_color_list_size * sizeof(uint32_t) + sizeof(uint32_t);
+                        assert(current_pos >= num_bytes_in_meta_color_list);
+                        uint64_t pos = current_pos - num_bytes_in_meta_color_list;
+                        metacolors_out.seekp(pos);
+                        metacolors_out.write(reinterpret_cast<char const*>(&meta_color_list_size),
+                                                     sizeof(uint32_t));
+                        metacolors_out.seekp(current_pos);
+
+                        /* compress colors */
+                        // color_sets_builder.process(colors.data, colors.size);
+                    }
+                    u2c_builder.push_back(0);
+
+                    out << ">\n";
+                    out.write(unitig.data, unitig.size);
+                    out << '\n';
+
+                    num_unitigs += 1;
+                } catch (std::exception const& e) {
+                    std::cerr << e.what() << std::endl;
+                    exit(1);
+                }
+            });
+
+            out.close();
+            metacolors_out.close();
+
+            uint64_t num_color_sets = num_distinct_colors;
+            std::vector<uint64_t> num_partial_colors_before;
+            std::vector<uint32_t> num_lists_in_partition;
+            num_partial_colors_before.reserve(num_partitions);
+            num_lists_in_partition.reserve(num_partitions);
+            num_partial_colors = 0;
+            for (partition_id = 0; partition_id != num_partitions; ++partition_id) {
+                num_partial_colors_before.push_back(num_partial_colors);
+                uint64_t num_partial_colors_in_partition = hashes[partition_id].size();
+                num_partial_colors += num_partial_colors_in_partition;
+                num_lists_in_partition.push_back(num_partial_colors_in_partition);
+                std::cout << "num_partial_colors_in_partition-" << partition_id << ": "
+                    << num_partial_colors_in_partition << std::endl;
+            }
+
+            std::cout << "total num. partial colors = " << num_partial_colors << std::endl;
+
+            color_sets_builder.init_meta_color_sets_builder(num_integers_in_metacolors + num_color_sets,
+                    num_partial_colors, p.partition_size(),
+                    num_lists_in_partition);
+
+            std::vector<uint32_t> metacolors;
+            metacolors.reserve(num_partitions);  // at most
+
+            std::ifstream metacolors_in(m_build_config.tmp_dirname + "/metacolors.bin",
+                    std::ios::binary);
+            if (!metacolors_in.is_open()) throw std::runtime_error("error in opening file");
+
+            for (uint64_t color_set_id = 0; color_set_id != num_color_sets; ++color_set_id) {
+                assert(metacolors.empty());
+                uint32_t meta_color_list_size = 0;
+                metacolors_in.read(reinterpret_cast<char*>(&meta_color_list_size),
+                        sizeof(uint32_t));
+                for (uint32_t i = 0; i != meta_color_list_size; ++i) {
+                    uint32_t partition_id = 0;
+                    uint32_t partial_color_id = 0;
+                    metacolors_in.read(reinterpret_cast<char*>(&partition_id), sizeof(uint32_t));
+                    metacolors_in.read(reinterpret_cast<char*>(&partial_color_id),
+                            sizeof(uint32_t));
+                    /* transform the partial_color_id into a global id */
+                    metacolors.push_back(partial_color_id +
+                            num_partial_colors_before[partition_id]);
+                }
+                color_sets_builder.encode_metacolor_set(metacolors.data(), metacolors.size());
+                metacolors.clear();
+            }
+
+            metacolors_in.close();
+            std::remove((m_build_config.tmp_dirname + "/metacolors.bin").c_str());
+            color_sets_builder.build(idx.m_color_sets);
+
+            assert(num_unitigs > 0);
+            assert(num_unitigs < (uint64_t(1) << 32));
+
+            std::cout << "num_unitigs " << num_unitigs << std::endl;
+            std::cout << "num_distinct_colors " << num_distinct_colors << std::endl;
+
+            u2c_builder.set(num_unitigs - 1, 1);
+            u2c_builder.build(idx.m_u2c);
+            idx.m_u2c_rank1_index.build(idx.m_u2c);
+            assert(idx.m_u2c.num_bits() == num_unitigs);
+            assert(idx.m_u2c_rank1_index.num_ones() == num_distinct_color_sets);
+
+            std::cout << "m_u2c.num_bits() " << idx.m_u2c.num_bits() << std::endl;
+            std::cout << "m_u2c_rank1_index.num_ones() " << idx.m_u2c_rank1_index.num_ones()
+                      << std::endl;
+
+            timer.stop();
+            std::cout << "** building m_u2c and m_color_sets took " << timer.elapsed()
+                          << " seconds / " << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
+
+        {
+            essentials::logger("step 3. build m_k2u");
+            timer.start();
+
+            sshash::build_configuration sshash_config;
+            sshash_config.k = m_build_config.k;
+            sshash_config.m = m_build_config.m;
+            sshash_config.canonical = true;
+            sshash_config.verbose = m_build_config.verbose;
+            sshash_config.tmp_dirname = m_build_config.tmp_dirname;
+            sshash_config.num_threads = util::largest_power_of_2(m_build_config.num_threads);
+            sshash_config.print();
+            idx.m_k2u.build(input_filename_for_sshash, sshash_config);
+            try {  // remove unitig file
+                std::remove(input_filename_for_sshash.c_str());
+            } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
+
+            timer.stop();
+            std::cout << "** building m_k2u took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
+
+        {
+            essentials::logger("step 4. write filenames");
+            timer.start();
+            idx.m_filenames.build(m_ccdbg.filenames());
+            timer.stop();
+            std::cout << "** writing filenames took " << timer.elapsed() << " seconds / "
+                      << timer.elapsed() / 60 << " minutes" << std::endl;
+            timer.reset();
+        }
+
+        if (m_build_config.check)  //
+        {
+            essentials::logger("step 5. check correctness...");
+            m_ccdbg.loop_through_unitigs(
+                [&](ggcat::Slice<char> const unitig,         //
+                    ggcat::Slice<uint32_t> const color_set,  //
+                    bool /* same_color_set */)               //
+                {
+                    auto lookup_result = idx.m_k2u.lookup_advanced(unitig.data);
+                    const uint64_t unitig_id = lookup_result.contig_id;
+                    const uint64_t color_id = idx.u2c(unitig_id);
+                    for (uint64_t i = 1; i != unitig.size - idx.m_k2u.k() + 1; ++i) {
+                        uint64_t got = idx.m_k2u.lookup_advanced(unitig.data + i).contig_id;
+                        if (got != unitig_id) {
+                            std::cout << "got unitig_id " << got << " but expected " << unitig_id
+                                      << std::endl;
+                            return;
+                        }
+                    }
+                    auto fwd_it = idx.m_color_sets.color_set(color_id);
+                    const uint64_t size = fwd_it.size();
+                    if (size != color_set.size) {
+                        std::cout << "got color_set size " << size << " but expected "
+                                  << color_set.size << std::endl;
+                        return;
+                    }
+                    for (uint64_t i = 0; i != size; ++i, ++fwd_it) {
+                        uint32_t ref = *fwd_it;
+                        if (ref != color_set.data[i]) {
+                            std::cout << "got ref " << ref << " but expected " << color_set.data[i]
+                                      << std::endl;
+                            return;
+                        }
+                    }
+                },
+                m_build_config.num_threads  //
+            );
+            essentials::logger("DONE!");
+        }
+    }
+
 private:
     build_configuration m_build_config;
+    GGCAT m_ccdbg;
 
     std::string metacolor_set_file_name(uint32_t id) {
         return m_build_config.tmp_dirname + "/metacolor_set_" + std::to_string(id) + ".bin";

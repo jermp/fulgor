@@ -17,10 +17,8 @@ template <typename ColorSets>
 struct index {
     typedef ColorSets color_sets_type;
 
+    static std::string file_extension;
     struct builder;
-    struct meta_builder;
-    struct differential_builder;
-    struct meta_differential_builder;
 
     index()
         : m_vnum(constants::current_version_number::x,  //

@@ -33,7 +33,7 @@ void build_reference_sketches(index_type const& index,
 
     struct slice {
         uint64_t begin;                         // start position in u2c
-        uint64_t color_id_begin, color_id_end;  // [..)
+        uint64_t color_set_id_begin, color_set_id_end;  // [..)
     };
     std::vector<slice> thread_slices;
 
@@ -64,7 +64,7 @@ void build_reference_sketches(index_type const& index,
         auto unary_it = u2c.begin();
         slice s;
         s.begin = 0;
-        s.color_id_begin = 0;
+        s.color_set_id_begin = 0;
         uint64_t cur_load = 0;
 
         for (uint64_t color_id = 0; color_id != num_color_sets; ++color_id) {
@@ -77,10 +77,10 @@ void build_reference_sketches(index_type const& index,
             prev_pos = curr_pos + 1;
 
             if (cur_load >= load_per_thread or color_id == num_color_sets - 1) {
-                s.color_id_end = color_id + 1;
+                s.color_set_id_end = color_id + 1;
                 thread_slices.push_back(s);
                 s.begin = prev_pos;
-                s.color_id_begin = color_id + 1;
+                s.color_set_id_begin = color_id + 1;
                 cur_load = 0;
             }
         }
@@ -95,14 +95,14 @@ void build_reference_sketches(index_type const& index,
         uint64_t prev_pos = s.begin;
         std::vector<uint64_t> hashes;
         auto unary_it = u2c.get_iterator_at(s.begin);
-        for (uint64_t color_id = s.color_id_begin; color_id != s.color_id_end; ++color_id) {
-            uint64_t curr_pos = color_id != num_color_sets - 1 ? unary_it.next() : last_pos;
-            auto it = ccs.color_set(color_id);
+        for (uint64_t color_set_id = s.color_set_id_begin; color_set_id != s.color_set_id_end; ++color_set_id) {
+            uint64_t curr_pos = color_set_id != num_color_sets - 1 ? unary_it.next() : last_pos;
+            auto it = ccs.color_set(color_set_id);
             const uint64_t size = it.size();
             hashes.reserve(curr_pos - prev_pos + 1);
             for (uint64_t unitig_id = prev_pos; unitig_id <= curr_pos; ++unitig_id) {
                 assert(unitig_id < u2c.num_bits());
-                assert(index.u2c(unitig_id) == color_id);
+                assert(index.u2c(unitig_id) == color_set_id);
                 hashes.push_back(hasher.hash(unitig_id));
             }
             for (uint64_t i = 0; i != size; ++i, ++it) {

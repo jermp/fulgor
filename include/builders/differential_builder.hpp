@@ -1,6 +1,7 @@
 #pragma once
 
 #include "include/index.hpp"
+#include "include/color_sets/differential.hpp"
 
 namespace fulgor {
 struct differential_permuter {
@@ -199,13 +200,13 @@ private:
     }
 };
 
-template <typename ColorSets>
-struct index<ColorSets>::differential_builder {
-    differential_builder() {}
+template <>
+struct index<differential>::builder {
+    builder() {}
 
-    differential_builder(build_configuration const& build_config) : m_build_config(build_config) {}
+    builder(build_configuration const& build_config) : m_build_config(build_config) {}
 
-    void build(index& idx) {
+    void color(index& idx) {
         if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
 
         const uint32_t num_threads = m_build_config.num_threads;
@@ -256,7 +257,7 @@ struct index<ColorSets>::differential_builder {
             s.end = num_color_sets;
             thread_slices.push_back(s);
 
-            std::vector<typename ColorSets::builder> thread_builders(thread_slices.size(),
+            std::vector<differential::builder> thread_builders(thread_slices.size(),
                                                                      num_colors);
             std::vector<std::thread> threads(thread_slices.size());
 

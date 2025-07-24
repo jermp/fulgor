@@ -1,11 +1,14 @@
+#include "include/builders/meta_builder.hpp"
+
 using namespace fulgor;
 
-void meta_color(build_configuration const& build_config, const bool force)  //
-{
-    std::string output_filename = build_config.index_filename_to_partition.substr(
-                                      0, build_config.index_filename_to_partition.length() -
-                                             constants::fulgor_filename_extension.length() - 1) +
-                                  "." + constants::meta_colored_fulgor_filename_extension;
+template <typename Index>
+void color_and_save(build_configuration const& config, bool force){
+    static_assert(!std::is_same<Index, index_type>::value);
+    std::string base_filename = config.index_filename_to_partition.substr(
+                                      0, config.index_filename_to_partition.length() -
+                                             constants::fulgor_filename_extension.length() - 1);
+    std::string output_filename = base_filename + "." + Index::file_extension;
 
     if (std::filesystem::exists(output_filename)) {
         std::cerr << "An index with the name '" << output_filename << "' alreay exists."
@@ -18,99 +21,29 @@ void meta_color(build_configuration const& build_config, const bool force)  //
         }
     }
 
-    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-    timer.start();
-    meta_index_type index;
-    typename meta_index_type::meta_builder builder(build_config);
-    builder.build(index);
-    index.print_stats();
-    timer.stop();
-    essentials::logger("DONE");
-    std::cout << "** building the index took " << timer.elapsed() << " seconds / "
-              << timer.elapsed() / 60 << " minutes" << std::endl;
-
-    essentials::logger("saving index to disk...");
-    essentials::save(index, output_filename.c_str());
-    essentials::logger("DONE");
-}
-
-void diff_color(build_configuration const& build_config, const bool force)  //
-{
-    std::string output_filename = build_config.index_filename_to_partition.substr(
-                                      0, build_config.index_filename_to_partition.length() -
-                                             constants::fulgor_filename_extension.length() - 1) +
-                                  "." + constants::diff_colored_fulgor_filename_extension;
-
-    if (std::filesystem::exists(output_filename)) {
-        std::cerr << "An index with the name '" << output_filename << "' alreay exists."
-                  << std::endl;
-        if (force) {
-            std::cerr << "Option '--force' specified: re-building the index." << std::endl;
-        } else {
-            std::cerr << "Use option '--force' to re-build the index." << std::endl;
-            return;
-        }
-    }
-
-    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-    timer.start();
-    differential_index_type index;
-    typename differential_index_type::differential_builder builder(build_config);
-    builder.build(index);
-    index.print_stats();
-    timer.stop();
-    essentials::logger("DONE");
-    std::cout << "** building the index took " << timer.elapsed() << " seconds / "
-              << timer.elapsed() / 60 << " minutes" << std::endl;
-
-    essentials::logger("saving index to disk...");
-    essentials::save(index, output_filename.c_str());
-    essentials::logger("DONE");
-}
-
-void meta_diff_color(build_configuration const& build_config, const bool force)  //
-{
-    std::string output_filename = build_config.index_filename_to_partition.substr(
-                                      0, build_config.index_filename_to_partition.length() -
-                                             constants::fulgor_filename_extension.length() - 1) +
-                                  "." + constants::meta_diff_colored_fulgor_filename_extension;
-
-    if (std::filesystem::exists(output_filename)) {
-        std::cerr << "An index with the name '" << output_filename << "' alreay exists."
-                  << std::endl;
-        if (force) {
-            std::cerr << "Option '--force' specified: re-building the index." << std::endl;
-        } else {
-            std::cerr << "Use option '--force' to re-build the index." << std::endl;
-            return;
-        }
-    }
-
-    std::string meta_filename = build_config.index_filename_to_partition.substr(
-                                      0, build_config.index_filename_to_partition.length() -
-                                             constants::fulgor_filename_extension.length() - 1) +
-                                  "." + constants::meta_colored_fulgor_filename_extension;
+    std::string input_filename = base_filename + "." + constants::fulgor_filename_extension;
 
     /* first build a meta-colored Fulgor index */
-    if (!std::filesystem::exists(meta_filename)) {
-        meta_color(build_config, force);
-    } else {
-        std::cout << ".mfur file found, skipping meta partitioning" << std::endl;
+    if constexpr (std::is_same<Index, meta_differential_index_type>::value){
+        input_filename = base_filename + "." + constants::meta_colored_fulgor_filename_extension;
+        if (!std::filesystem::exists(input_filename)) {
+            color_and_save<meta_index_type>(config, force);
+        } else {
+            std::cout << ".mfur file found, skipping meta partitioning" << std::endl;
+        }
     }
 
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();
-    build_configuration meta_diff_build_config = build_config;
-    meta_diff_build_config.index_filename_to_partition =
-        build_config.index_filename_to_partition.substr(
-            0, build_config.index_filename_to_partition.length() -
-                   constants::fulgor_filename_extension.length() - 1) +
-        "." + constants::meta_colored_fulgor_filename_extension;
-    meta_differential_index_type index;
-    typename meta_differential_index_type::meta_differential_builder builder(
-        meta_diff_build_config);
-    builder.build(index);
+
+    build_configuration color_config = config;
+    color_config.index_filename_to_partition = input_filename;
+    
+    Index index;
+    typename Index::builder builder(color_config);
+    builder.color(index);
     index.print_stats();
+
     timer.stop();
     essentials::logger("DONE");
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
@@ -120,6 +53,24 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
     essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");
 }
+
+template <typename Index>
+void build_and_save(build_configuration const& config) {
+    static_assert(std::is_same<Index, index_type>::value || std::is_same<Index, meta_index_type>::value);
+    Index index;
+    typename Index::builder builder(config);
+
+    builder.build(index);
+    index.print_stats();
+
+    std::string extension = std::is_same<Index, index_type>::value ? ".fur" : ".mfur";
+    std::string output_filename = config.file_base_name + extension;
+
+    essentials::logger("saving index to disk...");
+    essentials::save(index, output_filename.c_str());
+    essentials::logger("DONE");
+}
+
 
 int build(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
@@ -144,7 +95,6 @@ int build(int argc, char** argv) {
     parser.add("force", "Re-build the index even when an index with the same name is found.",
                "--force", false, true);
     parser.add("meta", "Build a meta-colored index.", "--meta", false, true);
-    parser.add("diff", "Build a differential-colored index.", "--diff", false, true);
 
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
@@ -156,7 +106,7 @@ int build(int argc, char** argv) {
     build_config.index_filename_to_partition = output_filename;
     bool force = parser.get<bool>("force");
     build_config.meta_colored = parser.get<bool>("meta");
-    build_config.diff_colored = parser.get<bool>("diff");
+    build_config.diff_colored = false;
 
     if (parser.parsed("tmp_dirname")) {
         build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");
@@ -205,27 +155,16 @@ int build(int argc, char** argv) {
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();
 
-    index_type index;
-    typename index_type::builder builder(build_config);
-    builder.build(index);
-    index.print_stats();
+    if (!build_config.meta_colored){
+        build_and_save<index_type>(build_config);
+    } else {
+        build_and_save<meta_index_type>(build_config);
+    }
 
     timer.stop();
     essentials::logger("DONE");
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
-
-    essentials::logger("saving index to disk...");
-    essentials::save(index, output_filename.c_str());
-    essentials::logger("DONE");
-
-    if (build_config.meta_colored and build_config.diff_colored) {
-        meta_diff_color(build_config, force);
-    } else if (build_config.meta_colored) {
-        meta_color(build_config, force);
-    } else if (build_config.diff_colored) {
-        diff_color(build_config, force);
-    }
 
     return 0;
 }
@@ -275,11 +214,11 @@ int color(int argc, char** argv) {
     bool force = parser.get<bool>("force");
 
     if (build_config.meta_colored and build_config.diff_colored) {
-        meta_diff_color(build_config, force);
+        color_and_save<meta_differential_index_type>(build_config, force);
     } else if (build_config.meta_colored) {
-        meta_color(build_config, force);
+        color_and_save<meta_index_type>(build_config, force);
     } else if (build_config.diff_colored) {
-        diff_color(build_config, force);
+        color_and_save<differential_index_type>(build_config, force);
     } else {
         std::cerr << "Either \"--meta\" or \"--diff\" should be specified." << std::endl;
         return 1;

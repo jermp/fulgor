@@ -264,4 +264,16 @@ void meta_differential::print_stats() const  //
               << "%)\n";
 }
 
+template<>
+std::string index_type::file_extension = constants::fulgor_filename_extension;
+
+template<>
+std::string meta_index_type::file_extension = constants::meta_colored_fulgor_filename_extension;
+
+template<>
+std::string differential_index_type::file_extension = constants::diff_colored_fulgor_filename_extension;
+
+template<>
+std::string meta_differential_index_type::file_extension = constants::meta_diff_colored_fulgor_filename_extension;
+
 }  // namespace fulgor

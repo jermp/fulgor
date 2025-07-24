@@ -2,17 +2,18 @@
 
 #include "include/index.hpp"
 #include "include/build_util.hpp"
+#include "include/color_sets/meta_differential.hpp"
 
 namespace fulgor {
 
-template <typename ColorSets>
-struct index<ColorSets>::meta_differential_builder {
-    meta_differential_builder() {}
+template <>
+struct index<meta_differential>::builder {
+    builder() {}
 
-    meta_differential_builder(build_configuration const& build_config)
+    builder(build_configuration const& build_config)
         : m_build_config(build_config) {}
 
-    void build(index& idx) {
+    void color(index& idx) {
         if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
 
         meta_index_type meta_index;

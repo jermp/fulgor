@@ -127,30 +127,46 @@ int print_filenames(int argc, char** argv) {
 int dump(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("index_filename", "The Fulgor index filename.", "-i", true);
+    parser.add("output_basename",
+               "Output basename. If the supplied basename is F, the output will consist in three "
+               "files: F.unitigs.fa, F.color_sets.txt, and F.metadata.txt. (If this is not "
+               "supplied, the basename of the index is used instead.)",
+               "-o", false);
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
+
     auto index_filename = parser.get<std::string>("index_filename");
+    std::string output_basename("");
+    if (parser.parsed("output_basename")) {
+        output_basename = parser.get<std::string>("output_basename");
+        assert(output_basename.length() != 0);
+    }
+
     if (is_meta_diff(index_filename)) {
         std::string basename{index_filename.data(),
                              index_filename.length() -
                                  constants::meta_diff_colored_fulgor_filename_extension.length() -
                                  1};
-        dump<meta_differential_index_type>(index_filename, basename);
+        dump<meta_differential_index_type>(
+            index_filename, output_basename.length() == 0 ? basename : output_basename);
     } else if (is_meta(index_filename)) {
         std::string basename{index_filename.data(),
                              index_filename.length() -
                                  constants::meta_colored_fulgor_filename_extension.length() - 1};
-        dump<meta_index_type>(index_filename, basename);
+        dump<meta_index_type>(index_filename,
+                              output_basename.length() == 0 ? basename : output_basename);
     } else if (is_diff(index_filename)) {
         std::string basename{index_filename.data(),
                              index_filename.length() -
                                  constants::diff_colored_fulgor_filename_extension.length() - 1};
-        dump<differential_index_type>(index_filename, basename);
+        dump<differential_index_type>(index_filename,
+                                      output_basename.length() == 0 ? basename : output_basename);
     } else if (is_hybrid(index_filename)) {
         std::string basename{
             index_filename.data(),
             index_filename.length() - constants::fulgor_filename_extension.length() - 1};
-        dump<index_type>(index_filename, basename);
+        dump<index_type>(index_filename,
+                         output_basename.length() == 0 ? basename : output_basename);
     } else {
         std::cerr << "Wrong filename supplied." << std::endl;
         return 1;

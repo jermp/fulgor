@@ -207,6 +207,16 @@ where `[list]` is a TAB-separated list of increasing integers, of length `[list-
 	NODE_9_length_173161_cov_9.33695_ID_17  1       0
 	NODE_22_length_45757_cov_12.1361_ID_43  1       0
 
+#### Important note
+
+If pseudoalignment is performed against a **meta-colored**
+or a **differential-meta-colored** Fulgor index,
+the reference identifiers in the pseudoalignment output might **not** correspond to the ones assigned following the input-file order as specified with option `-l` during index construction.
+This is because the meta-colored index re-assignes identifiers to references to improve index compression.
+
+In this case, the reference identifiers in the pseudoalignment output
+are consistent with the ones returned by the `print-filenames` tool.
+
 
 Kmer conservation output format
 -------------------------------
@@ -229,13 +239,3 @@ If a triple is `(p n i)`, it means that the `n` kmers starting from that at posi
 	SRR801268.988	1	(0 8 3)
 
 For example, in the second query, the triple `(12 6 3)` indicates that the 6 kmers starting from that at position 12 in the query all have color set id 3.
-
-#### Important note
-
-If pseudoalignment is performed against a **meta-colored**
-or a **differential-meta-colored** Fulgor index,
-the reference identifiers in the pseudoalignment output might **not** correspond to the ones assigned following the input-file order as specified with option `-l` during index construction.
-This is because the meta-colored index re-assignes identifiers to references to improve index compression.
-
-In this case, the reference identifiers in the pseudoalignment output
-are consistent with the ones returned by the `print-filenames` tool.

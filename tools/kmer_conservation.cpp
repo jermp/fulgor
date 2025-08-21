@@ -10,7 +10,8 @@ template <typename FulgorIndex>
 int kmer_conservation(FulgorIndex const& index,
                       fastx_parser::FastxParser<fastx_parser::ReadSeq>& rparser,
                       std::atomic<uint64_t>& num_reads, std::atomic<uint64_t>& num_processed_reads,
-                      std::ofstream& out_file, std::mutex& iomut, std::mutex& ofile_mut)  //
+                      std::ofstream& out_file, std::mutex& iomut, std::mutex& ofile_mut,
+                      const bool verbose)  //
 {
     std::vector<kmer_conservation_triple> kmer_conservation_info;
     std::stringstream ss;
@@ -40,7 +41,7 @@ int kmer_conservation(FulgorIndex const& index,
             }
             num_reads += 1;
             kmer_conservation_info.clear();
-            if (num_reads > 0 and num_reads % 1000000 == 0) {
+            if (verbose and num_reads > 0 and num_reads % 1000000 == 0) {
                 iomut.lock();
                 std::cout << "processed " << num_reads << " reads" << std::endl;
                 iomut.unlock();
@@ -110,11 +111,11 @@ int kmer_conservation(std::string const& index_filename, std::string const& quer
     }
 
     for (uint64_t i = 1; i != num_threads; ++i) {
-        workers.push_back(std::thread(
-            [&index, &rparser, &num_reads, &num_processed_reads, &out_file, &iomut, &ofile_mut]() {
-                kmer_conservation(index, rparser, num_reads, num_processed_reads, out_file, iomut,
-                                  ofile_mut);
-            }));
+        workers.push_back(std::thread([&index, &rparser, &num_reads, &num_processed_reads,
+                                       &out_file, &iomut, &ofile_mut, verbose]() {
+            kmer_conservation(index, rparser, num_reads, num_processed_reads, out_file, iomut,
+                              ofile_mut, verbose);
+        }));
     }
 
     for (auto& w : workers) w.join();

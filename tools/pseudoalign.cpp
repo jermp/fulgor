@@ -26,7 +26,7 @@ template <typename FulgorIndex>
 int pseudoalign(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::ReadSeq>& rparser,
                 std::atomic<uint64_t>& num_reads, std::atomic<uint64_t>& num_mapped_reads,
                 pseudoalignment_algorithm algo, const double threshold, std::ofstream& out_file,
-                std::mutex& iomut, std::mutex& ofile_mut)  //
+                std::mutex& iomut, std::mutex& ofile_mut, const bool verbose)  //
 {
     std::vector<uint32_t> colors;  // result of pseudoalignment
     std::stringstream ss;
@@ -57,7 +57,7 @@ int pseudoalign(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser
             }
             num_reads += 1;
             colors.clear();
-            if (num_reads > 0 and num_reads % 1000000 == 0) {
+            if (verbose and num_reads > 0 and num_reads % 1000000 == 0) {
                 iomut.lock();
                 std::cout << "mapped " << num_reads << " reads" << std::endl;
                 iomut.unlock();
@@ -130,9 +130,9 @@ int pseudoalign(std::string const& index_filename, std::string const& query_file
 
     for (uint64_t i = 1; i != num_threads; ++i) {
         workers.push_back(std::thread([&index, &rparser, &num_reads, &num_mapped_reads, ps_alg,
-                                       threshold, &out_file, &iomut, &ofile_mut]() {
+                                       threshold, &out_file, &iomut, &ofile_mut, verbose]() {
             pseudoalign(index, rparser, num_reads, num_mapped_reads, ps_alg, threshold, out_file,
-                        iomut, ofile_mut);
+                        iomut, ofile_mut, verbose);
         }));
     }
 
@@ -200,7 +200,6 @@ int pseudoalign(int argc, char** argv) {
     }
 
     bool verbose = parser.get<bool>("verbose");
-
     if (verbose) util::print_cmd(argc, argv);
 
     if (sshash::util::ends_with(index_filename,

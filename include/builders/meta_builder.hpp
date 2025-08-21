@@ -466,16 +466,17 @@ struct index<meta<hybrid>>::builder {
             typename sketch::hll_t::HashType hasher;
             std::vector<sketch::hll_t> sketches(num_colors, sketch::hll_t(p));
 
-            uint64_t unitig_id = 0;
+            std::atomic<uint64_t> unitig_id = 0;
             m_ccdbg.loop_through_unitigs([&](ggcat::Slice<char> const unitig,
-                                             ggcat::Slice<uint32_t> const color_set,
-                                             bool same_color_set) {
-                uint64_t hash = hasher.hash(unitig_id);
+                        ggcat::Slice<uint32_t> const color_set,
+                        bool same_color_set) {
+                (void)unitig;
+                (void)same_color_set;
+                uint64_t hash = hasher.hash(++unitig_id);
                 for(uint64_t i = 0; i < color_set.size; ++i) {
                     sketches[color_set.data[i]].add(hash);
                 }
-                unitig_id++;
-            });
+            }, m_build_config.num_threads);
 
             std::ofstream out(m_build_config.tmp_dirname + "/sketches.bin", std::ios::binary);
             if (!out.is_open()) throw std::runtime_error("cannot open file");
@@ -756,7 +757,7 @@ struct index<meta<hybrid>>::builder {
                 {
                     auto lookup_result = idx.m_k2u.lookup_advanced(unitig.data);
                     const uint64_t unitig_id = lookup_result.contig_id;
-                    const uint64_t color_id = idx.u2c(unitig_id);
+                    const uint64_t color_set_id = idx.u2c(unitig_id);
                     for (uint64_t i = 1; i != unitig.size - idx.m_k2u.k() + 1; ++i) {
                         uint64_t got = idx.m_k2u.lookup_advanced(unitig.data + i).contig_id;
                         if (got != unitig_id) {
@@ -765,23 +766,29 @@ struct index<meta<hybrid>>::builder {
                             return;
                         }
                     }
-                    auto fwd_it = idx.m_color_sets.color_set(color_id);
+                    auto fwd_it = idx.color_set(color_set_id);
                     const uint64_t size = fwd_it.size();
                     if (size != color_set.size) {
                         std::cout << "got color_set size " << size << " but expected "
                                   << color_set.size << std::endl;
                         return;
                     }
+
+                    std::vector<uint32_t> permuted_set;
+                    for (uint64_t i = 0; i != size; ++i) {
+                        permuted_set.push_back(permutation[color_set.data[i]]);
+                    }
+                    std::sort(permuted_set.begin(), permuted_set.end());
+
                     for (uint64_t i = 0; i != size; ++i, ++fwd_it) {
-                        uint32_t ref = *fwd_it;
-                        if (ref != color_set.data[i]) {
-                            std::cout << "got ref " << ref << " but expected " << color_set.data[i]
-                                      << std::endl;
-                            return;
+                        uint32_t got_color = *fwd_it;
+                        uint32_t exp_color = permuted_set[i];
+                        if (got_color != exp_color) {
+                            std::cout << "got ref " << got_color << " but expected " << exp_color 
+                                      << " at position " << i << std::endl;
                         }
                     }
-                },
-                m_build_config.num_threads  //
+                }, m_build_config.num_threads
             );
             essentials::logger("DONE!");
         }

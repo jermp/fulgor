@@ -17,13 +17,14 @@ void index<ColorSets>::kmer_conservation(
     query.reset();
     const uint64_t num_kmers = sequence.length() - m_k2u.k() + 1;
     kmer_conservation_triple kct = {0, 0, 0};
-    uint64_t prev_unitig_id = invalid;
+    uint64_t prev_color_set_id = invalid;
 
     auto push_triple = [&]() {
-        assert(prev_unitig_id != invalid);
-        assert(kct.num_kmers != 0);
-        kct.color_set_id = u2c(prev_unitig_id);
-        kmer_conservation_info.push_back(kct);
+        if (prev_color_set_id != invalid) {
+            assert(kct.num_kmers != 0);
+            kct.color_set_id = prev_color_set_id;
+            kmer_conservation_info.push_back(kct);
+        }
     };
 
     for (uint64_t i = 0; i != num_kmers; ++i) {
@@ -32,23 +33,24 @@ void index<ColorSets>::kmer_conservation(
 
         if (answer.kmer_id != sshash::constants::invalid_uint64) {  // kmer is positive
 
-            if (prev_unitig_id != answer.contig_id) {
-                if (prev_unitig_id != invalid) push_triple();
+            uint64_t color_set_id = u2c(answer.contig_id);
+            if (prev_color_set_id != color_set_id) {
+                push_triple();
                 kct.num_kmers = 0;
                 kct.start_pos_in_query = i;
             }
 
             kct.num_kmers += 1;
-            prev_unitig_id = answer.contig_id;
+            prev_color_set_id = color_set_id;
 
         } else {  // kmer is negative
-            if (prev_unitig_id != invalid) push_triple();
-            prev_unitig_id = invalid;
+            push_triple();
+            prev_color_set_id = invalid;
         }
     }
 
     // push last one if we have to
-    if (prev_unitig_id != invalid) push_triple();
+    push_triple();
 }
 
 }  // namespace fulgor

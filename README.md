@@ -14,7 +14,7 @@ The Fulgor index is described in the following papers.
 - [**Meta-colored compacted de Bruijn graphs**](https://link.springer.com/chapter/10.1007/978-1-0716-3989-4_9) (International Conference on Research in Computational Molecular Biology, RECOMB 2024).
 - [**Where the patterns are: repetition-aware compression for colored de Bruijn graphs**](https://www.liebertpub.com/doi/10.1089/cmb.2024.0714) (Journal of Computational Biology, JCB 2024).
 - [**Fast pseudoalignment queries on compressed
-colored de Bruijn graphs**](https://jermp.github.io/assets/pdf/papers/WABI2025.pdf) (International Conference on Algorithms for Bioinformatics, WABI 2025).
+colored de Bruijn graphs**](https://doi.org/10.4230/LIPIcs.WABI.2025.6) (International Conference on Algorithms for Bioinformatics, WABI 2025).
 
 Please, cite these papers if you use Fulgor.
 
@@ -25,7 +25,7 @@ Please, cite these papers if you use Fulgor.
 * [Quick start](#quick-start)
 * [Indexing an example Salmonella Enterica pangenome](#indexing-an-example-salmonella-enterica-pangenome)
 * [Pseudoalignment output format](#pseudoalignment-output-format)
-
+* [Kmer conservation output format](#kmer-conservation-output-format)
 
 Dependencies
 ------------
@@ -87,20 +87,22 @@ Tools and usage
 There is one executable called `fulgor` after the compilation, which can be used to run a tool.
 Run `./fulgor` to see a list of available tools.
 
-	== Fulgor: a colored de Bruijn graph index ================================
-
+	== Fulgor: a colored de Bruijn graph index ========================================
+	
 	Usage: ./fulgor <tool> ...
-
+	
 	Tools:
-	  build              build a Fulgor index
-	  pseudoalign        pseudoalign reads to references
+	  build              build an index
+	  pseudoalign        perform pseudoalignment to an index
+	  kmer-conservation  print color set info for each positive kmer in query
+	  verify             verify that index works correctly with current library version
 	  stats              print index statistics
 	  print-filenames    print all reference filenames
-
+	
 	Advanced tools:
-	  permute            permute the reference names of a Fulgor index
-	  dump               write unitigs and color sets in text format
-	  color              build a meta- or a diff- or a meta-diff- Fulgor index
+	  permute            permute the reference names of an index
+	  dump               write unitigs and color sets of an index in text format
+	  color              build a meta- or a diff- or a meta-diff- index
 
 For large-scale indexing, it could be necessary to increase the number of file descriptors that can be opened simultaneously:
 
@@ -204,6 +206,29 @@ where `[list]` is a TAB-separated list of increasing integers, of length `[list-
 	NODE_477_length_1163_cov_22.0531_ID_953 2       0       8
 	NODE_9_length_173161_cov_9.33695_ID_17  1       0
 	NODE_22_length_45757_cov_12.1361_ID_43  1       0
+
+
+Kmer conservation output format
+-------------------------------
+
+The tool `kmer-conservation` writes the result to an output file, in plain text format, specified with the option `-o [output-filename]`.
+
+This file has one line for each processed read, formatted as follows:
+
+	[read-name][TAB][list-lenght][TAB][list]
+
+where `[list]` is a TAB-separated list of integer triples, of length `[list-length]`.
+(`[TAB]` is the character `\t`.)
+If a triple is `(p n i)`, it means that the `n` kmers starting from that at position `p` in the query all have color set id `i`.
+
+#### Example
+
+	SRR801268.985	2	(0 16 1)	(16 7 3)
+	SRR801268.986	3	(0 12 1)	(12 6 3)	(18 5 1)
+	SRR801268.987	1	(0 23 1)
+	SRR801268.988	1	(0 8 3)
+
+For example, in the second query, the triple `(12 6 3)` indicates that the 6 kmers starting from that at position 12 in the query all have color set id 3.
 
 #### Important note
 

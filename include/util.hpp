@@ -69,6 +69,12 @@ struct build_configuration {
     bool diff_colored;
 };
 
+struct kmer_conservation_triple {
+    uint32_t start_pos_in_query;
+    uint32_t num_kmers;
+    uint32_t color_set_id;
+};
+
 namespace util {
 
 void print_cmd(int argc, char** argv) {

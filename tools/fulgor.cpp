@@ -1,20 +1,24 @@
 #include <iostream>
 #include <filesystem>
 
+#include "external/sshash/external/gz/zip_stream.hpp"
 #include "external/sshash/external/gz/zip_stream.cpp"
 #include "external/sshash/src/build.cpp"
 #include "external/sshash/src/dictionary.cpp"
 #include "external/sshash/src/info.cpp"
+#include "external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
+#include "external/FQFeeder/include/FastxParser.hpp"
+#include "external/FQFeeder/src/FastxParser.cpp"
 
 #include "include/index_types.hpp"
 #include "src/index.cpp"
 #include "src/color_sets.cpp"
-#include "external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"
 
 #include "util.cpp"
 #include "build.cpp"
 #include "permute.cpp"
 #include "pseudoalign.cpp"
+#include "kmer_conservation.cpp"
 
 int help(char* arg0) {
     std::cout << "== Fulgor: a colored de Bruijn graph index "
@@ -28,6 +32,7 @@ int help(char* arg0) {
         << "Tools:\n"
         << "  build              build an index\n"
         << "  pseudoalign        perform pseudoalignment to an index\n"
+        << "  kmer-conservation  print color set info for each positive kmer in query\n"
         << "  verify             verify that index works correctly with current library version\n"
         << "  stats              print index statistics\n"
         << "  print-filenames    print all reference filenames\n"
@@ -52,6 +57,8 @@ int main(int argc, char** argv) {
         return build(argc - 1, argv + 1);
     } else if (tool == "pseudoalign") {
         return pseudoalign(argc - 1, argv + 1);
+    } else if (tool == "kmer-conservation") {
+        return kmer_conservation(argc - 1, argv + 1);
     } else if (tool == "verify") {
         return verify(argc - 1, argv + 1);
     } else if (tool == "stats") {

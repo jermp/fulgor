@@ -360,7 +360,7 @@ void index<ColorSets>::pseudoalign_full_intersection(std::string const& sequence
         }
     }
 
-    /* here we use it to hold the color class ids;
+    /* here we use it to hold the color set ids;
        in meta_intersect we use it to hold the partition ids */
     std::vector<uint32_t> tmp;
     std::vector<typename ColorSets::iterator_type> iterators;
@@ -375,7 +375,7 @@ void index<ColorSets>::pseudoalign_full_intersection(std::string const& sequence
         tmp.push_back(color_set_id);
     }
 
-    /* deduplicate color class ids */
+    /* deduplicate color set ids */
     std::sort(tmp.begin(), tmp.end());
     auto end_tmp = std::unique(tmp.begin(), tmp.end());
     iterators.reserve(end_tmp - tmp.begin());
@@ -385,7 +385,7 @@ void index<ColorSets>::pseudoalign_full_intersection(std::string const& sequence
         iterators.push_back(fwd_it);
     }
 
-    tmp.clear();  // don't need color class ids anymore
+    tmp.clear();  // don't need color set ids anymore
     if constexpr (ColorSets::type == index_t::META) {
         meta_intersect<typename ColorSets::iterator_type, false>(iterators, colors, tmp);
     } else if constexpr (ColorSets::type == index_t::META_DIFF) {

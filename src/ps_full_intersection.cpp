@@ -338,6 +338,52 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
 }
 
 template <typename ColorSets>
+void index<ColorSets>::pseudoalign_query_color_sets_ids(std::string const& sequence,
+                                      std::vector<uint32_t>& colors) const {
+    if (sequence.length() < m_k2u.k()) return;
+    colors.clear();
+    std::vector<uint64_t> unitig_ids;
+
+    { /* stream through */
+        sshash::streaming_query<kmer_type, true> query(&m_k2u);
+        query.reset();
+        const uint64_t num_kmers = sequence.length() - m_k2u.k() + 1;
+        for (uint64_t i = 0, prev_unitig_id = -1; i != num_kmers; ++i) {
+            char const* kmer = sequence.data() + i;
+            auto answer = query.lookup_advanced(kmer);
+            if (answer.kmer_id != sshash::constants::invalid_uint64) {  // kmer is positive
+                if (answer.contig_id != prev_unitig_id) {
+                    unitig_ids.push_back(answer.contig_id);
+                    prev_unitig_id = answer.contig_id;
+                }
+            }
+        }
+    }
+
+    /* here we use it to hold the color set ids;
+       in meta_intersect we use it to hold the partition ids */
+    std::vector<uint32_t> tmp;
+    std::vector<typename ColorSets::iterator_type> iterators;
+
+    /* deduplicate unitig_ids */
+    std::sort(unitig_ids.begin(), unitig_ids.end());
+    auto end_unitigs = std::unique(unitig_ids.begin(), unitig_ids.end());
+    tmp.reserve(end_unitigs - unitig_ids.begin());
+    for (auto it = unitig_ids.begin(); it != end_unitigs; ++it) {
+        uint32_t unitig_id = *it;
+        uint32_t color_set_id = u2c(unitig_id);
+        tmp.push_back(color_set_id);
+    }
+
+    /* deduplicate color set ids */
+    std::sort(tmp.begin(), tmp.end());
+    auto end_tmp = std::unique(tmp.begin(), tmp.end());
+    
+    tmp.erase(end_tmp, tmp.end());
+    colors = tmp; // FIXME: should be color sets
+}
+
+template <typename ColorSets>
 void index<ColorSets>::pseudoalign_full_intersection(std::string const& sequence,
                                                      std::vector<uint32_t>& colors) const {
     if (sequence.length() < m_k2u.k()) return;

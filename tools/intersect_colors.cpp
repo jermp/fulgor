@@ -48,7 +48,7 @@ template <typename ColorSets>
 void intersect_color_ids(fulgor::index<ColorSets> const& index,
                          const std::vector<uint32_t>& color_ids, std::vector<uint32_t>& colors) {
     std::vector<typename ColorSets::iterator_type> iterators;
-    iterators.reserve(color_ids.size());
+    iterators.reserve(color_ids.size()-1);
     for (auto it = color_ids.begin() + 1; it != color_ids.end(); ++it) {
         uint64_t color_set_id = *it;
         auto fwd_it = index.color_set(color_set_id);
@@ -410,6 +410,7 @@ void process_lines_meta(
                 // last call to index.instersect_color_ids
                 // and so we don't recompute it here.
                 if (cids.size() > 1) {
+                    ss << "* ";
                     // interesect the color ids to get the colors
                     colors.clear();
                     std::vector<uint32_t> partial_set;
@@ -429,16 +430,15 @@ void process_lines_meta(
                                 std::vector<uint32_t> partial_intersection;
                                 ms_mut.lock();
                                 if (ms.cache.count(partial_set) != 0){
-                                    cached_iterators.emplace_back(ms.cache[partial_set].begin(), ms.cache[partial_set].end(), ms.cache[partial_set].begin());
                                     cached++;
                                     saving += partial_set.size() - 1;
                                 } else {
-                                    ms_mut.unlock();
-                                    intersect_color_ids(index, partial_set, partial_intersection);
-                                    ms_mut.lock();
-                                    ms.cache.emplace(partial_set, partial_intersection);
-                                    cached_iterators.emplace_back(ms.cache[partial_set].begin(), ms.cache[partial_set].end(), ms.cache[partial_set].begin());
+                                    //ms_mut.unlock();
+                                    //ms.cache[partial_set] = {};
+                                    intersect_color_ids(index, partial_set, ms.cache[partial_set]);
+                                    //ms_mut.lock();
                                 }
+                                cached_iterators.emplace_back(ms.cache[partial_set].begin(), ms.cache[partial_set].end(), ms.cache[partial_set].begin());
                                 ms_mut.unlock();
                             } else {
                                 assert(partial_set.size() == 1);
@@ -469,29 +469,27 @@ void process_lines_meta(
                         iterators.push_back(partial_set.front());
                     }
 
+                    std::vector<uint32_t> tmp;
                     if (iterators.size() > 1){
-                        std::vector<uint32_t> tmp;
-                        cout << iterators.size() << ' ' << flush;
                         intersect_color_ids(index, iterators, tmp);
                         // next_geq_intersect(iterators.begin(), iterators.end(), tmp, index.num_colors());
                         cached_iterators.emplace_back(tmp.begin(), tmp.end(), tmp.begin());
                     }
-                    if (cached_iterators.size() > 1){
-                        intersect_uncompressed(cached_iterators, index.num_colors(), colors);
-                    }
+                    intersect_uncompressed(cached_iterators, index.num_colors(), colors);
 
                     // intersect_color_ids(index, cids, colors);
                 } else {
                     ++skipped_aln;
+                    ss << "# ";
                 }
 
                 if (!colors.empty()) {
-                    ss << cids.front() << "\t" << colors.size();
+                    ss << cids.front()+1 << "\t" << colors.size();
                     for (auto c : colors) { ss << "\t" << c; }
                     ss << "\n";
                 } else {
                     num_mapped_reads -= 1;
-                    ss << cids.front() << "\t0\n";
+                    ss << cids.front()+1 << "\t0\n";
                 }
                 buff_size += 1;
 

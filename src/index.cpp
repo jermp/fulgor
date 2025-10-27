@@ -36,14 +36,28 @@ void index<ColorSets>::print_stats() const {
               << essentials::convert(filenames.num_bits() / 8, essentials::GB) << " GB ("
               << (filenames.num_bits() * 100.0) / total_bits << "%)\n";
 
-    uint64_t num_ints_in_color_sets = 0;
     uint64_t num_color_sets = color_sets.num_color_sets();
     std::cout << "Color id range 0.." << num_colors() - 1 << '\n';
+    std::cout << "Number of kmers color sets: " << num_color_sets << '\n';
     std::cout << "Number of distinct color sets: " << num_color_sets << '\n';
-    for (uint64_t color_set_id = 0; color_set_id != num_color_sets; ++color_set_id) {
-        uint64_t list_size = color_sets.color_set(color_set_id).size();
-        num_ints_in_color_sets += list_size;
+
+    uint64_t num_threads = 16;
+    kmeans::thread_pool tp(num_threads);
+    std::atomic<uint64_t> num_ints_in_color_sets = 0;
+    auto exe = [&](uint64_t thread_id) {
+        uint64_t start = num_color_sets / num_threads * thread_id;
+        uint64_t end = num_color_sets / num_threads * (thread_id + 1);
+
+        for (uint64_t color_set_id = start; color_set_id != end; ++color_set_id) {
+            uint64_t list_size = color_sets.color_set(color_set_id).size();
+            num_ints_in_color_sets += list_size;
+        }
+    };
+    for (uint64_t i = 0; i < num_threads; i++) {
+        tp.enqueue([&]() { exe(i); });
     }
+    tp.wait();
+
     std::cout << "Number of ints in distinct color sets: " << num_ints_in_color_sets << " ("
               << static_cast<double>(color_sets.num_bits()) / num_ints_in_color_sets
               << " bits/int)\n";

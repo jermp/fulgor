@@ -4,7 +4,6 @@
 #include <cstdlib>
 #include <cstdio>
 
-// #include "../external/sshash/include/gz/zip_stream.hpp"
 #include "../external/FQFeeder/include/FastxParser.hpp"
 #include "../external/FQFeeder/include/blockingconcurrentqueue.h"
 
@@ -13,13 +12,24 @@
 using namespace fulgor;
 
 struct color_info {
-    color_info(std::vector<uint32_t>::iterator begin, std::vector<uint32_t>::iterator end, std::vector<uint32_t>::iterator curr) 
+    color_info(std::vector<uint32_t>::iterator begin, std::vector<uint32_t>::iterator end,
+               std::vector<uint32_t>::iterator curr)
         : begin(begin), end(end), curr(curr) {}
     std::vector<uint32_t>::iterator begin;
     std::vector<uint32_t>::iterator end;
     std::vector<uint32_t>::iterator curr;
     size_t size() const { return std::distance(begin, end); }
     bool is_exhausted() const { return curr >= end; }
+};
+
+struct query_t {
+    query_t() : id(-1) {}
+    query_t(uint32_t id, uint32_t size) :
+        id(id) {
+        cids.resize(size);
+    }
+    uint32_t id;
+    std::vector<uint32_t> cids;
 };
 
 struct custom_vec_hash {
@@ -43,18 +53,34 @@ struct meta_sets {
 void next_geq(color_info& info, uint32_t tgt) {
     info.curr = std::lower_bound(info.curr, info.end, tgt);
 }
+/*
+void next_geq(color_info& info, uint32_t tgt) {
+    auto last = info.curr;
+    uint64_t step = 1;
+
+    while (info.curr < info.end && *info.curr < tgt) {
+        last = info.curr;
+        info.curr += step;
+        step <<= 1;
+    }
+    if (*info.curr == tgt) return;
+
+    info.curr = std::lower_bound(last, std::min(info.curr, info.end), tgt);
+}
+*/
 
 template <typename ColorSets>
 void intersect_color_ids(fulgor::index<ColorSets> const& index,
                          const std::vector<uint32_t>& color_ids, std::vector<uint32_t>& colors) {
     std::vector<typename ColorSets::iterator_type> iterators;
-    iterators.reserve(color_ids.size()-1);
-    for (auto it = color_ids.begin() + 1; it != color_ids.end(); ++it) {
+    iterators.reserve(color_ids.size() - 1);
+    for (auto it = color_ids.begin(); it != color_ids.end(); ++it) {
         uint64_t color_set_id = *it;
         auto fwd_it = index.color_set(color_set_id);
         iterators.push_back(fwd_it);
     }
-    fulgor::next_geq_intersect(iterators.begin(), iterators.end(), colors, index.num_colors());
+    std::vector<uint32_t> tmp;
+    fulgor::intersect(iterators, colors, tmp);
 }
 
 void intersect_uncompressed(std::vector<color_info>& iterators, uint32_t num_colors,
@@ -109,7 +135,8 @@ void analyze_batch(std::vector<std::vector<uint32_t>>* batch, index_type& index,
     }
 
     std::vector<uint32_t> colors;
-    uint32_t thresh = 2;  // std::max(static_cast<uint32_t>(2), static_cast<uint32_t>(0.1 * max_elem) + 1);
+    uint32_t thresh =
+        2;  // std::max(static_cast<uint32_t>(2), static_cast<uint32_t>(0.1 * max_elem) + 1);
     for (auto const& [key, val] : count_map) {
         auto kv = frequent_map.find(key);
         if (kv != frequent_map.end() and (val >= thresh)) {
@@ -163,7 +190,7 @@ pref_suf_bounds find_max_prefix_suffix(std::vector<uint32_t>& prev_cid,
         auto pit = prev_cid.begin();
         auto cit = new_cid.begin();
         // count the length of the LCP
-        for (; (*pit == *cit) and (pit < prev_cid.end()) and (cit < new_cid.end());
+        for (; (pit < prev_cid.end()) and (cit < new_cid.end() and (*pit == *cit));
              ++pit, ++cit, ++pctr) {}
     }
 
@@ -171,7 +198,7 @@ pref_suf_bounds find_max_prefix_suffix(std::vector<uint32_t>& prev_cid,
         auto pit = prev_cid.rbegin();
         auto cit = new_cid.rbegin();
         // count the length of the LCS
-        for (; (*pit == *cit) and (pit < prev_cid.rend()) and (cit < new_cid.rend());
+        for (;(pit < prev_cid.rend()) and (cit < new_cid.rend() and (*pit == *cit));
              ++pit, ++cit, ++sctr) {}
     }
 
@@ -260,7 +287,7 @@ void process_lines(index_type& index,
                     uncompressed_res.clear();
                     return frequent_map.find(key_bak);
                 };
-
+                ofile_mut.lock();
                 auto pit = match_key(pkey, pkey_bak);
                 auto sit = match_key(skey, skey_bak);
 
@@ -286,24 +313,7 @@ void process_lines(index_type& index,
                 }
                 colors.clear();
                 intersect_uncompressed(uncompressed_res, index.num_colors(), colors);
-                /*
-                // extract colors that are in the freuqent_map from
-                // the colors vector
-                std::vector<color_info> frequent_res = extract_frequent_colors(cids, frequent_map);
-
-                // intersect what remains
-                colors_tmp.clear();
-                if (!cids.empty()) {
-                index.intersect_color_ids(cids, colors_tmp);
-                }
-                // add the color vector we just computed
-                if (!colors_tmp.empty()) {
-                frequent_res.push_back( {colors_tmp.begin(), colors_tmp.end(), colors_tmp.begin()}
-                );
-                }
-                // intersect_uncompressed
-                intersect_uncompressed(frequent_res, index.num_colors(), colors);
-                */
+                ofile_mut.unlock();
 
                 if (!colors.empty()) {
                     // num_mapped_reads += 1;
@@ -338,189 +348,14 @@ void process_lines(index_type& index,
         buff_size = 0;
     }
 
+    ofile_mut.lock();
     std::cerr << "total cid len: " << total_cid_len << ", total_ps_len: " << total_ps_len
               << " ratio " << static_cast<double>(total_ps_len) / total_cid_len << "\n";
-}
-
-void sketch_lines(
-    moodycamel::BlockingConcurrentQueue<std::vector<std::vector<uint32_t>>*>& q,
-    std::atomic<bool>& done, std::atomic<uint32_t>& in_flight, 
-    std::vector<sketch::hll_t>& sketches, std::vector<uint8_t>& counts)
-{
-    typename sketch::hll_t::HashType hasher;
-    std::vector<std::vector<uint32_t>>* sbatch = nullptr;
-
-    while (q.try_dequeue(sbatch) or !done or (in_flight > 0)) {
-        if (sbatch != nullptr) {
-            in_flight -= 1;
-
-            for (auto& cids : *sbatch) {
-                // if the only thing in the cids vector is
-                // 1 element (the read_id), then the color
-                // output should be exactly the same as the
-                // last call to index.instersect_color_ids
-                // and so we don't recompute it here.
-                if (cids.size() > 1) {
-                    // interesect the color ids to get the colors
-                    for (auto it = cids.begin() + 1; it != cids.end(); ++it){
-                        sketches[*it].add(hasher.hash(cids[0]));
-                        counts[*it] += (counts[*it] < std::numeric_limits<uint8_t>::max());
-                    }
-                } 
-            }
-            delete sbatch;
-            sbatch = nullptr;
-        }
-    }
-}
-
-void process_lines_meta(
-    index_type& index, moodycamel::BlockingConcurrentQueue<std::vector<std::vector<uint32_t>>*>& q,
-    std::atomic<bool>& done, std::atomic<uint32_t>& in_flight, std::mutex& ofile_mut,
-    std::ofstream& out_file, size_t thread_index, std::atomic<uint64_t>& num_mapped_reads,
-    meta_sets& ms, std::mutex& ms_mut) {
-    std::stringstream ss;
-    int32_t buff_size{0};
-    constexpr int32_t buff_thresh{500};
-
-    uint64_t cached = 0;
-    uint64_t saving = 0;
-    uint64_t total = 0;
-
-    std::vector<uint32_t> colors;
-    std::vector<std::vector<uint32_t>>* sbatch = nullptr;
-
-    size_t skipped_aln = 0;
-    size_t total_aln = 0;
-    size_t batch_ctr = 0;
-    while (q.try_dequeue(sbatch) or !done or (in_flight > 0)) {
-        if (sbatch != nullptr) {
-            in_flight -= 1;
-            batch_ctr++;
-
-            // initially for each batch, the output
-            // should be empty.
-            colors.clear();
-
-            for (auto& cids : *sbatch) {
-                ++total_aln;
-                // if the only thing in the cids vector is
-                // 1 element (the read_id), then the color
-                // output should be exactly the same as the
-                // last call to index.instersect_color_ids
-                // and so we don't recompute it here.
-                if (cids.size() > 1) {
-                    ss << "* ";
-                    // interesect the color ids to get the colors
-                    colors.clear();
-                    std::vector<uint32_t> partial_set;
-                    std::sort(cids.begin()+1, cids.end(), [&ms](uint32_t a, uint32_t b){
-                            return ms.permutation[a] < ms.permutation[b];    
-                        });
-
-                    uint32_t group_id = ms.s2m_index.rank1(ms.s2m, ms.permutation[cids[1]]);
-                    std::vector<uint32_t> iterators = {0}; // for the offset in intersect_color_ids
-                    std::vector<color_info> cached_iterators;
-                    partial_set.push_back(cids[1]);
-                    for (auto it = cids.begin() + 1; it != cids.end(); ++it) {
-                        uint32_t pid = ms.permutation[*it];
-                        uint32_t curr_group_id = ms.s2m_index.rank1(ms.s2m, pid);
-                        if (curr_group_id != group_id){
-                            if (partial_set.size() > 1){
-                                std::vector<uint32_t> partial_intersection;
-                                ms_mut.lock();
-                                if (ms.cache.count(partial_set) != 0){
-                                    cached++;
-                                    saving += partial_set.size() - 1;
-                                } else {
-                                    //ms_mut.unlock();
-                                    //ms.cache[partial_set] = {};
-                                    intersect_color_ids(index, partial_set, ms.cache[partial_set]);
-                                    //ms_mut.lock();
-                                }
-                                cached_iterators.emplace_back(ms.cache[partial_set].begin(), ms.cache[partial_set].end(), ms.cache[partial_set].begin());
-                                ms_mut.unlock();
-                            } else {
-                                assert(partial_set.size() == 1);
-                                iterators.push_back(partial_set.front());
-                            }
-                            group_id = curr_group_id;
-                            partial_set.clear();
-                        }
-                        partial_set.push_back(*it);
-                    }
-
-                    if (partial_set.size() > 1){
-                        ms_mut.lock();
-                        std::vector<uint32_t> partial_intersection;
-                        if (ms.cache.count(partial_set) != 0){
-                            cached_iterators.emplace_back(ms.cache[partial_set].begin(), ms.cache[partial_set].end(), ms.cache[partial_set].begin());
-                            cached++;
-                            saving += partial_set.size() - 1;
-                        } else {
-                            ms_mut.unlock();
-                            intersect_color_ids(index, partial_set, partial_intersection);
-                            ms_mut.lock();
-                            ms.cache.emplace(partial_set, partial_intersection);
-                            cached_iterators.emplace_back(ms.cache[partial_set].begin(), ms.cache[partial_set].end(), ms.cache[partial_set].begin());
-                        }
-                        ms_mut.unlock();
-                    } else {
-                        iterators.push_back(partial_set.front());
-                    }
-
-                    std::vector<uint32_t> tmp;
-                    if (iterators.size() > 1){
-                        intersect_color_ids(index, iterators, tmp);
-                        // next_geq_intersect(iterators.begin(), iterators.end(), tmp, index.num_colors());
-                        cached_iterators.emplace_back(tmp.begin(), tmp.end(), tmp.begin());
-                    }
-                    intersect_uncompressed(cached_iterators, index.num_colors(), colors);
-
-                    // intersect_color_ids(index, cids, colors);
-                } else {
-                    ++skipped_aln;
-                    ss << "# ";
-                }
-
-                if (!colors.empty()) {
-                    ss << cids.front()+1 << "\t" << colors.size();
-                    for (auto c : colors) { ss << "\t" << c; }
-                    ss << "\n";
-                } else {
-                    num_mapped_reads -= 1;
-                    ss << cids.front()+1 << "\t0\n";
-                }
-                buff_size += 1;
-
-                if (buff_size > buff_thresh) {
-                    std::string outs = ss.str();
-                    ss.str("");
-                    ofile_mut.lock();
-                    out_file.write(outs.data(), outs.size());
-                    ofile_mut.unlock();
-                    buff_size = 0;
-                }
-            }
-            delete sbatch;
-            sbatch = nullptr;
-        }
-    }
-    // dump anything left in the buffer
-    if (buff_size > 0) {
-        std::string outs = ss.str();
-        ss.str("");
-        ofile_mut.lock();
-        out_file.write(outs.data(), outs.size());
-        ofile_mut.unlock();
-        buff_size = 0;
-    }
-    // std::cerr << "(thread_index : " << thread_index << ") total_aln: " << total_aln << ",
-    // skipped_aln: " << skipped_aln << ", batch_ctr: " << batch_ctr << "\n";
+    ofile_mut.unlock();
 }
 
 void process_lines_simple(
-    index_type& index, moodycamel::BlockingConcurrentQueue<std::vector<std::vector<uint32_t>>*>& q,
+    index_type& index, moodycamel::BlockingConcurrentQueue<std::vector<query_t>*>& q,
     std::atomic<bool>& done, std::atomic<uint32_t>& in_flight, std::mutex& ofile_mut,
     std::ofstream& out_file, size_t thread_index, std::atomic<uint64_t>& num_mapped_reads) {
     std::stringstream ss;
@@ -528,7 +363,7 @@ void process_lines_simple(
     constexpr int32_t buff_thresh{500};
 
     std::vector<uint32_t> colors;
-    std::vector<std::vector<uint32_t>>* sbatch = nullptr;
+    std::vector<query_t>* sbatch = nullptr;
 
     size_t skipped_aln = 0;
     size_t total_aln = 0;
@@ -542,28 +377,28 @@ void process_lines_simple(
             // should be empty.
             colors.clear();
 
-            for (auto& cids : *sbatch) {
+            for (auto& query : *sbatch) {
                 ++total_aln;
                 // if the only thing in the cids vector is
                 // 1 element (the read_id), then the color
                 // output should be exactly the same as the
                 // last call to index.instersect_color_ids
                 // and so we don't recompute it here.
-                if (cids.size() > 1) {
+                if (!query.cids.empty()) {
                     // interesect the color ids to get the colors
                     colors.clear();
-                    intersect_color_ids(index, cids, colors);
+                    intersect_color_ids(index, query.cids, colors);
                 } else {
                     ++skipped_aln;
                 }
 
                 if (!colors.empty()) {
-                    ss << cids.front() << "\t" << colors.size();
+                    ss << query.id << "\t" << colors.size();
                     for (auto c : colors) { ss << "\t" << c; }
                     ss << "\n";
                 } else {
                     num_mapped_reads -= 1;
-                    ss << cids.front() << "\t0\n";
+                    ss << query.id << "\t0\n";
                 }
                 buff_size += 1;
 
@@ -660,7 +495,8 @@ int do_color_map(index_type const& index, fastx_parser::FastxParser<fastx_parser
     return 0;
 }
 
-void sort_file(const std::string& tmp_outname, std::ofstream& output) {
+std::vector<std::vector<uint32_t>> sort_file(const std::string& tmp_outname,
+                                             std::ofstream& output) {
     std::vector<std::vector<uint32_t>> v;
     std::ifstream ifile(tmp_outname, std::ios::binary);
 
@@ -682,7 +518,7 @@ void sort_file(const std::string& tmp_outname, std::ofstream& output) {
         }
     }
 
-    if (v.empty()) { return; }
+    if (v.empty()) { return v; }
 
     std::cerr << "begin sort\n";
 
@@ -697,9 +533,11 @@ void sort_file(const std::string& tmp_outname, std::ofstream& output) {
     auto curr = v.begin();
     auto next = curr++;
     size_t identical_lists = 0;
+    uint64_t identical_sizes = 0;
     while (next < v.end()) {
         if ((curr->size() == next->size()) and
             std::equal(curr->begin() + 1, curr->end(), next->begin() + 1)) {
+            identical_sizes += next->size() - 1;
             next->resize(1);  // retain only the id.
             ++identical_lists;
             ++next;
@@ -709,7 +547,8 @@ void sort_file(const std::string& tmp_outname, std::ofstream& output) {
         }
     }
 
-    std::cerr << "number of identical lists = " << identical_lists << "\n";
+    std::cerr << "number of identical lists = " << identical_lists << "(ignoring "
+              << identical_sizes << " set ids)\n";
     std::cerr << "sorted!\n";
     ifile.close();
     std::ofstream ofile(tmp_outname, std::ios::trunc | std::ios::binary);
@@ -720,12 +559,43 @@ void sort_file(const std::string& tmp_outname, std::ofstream& output) {
         ofile.write(reinterpret_cast<char*>(vec_it->data()), sizeof(s) * s);
     }
     ofile.close();
+    return v;
 }
 
-void do_sketching(index_type& index, size_t num_threads_in, const std::string& query_filename ){
-    const uint64_t p = 7;
+void sketch_lines(moodycamel::BlockingConcurrentQueue<std::vector<std::vector<uint32_t>>*>& q,
+                  std::atomic<bool>& done, std::atomic<uint32_t>& in_flight,
+                  std::vector<sketch::hll_t>& sketches, std::vector<uint8_t>& counts) {
+    typename sketch::hll_t::HashType hasher;
+    std::vector<std::vector<uint32_t>>* sbatch = nullptr;
+
+    while (q.try_dequeue(sbatch) or !done or (in_flight > 0)) {
+        if (sbatch != nullptr) {
+            in_flight -= 1;
+
+            for (auto& cids : *sbatch) {
+                // if the only thing in the cids vector is
+                // 1 element (the read_id), then the color
+                // output should be exactly the same as the
+                // last call to index.instersect_color_ids
+                // and so we don't recompute it here.
+                if (cids.size() > 1) {
+                    // interesect the color ids to get the colors
+                    for (auto it = cids.begin() + 1; it != cids.end(); ++it) {
+                        sketches[*it].add(hasher.hash(cids[0]));
+                        counts[*it] += (counts[*it] < std::numeric_limits<uint8_t>::max());
+                    }
+                }
+            }
+            delete sbatch;
+            sbatch = nullptr;
+        }
+    }
+}
+
+void do_sketching(index_type& index, size_t num_threads_in, const std::string& query_filename) {
+    const uint64_t p = 1;
     const uint64_t num_color_sets = index.num_color_sets();
-    std::vector<sketch::hll_t> sketches (num_color_sets, sketch::hll_t(p));
+    std::vector<sketch::hll_t> sketches(num_color_sets, sketch::hll_t(p));
     std::vector<uint8_t> counts(num_color_sets);
 
     std::ifstream ifile(query_filename, std::ios::binary);
@@ -775,10 +645,9 @@ void do_sketching(index_type& index, size_t num_threads_in, const std::string& q
     std::vector<std::thread> workers;
     workers.reserve(num_threads_in);
     for (size_t i = 0; i < num_threads_in; ++i) {
-        workers.push_back(std::thread(
-            [&q, &done, &in_flight, &sketches, &counts]() -> void {
-                sketch_lines(q, done, in_flight, sketches, counts);
-            }));
+        workers.push_back(std::thread([&q, &done, &in_flight, &sketches, &counts]() -> void {
+            sketch_lines(q, done, in_flight, sketches, counts);
+        }));
     }
 
     producer.join();
@@ -788,10 +657,8 @@ void do_sketching(index_type& index, size_t num_threads_in, const std::string& q
         const uint8_t sketch_threshold = 2;
         // std::vector<sketch::hll_t> sketches;
         // sketches.reserve(num_color_sets);
-        for (uint64_t set_id = 0; set_id < num_color_sets; set_id++){
-            if (counts[set_id] < sketch_threshold) {
-                sketches[set_id] = sketch::hll_t(p);
-            }
+        for (uint64_t set_id = 0; set_id < num_color_sets; set_id++) {
+            if (counts[set_id] < sketch_threshold) { sketches[set_id] = sketch::hll_t(p); }
         }
 
         std::ofstream out("sketches.bin", std::ios::binary);
@@ -810,45 +677,49 @@ void do_sketching(index_type& index, size_t num_threads_in, const std::string& q
 }
 
 void do_intersection(index_type& index, size_t num_threads_in, const std::string& query_filename,
-                     std::ofstream& output, std::atomic<uint64_t>& num_mapped_reads, 
-                     meta_sets& ms) {
+                     std::ofstream& output, std::atomic<uint64_t>& num_mapped_reads) {
     std::ifstream ifile(query_filename, std::ios::binary);
 
     std::atomic<bool> done{false};
     std::atomic<uint32_t> in_flight{0};
+    const uint64_t batch_thresh = 10000;
 
-    moodycamel::BlockingConcurrentQueue<std::vector<std::vector<uint32_t>>*> q(3 * num_threads_in);
+    moodycamel::BlockingConcurrentQueue<std::vector<query_t>*> q(3 * num_threads_in);
 
     std::thread producer([&q, &ifile, &done, &in_flight]() -> void {
-        std::vector<std::vector<uint32_t>>* batch = new std::vector<std::vector<uint32_t>>();
+        auto* batch = new std::vector<query_t>();
+        batch->reserve(batch_thresh);
         uint32_t list_len = 0;
         size_t nbatches = 0;
+
         while (ifile.read(reinterpret_cast<char*>(&list_len), sizeof(list_len))) {
             if (list_len > 0) {
                 // if (list_len > 100) { std::cerr << "list_len " << list_len << "\n"; }
-                std::vector<uint32_t> working_vec;
-                working_vec.resize(list_len);
-                ifile.read(reinterpret_cast<char*>(working_vec.data()),
-                           list_len * sizeof(list_len));
+                uint32_t query_id;
+                ifile.read(reinterpret_cast<char*>(&query_id), sizeof(query_id));
+                query_t query(query_id, list_len -1); // -1 since the first one is the id
+                ifile.read(reinterpret_cast<char*>(query.cids.data()),
+                           (list_len - 1) * sizeof(list_len));
 
                 // if the current batch is big enough that we want to push it
                 // make sure the current element isn't a duplicate (i.e. size 1)
                 // and push the batch *before* we add the next element, which
                 // may be the start of a new duplicate run.
-                if ((batch->size() >= 10000) and (working_vec.size() > 1)) {
+                if ((batch->size() >= 10000) and (!query.cids.empty())) {
                     while (!q.try_enqueue(batch)) {}
-                    batch = new std::vector<std::vector<uint32_t>>();
+                    batch = new std::vector<query_t>();
                     in_flight += 1;
                     ++nbatches;
                 }
                 // always push back the current element. If it's in the middle of
                 // a duplicate run, we keep growing the previous batch, otherwise
                 // this is the first element of the enw batch.
-                batch->push_back(working_vec);
+                batch->push_back(query);
             } else {
                 std::cerr << "should not happen\n";
             }
         }
+
         if (!batch->empty()) {
             q.enqueue(batch);
             in_flight += 1;
@@ -856,19 +727,24 @@ void do_intersection(index_type& index, size_t num_threads_in, const std::string
         done = true;
     });
 
-    std::mutex ofmut, ms_mut;
+    std::mutex ofmut;
     std::vector<std::thread> workers;
     workers.reserve(num_threads_in);
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> timer;
+    timer.start();
     for (size_t i = 0; i < num_threads_in; ++i) {
         workers.push_back(std::thread(
-            [&index, &q, &done, &in_flight, &ofmut, &output, &num_mapped_reads, &ms, &ms_mut, i]() -> void {
-                // process_lines_simple(index, q, done, in_flight, ofmut, output, i, num_mapped_reads);
-                process_lines_meta(index, q, done, in_flight, ofmut, output, i, num_mapped_reads, ms, ms_mut);
+            [&index, &q, &done, &in_flight, &ofmut, &output, &num_mapped_reads, i]() -> void {
+                process_lines_simple(index, q, done, in_flight, ofmut, output, i, num_mapped_reads);
             }));
     }
-
     producer.join();
     for (auto& t : workers) { t.join(); }
+
+    timer.stop();
+    std::cout << "Only intersection took = " << timer.elapsed() << " millisec / ";
+    std::cout << timer.elapsed() / 1000 << " sec / ";
+    std::cout << timer.elapsed() / 1000 / 60 << " min / " << std::endl;
 }
 
 int intersect_colors(int argc, char** argv) {
@@ -967,94 +843,9 @@ int intersect_colors(int argc, char** argv) {
               << (num_mapped_reads * 100.0) / num_reads << "%)" << std::endl;
 
     std::ofstream output(output_filename);
-    sort_file(tmp_outname, output);
+    auto sorted = sort_file(tmp_outname, output);
 
-    std::cout << "sketching" << std::endl;
-    const uint64_t num_color_sets = index.num_color_sets();
-    do_sketching(index, num_threads, tmp_outname);
-    std::cout << "done sketching!" << std::endl;
-
-    essentials::logger("step 3. clustering sketches");
-
-    std::ifstream in("sketches.bin", std::ios::binary);
-    if (!in.is_open()) throw std::runtime_error("error in opening file");
-
-    std::vector<kmeans::point> points;
-    uint64_t num_bytes_per_point = 0;
-    uint64_t num_points = 0;
-    in.read(reinterpret_cast<char*>(&num_bytes_per_point), sizeof(uint64_t));
-    in.read(reinterpret_cast<char*>(&num_points), sizeof(uint64_t));
-    cout << num_points << endl;
-    points.resize(num_points, kmeans::point(num_bytes_per_point));
-    for (auto& point : points) {
-        in.read(reinterpret_cast<char*>(point.data()), num_bytes_per_point);
-    }
-    in.close();
-
-    std::remove("sketches.bin");
-
-    kmeans::clustering_parameters params;
-
-    /* kmeans_divisive */
-    constexpr float min_delta = 0.001;
-    constexpr float max_iteration = 3;
-    constexpr uint64_t min_cluster_size = 1;
-    constexpr uint64_t seed = 0;
-    params.set_min_delta(min_delta);
-    params.set_max_iteration(max_iteration);
-    params.set_min_cluster_size(min_cluster_size);
-    params.set_random_seed(seed);
-    params.set_num_threads(num_threads);
-    auto clustering_data = kmeans::kmeans_divisive(points.begin(), points.end(), params);
-
-    std::cout << "CLUSTERING DONE!" << std::endl; 
-    uint64_t num_partitions = clustering_data.num_clusters;
-    uint64_t max_partition_size = 0;
-    std::vector<uint32_t> partition_size;
-    std::vector<uint32_t> permutation;
-
-    partition_size.resize(num_partitions + 1, 0);
-    for (auto c : clustering_data.clusters) partition_size[c] += 1;
-
-    /* take prefix sums */
-    uint64_t val = 0;
-    uint64_t bigger_that_one = 0;
-    bits::bit_vector::builder bvb;
-    bvb.resize(num_color_sets);
-    for (auto& size : partition_size) {
-        if (size > max_partition_size) max_partition_size = size;
-        bigger_that_one += size > 1;
-
-        uint64_t tmp = size;
-        size = val;
-        val += tmp;
-        bvb.set(val-1);
-    }
-    bits::bit_vector set2meta;
-    bvb.build(set2meta);
-    bits::rank9 rank1_s2m;
-    rank1_s2m.build(set2meta);
-    assert(rank1_s2m.num_ones() == num_partitions);
-
-    /* build permutation */
-    auto counts = partition_size;  // copy
-    permutation.resize(num_color_sets);
-    assert(clustering_data.clusters.size() == index.num_color_sets());
-    for (uint64_t i = 0; i != num_color_sets; ++i) {
-        uint32_t cluster_id = clustering_data.clusters[i];
-        permutation[i] = counts[cluster_id];
-        counts[cluster_id] += 1;
-    }
-    std::cout << "Computed " << num_partitions << " partitions (" << bigger_that_one << " of which > 1)" << std::endl;
-
-    essentials::logger("step 3. pseudoalignment");
-
-    meta_sets ms;
-    ms.s2m_index = rank1_s2m;
-    ms.s2m = set2meta;
-    ms.permutation.swap(permutation);
-
-    do_intersection(index, num_threads, tmp_outname, output, num_mapped_reads, ms);
+    do_intersection(index, num_threads, tmp_outname, output, num_mapped_reads);
     std::remove(tmp_outname.c_str());
 
     std::cout << "num_mapped_reads " << num_mapped_reads << "/" << num_reads << " ("

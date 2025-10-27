@@ -223,6 +223,7 @@ struct index<ColorSets>::meta_differential_builder {
             }
 
             std::sort(endpoints.begin(), endpoints.end());
+            endpoints.push_back(num_color_sets);
             builder.init_meta_color_partition_sets(endpoints.size());
 
             uint64_t partition_set_id = 0;

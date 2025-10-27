@@ -20,6 +20,7 @@
 #include "pseudoalign.cpp"
 #include "kmer_conservation.cpp"
 #include "intersect_colors.cpp"
+#include "batched_intersection.cpp"
 
 int help(char* arg0) {
     std::cout << "== Fulgor: a colored de Bruijn graph index "
@@ -67,7 +68,9 @@ int main(int argc, char** argv) {
     } else if (tool == "print-filenames") {
         return print_filenames(argc - 1, argv + 1);
     } else if (tool == "intersect-colors") {
-        return intersect_colors(argc -1, argv + 1);
+        return intersect_colors(argc - 1, argv + 1);
+    } else if (tool == "intersect-colors-batched") {
+        return intersect_colors_batched(argc - 1, argv + 1);
     }
 
     /* advanced tools */

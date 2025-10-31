@@ -9,6 +9,25 @@
 
 #include "../external/unordered_dense/include/ankerl/unordered_dense.h"
 
+/* Credits to Jarno Alanko for the suggestion. */
+void manual_conversion(std::vector<uint32_t> const& vec, std::string& s) {
+    s.clear();
+    s.reserve(vec.size() * 12);
+    char buffer[32];
+    uint32_t tmp;
+    for (uint32_t x : vec) {
+        int len = 0;
+        do {
+            tmp = x / 10;
+            buffer[len++] = '0' + (x - tmp * 10);
+            x = tmp;
+        } while (x > 0);
+        std::reverse(buffer, buffer + len);
+        buffer[len] = '\t';
+        s.append(buffer, len + 1);
+    }
+    s.pop_back();
+}
 
 using namespace fulgor;
 
@@ -19,8 +38,14 @@ void process_lines_meta(index_type& index,
     std::stringstream ss;
     int32_t buff_size{0};
     constexpr int32_t buff_thresh{50};
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::microseconds> compressed_timer;
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::microseconds> uncompressed_timer;
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::microseconds> preprocess_timer;
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::microseconds> mapping_timer;
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::microseconds> working_timer;
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::microseconds> writing_timer;
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::microseconds> other_timer;
 
-    frequent_map_t frequent_map;
     std::vector<uint32_t> pkey;
     std::vector<uint32_t> skey;
     std::vector<uint32_t> colors;
@@ -28,18 +53,18 @@ void process_lines_meta(index_type& index,
     std::vector<color_info> uncompressed_res;
     std::vector<query_t>* sbatch = nullptr;
     const uint64_t ps_thresh = 3;
+    stringstream intersection_ss;
+
 
     while (q.try_dequeue(sbatch) or !done or (in_flight > 0)) {
         if (sbatch != nullptr) {
+            frequent_map_t frequent_map;
+            working_timer.start();
             in_flight -= 1;
 
             query_t prev = (*sbatch)[0];
             // use a stack to improve cached intersection efficiency?
-            uint64_t cached = 0;
-            uint64_t cached_size = 0;
             auto cache_partial_intersection = [&](std::vector<uint32_t> const& key) {
-                cached++;
-                cached_size += key.size();
                 if (frequent_map.find(key) != frequent_map.end()) return;
 
                 colors_tmp.clear();
@@ -47,6 +72,7 @@ void process_lines_meta(index_type& index,
                 frequent_map.emplace(key, colors_tmp);
             };
 
+            preprocess_timer.start();
             for (uint64_t qid = 1; qid < sbatch->size(); ++qid) {
                 auto& query = (*sbatch)[qid];
                 if (query.cids.empty()) continue;
@@ -60,17 +86,12 @@ void process_lines_meta(index_type& index,
                 }
                 if (ps_info.suffix_len >= ps_thresh) {
                     skey.assign(query.cids.rbegin(), query.cids.rbegin() + ps_info.suffix_len);
-                    // cache_partial_intersection(skey);
+                    cache_partial_intersection(skey);
                 }
 
                 prev = query;
             }
-            stringstream tmpss;
-            tmpss << " > " << cached << " " << cached_size << endl;
-            cout << tmpss.str() << flush;
-            tmpss.str("");
-            cached_size = 0;
-            cached = 0;
+            preprocess_timer.stop();
             uint32_t query_id;
 
             for (auto& query : *sbatch) {
@@ -86,56 +107,90 @@ void process_lines_meta(index_type& index,
                     colors.clear();
                     uncompressed_res.clear();
                     pkey.clear();
+                    skey.clear();
 
-                    auto it = query.cids.begin();
+                    auto fit = query.cids.begin();
+                    auto rit = query.cids.rbegin();
                     uint64_t pkey_size = 0;
-                    color_info cached_res(query.cids.end(), query.cids.end(), query.cids.end());
+                    uint64_t skey_size = 0;
+                    color_info cached_pref(query.cids.end(), query.cids.end(), query.cids.end());
+                    color_info cached_suff(query.cids.end(), query.cids.end(), query.cids.end());
 
-                    while (it < query.cids.end()) {
-                        pkey.push_back(*it);
+                    mapping_timer.start();
+                    while (fit < query.cids.end()) {
+                        pkey.push_back(*fit);
+                        skey.push_back(*rit);
                         if (frequent_map.find(pkey) != frequent_map.end()) {
-                            cached_res = {frequent_map[pkey].begin(), frequent_map[pkey].end(),
+                            cached_pref = {frequent_map[pkey].begin(), frequent_map[pkey].end(),
                                           frequent_map[pkey].begin()};
                             pkey_size = pkey.size();
                         }
-                        ++it;
+                        if (frequent_map.find(skey) != frequent_map.end()) {
+                            cached_suff = {frequent_map[skey].begin(), frequent_map[skey].end(),
+                                          frequent_map[skey].begin()};
+                            skey_size = skey.size();
+                        }
+                        ++fit;
+                        ++rit;
                     }
+                    mapping_timer.stop();
 
-                    if (cached_res.begin != query.cids.end()) {
-                        uncompressed_res.push_back(cached_res);
-                        std::vector<uint32_t> tmp_cids = {query.cids.begin()+pkey_size, query.cids.end()};
+                    if (cached_pref.begin != query.cids.end()) {
+                        uncompressed_res.push_back(cached_pref);
                         //cached_size += pkey_size;
                         //cached++;
+                    }
+                    if (cached_suff.begin != query.cids.end()) {
+                        uncompressed_res.push_back(cached_suff);
+                        //cached_size += pkey_size;
+                        //cached++;
+                    }
+                    std::vector<uint32_t> uncached_cids = {query.cids.begin()+pkey_size, max(query.cids.end()-skey_size, query.cids.begin()+pkey_size)};
 
+                    if (!uncompressed_res.empty()){
                         colors_tmp.clear();
-                        if (!tmp_cids.empty()) {
-                            intersect_color_ids(index, tmp_cids, colors_tmp); // if all cids are intersected, the result is correct
+                        if (!uncached_cids.empty()) {
+                            compressed_timer.start();
+                            intersect_color_ids(index, uncached_cids, colors_tmp); // if all cids are intersected, the result is correct
                             uncompressed_res.emplace_back(colors_tmp.begin(), colors_tmp.end(),
                                                           colors_tmp.begin());
+                            compressed_timer.stop();
                         }
+                        uncompressed_timer.start();
                         intersect_uncompressed(uncompressed_res, index.num_colors(), colors);
+                        uncompressed_timer.stop();
                     } else {
+                        compressed_timer.start();
                         intersect_color_ids(index, query.cids, colors);
+                        compressed_timer.stop();
                     }
                 }
 
+                other_timer.start();
+                std::string tmpstr;
                 if (!colors.empty()) {
                     ss << query_id << "\t" << colors.size();
-                    for (auto c : colors) { ss << "\t" << c; }
+                    //for (auto c : colors) {}
+                    manual_conversion(colors, tmpstr);
+                    ss << "\t" << tmpstr;
                     ss << "\n";
                 } else {
                     // num_mapped_reads -= 1;
                     ss << query_id << "\t0\n";
                 }
                 buff_size += 1;
+                other_timer.stop();
+
 
                 if (buff_size > buff_thresh) {
+                    writing_timer.start();
                     std::string outs = ss.str();
                     ss.str("");
                     ofile_mut.lock();
                     out_file.write(outs.data(), outs.size());
                     ofile_mut.unlock();
                     buff_size = 0;
+                    writing_timer.stop();
                 }
             }
             //tmpss << cached << " " << cached_size << endl;
@@ -143,19 +198,33 @@ void process_lines_meta(index_type& index,
 
             delete sbatch;
             sbatch = nullptr;
+            working_timer.stop();
         }
     }
+
     // dump anything left in the buffer
     if (buff_size > 0) {
+        writing_timer.start();
         std::string outs = ss.str();
         ss.str("");
         ofile_mut.lock();
         out_file.write(outs.data(), outs.size());
         ofile_mut.unlock();
         buff_size = 0;
+        writing_timer.stop();
     }
     // std::cerr << "(thread_index : " << thread_index << ") total_aln: " << total_aln << ",
     // skipped_aln: " << skipped_aln << ", batch_ctr: " << batch_ctr << "\n";
+    ofile_mut.lock();
+    cout << "Thread worked for: " << working_timer.elapsed()/1000 << "ms, ";
+    cout << "Other stuff took: " << other_timer.elapsed()/1000 << "ms, ";
+    cout << "Compressed intersections took: " << compressed_timer.elapsed()/1000 << "ms, ";
+    cout << "Uncompressed intersections took: " << uncompressed_timer.elapsed()/1000 << "ms, ";
+    cout << "Writing took: " << writing_timer.elapsed()/1000 << "ms, ";
+    cout << "Preprocessing took: " << preprocess_timer.elapsed()/1000 << "ms, ";
+    cout << "Mapping took: " << mapping_timer.elapsed()/1000 << "ms, ";
+    cout << endl;
+    ofile_mut.unlock();
 }
 
 void do_intersection_batched(index_type& index, size_t num_threads_in,
@@ -188,7 +257,7 @@ void do_intersection_batched(index_type& index, size_t num_threads_in,
                 // make sure the current element isn't a duplicate (i.e. size 1)
                 // and push the batch *before* we add the next element, which
                 // may be the start of a new duplicate run.
-                if ((batch->size() >= 10000) and (!query.cids.empty())) {
+                if ((batch->size() >= batch_thresh) and (!query.cids.empty())) {
                     while (!q.try_enqueue(batch)) {}
                     batch = new std::vector<query_t>();
                     in_flight += 1;
@@ -217,7 +286,7 @@ void do_intersection_batched(index_type& index, size_t num_threads_in,
     timer.start();
     for (size_t i = 0; i < num_threads_in; ++i) {
         workers.push_back(std::thread(
-            [&index, &q, &done, &in_flight, &ofmut, &output, &num_mapped_reads, i]() -> void {
+            [&index, &q, &done, &in_flight, &ofmut, &output]() -> void {
                 process_lines_meta(index, q, done, in_flight, ofmut, output); //, i, num_mapped_reads);
             }));
     }

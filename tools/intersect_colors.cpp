@@ -51,10 +51,6 @@ struct meta_sets {
 };
 
 void next_geq(color_info& info, uint32_t tgt) {
-    info.curr = std::lower_bound(info.curr, info.end, tgt);
-}
-/*
-void next_geq(color_info& info, uint32_t tgt) {
     auto last = info.curr;
     uint64_t step = 1;
 
@@ -63,11 +59,9 @@ void next_geq(color_info& info, uint32_t tgt) {
         info.curr += step;
         step <<= 1;
     }
-    if (*info.curr == tgt) return;
 
     info.curr = std::lower_bound(last, std::min(info.curr, info.end), tgt);
 }
-*/
 
 template <typename ColorSets>
 void intersect_color_ids(fulgor::index<ColorSets> const& index,
@@ -190,7 +184,7 @@ pref_suf_bounds find_max_prefix_suffix(std::vector<uint32_t>& prev_cid,
         auto pit = prev_cid.begin();
         auto cit = new_cid.begin();
         // count the length of the LCP
-        for (; (pit < prev_cid.end()) and (cit < new_cid.end() and (*pit == *cit));
+        for (; pit < prev_cid.end() and cit < new_cid.end() and *pit == *cit;
              ++pit, ++cit, ++pctr) {}
     }
 
@@ -198,7 +192,7 @@ pref_suf_bounds find_max_prefix_suffix(std::vector<uint32_t>& prev_cid,
         auto pit = prev_cid.rbegin();
         auto cit = new_cid.rbegin();
         // count the length of the LCS
-        for (;(pit < prev_cid.rend()) and (cit < new_cid.rend() and (*pit == *cit));
+        for (;pit < prev_cid.rend() and cit < new_cid.rend() and *pit == *cit;
              ++pit, ++cit, ++sctr) {}
     }
 
@@ -547,7 +541,7 @@ std::vector<std::vector<uint32_t>> sort_file(const std::string& tmp_outname,
         }
     }
 
-    std::cerr << "number of identical lists = " << identical_lists << "(ignoring "
+    std::cerr << "number of identical lists = " << identical_lists << " (ignoring "
               << identical_sizes << " set ids)\n";
     std::cerr << "sorted!\n";
     ifile.close();

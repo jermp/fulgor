@@ -14,17 +14,16 @@ void manual_conversion(std::vector<uint32_t> const& vec, std::string& s) {
     s.clear();
     s.reserve(vec.size() * 12);
     char buffer[32];
+    buffer[31] = '\t';
     uint32_t tmp;
     for (uint32_t x : vec) {
         int len = 0;
         do {
             tmp = x / 10;
-            buffer[len++] = '0' + (x - tmp * 10);
+            buffer[30 - len++] = '0' + (x - tmp * 10);
             x = tmp;
         } while (x > 0);
-        std::reverse(buffer, buffer + len);
-        buffer[len] = '\t';
-        s.append(buffer, len + 1);
+        s.append(buffer + 31 - len, len + 1);
     }
     s.pop_back();
 }

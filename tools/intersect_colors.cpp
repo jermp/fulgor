@@ -30,6 +30,7 @@ struct query_t {
     }
     uint32_t id;
     std::vector<uint32_t> cids;
+    std::vector<uint32_t> cached_intersection;
 };
 
 struct custom_vec_hash {
@@ -388,7 +389,10 @@ void process_lines_simple(
 
                 if (!colors.empty()) {
                     ss << query.id << "\t" << colors.size();
-                    for (auto c : colors) { ss << "\t" << c; }
+                    // for (auto c : colors) { ss << "\t" << c; }
+                    string res;
+                    util::vec_to_tsv(colors, res);
+                    ss << '\t' << res;
                     ss << "\n";
                 } else {
                     num_mapped_reads -= 1;

@@ -215,5 +215,23 @@ struct hasher_uint128_t {
     uint64_t operator()(const __uint128_t x) const { return static_cast<uint64_t>(x) ^ (x >> 64); }
 };
 
+void vec_to_tsv(std::vector<uint32_t> const& vec, std::string& s) {
+    s.clear();
+    s.reserve(vec.size() * 12);
+    char buffer[32];
+    buffer[31] = '\t';
+    uint32_t tmp;
+    for (uint32_t x : vec) {
+        int len = 0;
+        do {
+            tmp = x / 10;
+            buffer[30 - len++] = '0' + (x - tmp * 10);
+            x = tmp;
+        } while (x > 0);
+        s.append(buffer + 31 - len, len + 1);
+    }
+    s.pop_back();
+}
+
 }  // namespace util
 }  // namespace fulgor

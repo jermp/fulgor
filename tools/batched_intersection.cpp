@@ -92,29 +92,10 @@ void preprocess_intersection(index_type const& index, frequent_map_t& frequent_m
     // use a stack to improve cached intersection efficiency?
     auto cache_partial_intersection = [&](std::vector<uint32_t> const& key) {
         if (frequent_map.find(key) != frequent_map.end()) return;
-        std::vector<color_info> uncompressed;
-        std::vector<uint32_t> tmp = key;
 
         colors_tmp.clear();
-        for (auto const& [k, cached] : frequent_map) {
-            if (tmp.size() < ps_thresh) break;
-            if (std::includes(tmp.begin(), tmp.end(), k.begin(), k.end())) {
-                uncompressed.emplace_back(frequent_map[k].begin(), frequent_map[k].end(), frequent_map[k].begin());
-                auto end_it = std::set_difference(tmp.begin(), tmp.end(),
-                       k.begin(), k.end(),
-                      tmp.begin());
-                tmp.erase(end_it, tmp.end());
-            }
-        }
-        if (!uncompressed.empty()) {
-            uncompressed.emplace_back(colors_tmp.begin(), colors_tmp.end(), colors_tmp.begin());
-            cached_int.clear();
-            intersect_uncompressed(uncompressed, UINT32_MAX - 1, cached_int);
-            frequent_map.emplace(key, cached_int);
-        } else {
-            intersect_color_ids(index, tmp, colors_tmp);
-            frequent_map.emplace(key, colors_tmp);
-        }
+        intersect_color_ids(index, key, colors_tmp);
+        frequent_map.emplace(key, colors_tmp);
     };
 
     std::vector<uint32_t> common_ids;
@@ -158,6 +139,80 @@ void match_intersection(frequent_map_t& frequent_map, query_t& query, std::vecto
     }
 }
 
+void vertical_partition_queries(std::vector<query_t>* batch, std::vector<uint32_t>& cluster_sizes, std::vector<uint32_t>& permutation) {
+    assert(cluster_sizes.empty());
+    const uint64_t p = 8;
+    const uint64_t num_bytes_per_point = 1ULL << p;
+    std::unordered_map<uint32_t, sketch::hll_t> sketches; // map since set ids are more or less random
+    typename sketch::hll_t::HashType hasher;
+
+    for (auto& query: *batch) {
+        for (auto it = query.cids.begin(); it != query.cids.end(); ++it) {
+            if (sketches.find(*it) == sketches.end()) {
+                sketches[*it] = sketch::hll_t(p);
+            }
+            sketches[*it].add(hasher.hash(query.id));
+        }
+    }
+    const uint64_t num_points = sketches.size();
+    if (num_points == 0) {
+        cout << "wow"<< endl;
+        return ;
+    };
+
+    std::vector<kmeans::point> points(num_points, kmeans::point(num_bytes_per_point));
+    std::vector<uint32_t> ids;
+    ids.reserve(num_points);
+    auto points_it = points.begin();
+    for (auto& [id, sketch] : sketches) {
+        ids.push_back(id);
+        const char* raw = reinterpret_cast<const char*>(sketch.data());
+        std::memcpy(points_it->data(), raw, num_bytes_per_point);
+        ++points_it;
+    }
+    assert(ids.size() == num_points);
+
+    /* kmeans_divisive */
+    kmeans::clustering_parameters params;
+    constexpr float min_delta = 0.001;
+    constexpr float max_iteration = 10;
+    constexpr uint64_t min_cluster_size = 1;
+    constexpr uint64_t seed = 0;
+    params.set_min_delta(min_delta);
+    params.set_max_iteration(max_iteration);
+    params.set_min_cluster_size(min_cluster_size);
+    params.set_random_seed(seed);
+    params.set_num_threads(1);
+
+    auto clustering_data = kmeans::kmeans_divisive(points.begin(), points.end(), params);
+    cluster_sizes.resize(clustering_data.num_clusters + 1);
+    for (auto cluster_id : clustering_data.clusters) {
+        cluster_sizes[cluster_id]++;
+    }
+    uint64_t val = 0;
+    for (auto& size : cluster_sizes) {
+        uint64_t tmp = size;
+        size = val;
+        val += tmp;
+    }
+
+    std::unordered_map<uint32_t, uint32_t> id_to_meta;
+    for (uint64_t i = 0; i < num_points; ++i) {
+        id_to_meta[ids[i]] = cluster_sizes[clustering_data.clusters[i]]++;
+    }
+    assert(id_to_meta.size() == num_points);
+    for (auto& query: *batch) {
+        for (uint64_t i = 0; i < query.cids.size(); ++i) {
+            query.cids[i] = id_to_meta[query.cids[i]];
+        }
+        std::sort(query.cids.begin(), query.cids.end());
+    }
+    permutation.resize(num_points);
+    for (auto& [original_id, meta_id] : id_to_meta) {
+        permutation[meta_id] = original_id;
+    }
+}
+
 using namespace fulgor;
 
 void process_lines_batched(index_type& index,
@@ -190,40 +245,81 @@ void process_lines_batched(index_type& index,
             in_flight -= 1;
 
             preprocess_timer.start();
-            //preprocess_pref_suff(index, frequent_map, sbatch);
-            preprocess_intersection(index, frequent_map, sbatch);
+            // preprocess_pref_suff(index, frequent_map, sbatch);
+            // preprocess_intersection(index, frequent_map, sbatch);
+            std::vector<uint32_t> cluster_begins, permutation;
+            vertical_partition_queries(sbatch, cluster_begins, permutation);
             preprocess_timer.stop();
             uint32_t query_id;
 
             for (auto& query : *sbatch) {
-                // if the only thing in the cids vector is
-                // 1 element (the read_id), then the color
-                // output should be exactly the same as the
-                // last call to index.instersect_color_ids
-                // and so we don't recompute it here.
                 assert(query_id != query.id);
                 query_id = query.id;
                 if (!query.cids.empty()) {
                     // interesect the color ids to get the colors
                     colors.clear();
+                    colors_tmp.clear();
                     uncompressed_res.clear();
 
                     mapping_timer.start();
                     // auto [pkey_size, skey_size] =  match_pref_suff(frequent_map, query, uncompressed_res);
                     // std::vector<uint32_t> uncached_cids = {query.cids.begin()+pkey_size, max(query.cids.end()-skey_size, query.cids.begin()+pkey_size)};
-                    match_intersection(frequent_map, query, uncompressed_res);
+                    // match_intersection(frequent_map, query, uncompressed_res);
+                    std::vector<uint32_t> partial_set;
+                    std::vector<std::vector<uint32_t>> partial_sets;
+                    uint64_t curr_partition = 0;
+                    while (query.cids.front() >= cluster_begins[curr_partition+1]) {
+                        ++curr_partition;
+                    }
+                    for (auto c : query.cids) {
+                        if (c < cluster_begins[curr_partition + 1]) {
+                            partial_set.push_back(permutation[c]); // insert original id
+                        } else {
+                            assert(!partial_set.empty());
+                            if (frequent_map.find(partial_set) == frequent_map.end()) {
+                                compressed_timer.start();
+                                num_compressed_int++;
+                                intersect_color_ids(index, partial_set, colors_tmp);
+                                compressed_timer.stop();
+                                frequent_map.emplace(partial_set, colors_tmp);
+                                partial_sets.push_back(partial_set);
+                            }
+                            uncompressed_res.emplace_back(frequent_map[partial_set]);
+
+                            partial_set.clear();
+                            partial_set.push_back(c);
+                            while (c >= cluster_begins[curr_partition + 1]) {
+                                ++curr_partition;
+                            }
+                            colors_tmp.clear();
+                        }
+                    }
+                    if (frequent_map.find(partial_set) == frequent_map.end()) {
+                        compressed_timer.start();
+                        num_compressed_int++;
+                        intersect_color_ids(index, partial_set, colors_tmp);
+                        compressed_timer.stop();
+                        frequent_map.emplace(partial_set, colors_tmp);
+                        partial_sets.push_back(partial_set);
+                    }
+                    uncompressed_timer.start();
+                    num_uncompressed_int++;
+                    uncompressed_res.emplace_back(frequent_map[partial_set]);
+                    uncompressed_timer.stop();
+                    colors_tmp.clear();
+                    partial_set.clear();
 
                     mapping_timer.stop();
 
+                    intersect_uncompressed(uncompressed_res, index.num_colors(), colors);
 
+                    /*
                     if (!uncompressed_res.empty()){
                         colors_tmp.clear();
                         if (!query.cids.empty()) {
                             compressed_timer.start();
                             num_compressed_int++;
                             intersect_color_ids(index, query.cids, colors_tmp);
-                            uncompressed_res.emplace_back(colors_tmp.begin(), colors_tmp.end(),
-                                                          colors_tmp.begin());
                             compressed_timer.stop();
                         }
                         uncompressed_timer.start();
@@ -236,6 +332,8 @@ void process_lines_batched(index_type& index,
                         intersect_color_ids(index, query.cids, colors);
                         compressed_timer.stop();
                     }
+                }
+                */
                 }
 
                 other_timer.start();
@@ -305,7 +403,7 @@ void do_intersection_batched(index_type& index, size_t num_threads_in,
 
     std::atomic<bool> done{false};
     std::atomic<uint32_t> in_flight{0};
-    const uint64_t batch_thresh = 10000;
+    const uint64_t batch_thresh = 1000;
 
     moodycamel::BlockingConcurrentQueue<std::vector<query_t>*> q(3 * num_threads_in);
 
@@ -370,6 +468,132 @@ void do_intersection_batched(index_type& index, size_t num_threads_in,
     std::cout << "Only intersection took = " << timer.elapsed() << " millisec / ";
     std::cout << timer.elapsed() / 1000 << " sec / ";
     std::cout << timer.elapsed() / 1000 / 60 << " min / " << std::endl;
+}
+
+void sort_file_by_similarity(const std::string& tmp_outname,
+                                             std::ofstream& output, const uint64_t num_threads_in) {
+    std::vector<std::vector<uint32_t>> queries;
+    std::ifstream ifile(tmp_outname, std::ios::binary);
+
+    std::vector<uint32_t> vals;
+    uint32_t read_num = 0;
+    while (ifile.read(reinterpret_cast<char*>(&read_num), sizeof(read_num))) {
+        uint32_t num_colors = 0;
+        ifile.read(reinterpret_cast<char*>(&num_colors), sizeof(num_colors));
+
+        vals.resize(num_colors + 1);
+        vals[0] = read_num;
+        ifile.read(reinterpret_cast<char*>(&vals[1]), num_colors * sizeof(num_colors));
+        if (vals.size() > 1) {
+            queries.push_back(vals);
+            vals.clear();
+        } else {
+            // just write out the unmapped reads here
+            output << read_num << "\t0\n";
+        }
+    }
+
+    if (queries.empty()) {
+        return;
+    }
+
+    essentials::logger("Begin sort");
+
+    std::sort(queries.begin(), queries.end(),
+              [](const std::vector<uint32_t>& a, const std::vector<uint32_t>& b) -> bool {
+                  return std::lexicographical_compare(a.begin() + 1, a.end(), b.begin() + 1,
+                                                      b.end());
+              });
+
+    essentials::logger("Done sort");
+    // probably should deduplicate here in some way, to remove noise for the clustering
+    // store a vector of vectors of query ids, each inner vector is a set of equal queries
+    // when clustering, compute the sketch for only one
+
+    ifile.close();
+
+    const uint64_t num_queries = queries.size(), batch_size = 250000;
+    const uint64_t p = 8;
+    uint64_t curr_batch = 0;
+    typename sketch::hll_t::HashType hasher;
+    sketch::hll_t sketch(p);
+    const uint64_t num_bytes_per_point = 1ULL << p;
+    std::vector<kmeans::point> points(batch_size, kmeans::point(num_bytes_per_point));
+
+    /* kmeans_divisive */
+    kmeans::clustering_parameters params;
+    constexpr float min_delta = 0.001; // TODO: try bigger min_delta
+    constexpr float max_iteration = 10;
+    constexpr uint64_t min_cluster_size = 1;
+    constexpr uint64_t seed = 0;
+    params.set_min_delta(min_delta);
+    params.set_max_iteration(max_iteration);
+    params.set_min_cluster_size(min_cluster_size);
+    params.set_random_seed(seed);
+    params.set_num_threads(num_threads_in);
+
+    std::ofstream ofile(tmp_outname, std::ios::trunc | std::ios::binary);
+
+    essentials::logger("Begin batch clustering");
+    while (curr_batch * batch_size < num_queries) {
+        stringstream ss;
+        ss << "Clustering batch " << curr_batch + 1 << " / " << num_queries/batch_size + 1;
+        essentials::logger(ss.str());
+
+        const uint64_t batch_start = curr_batch * batch_size;
+        const uint64_t batch_end = std::min((curr_batch + 1) * batch_size, num_queries);
+        points.resize(batch_end - batch_start);
+        for (uint64_t i = batch_start; i < batch_end; ++i) {
+            auto& cids = queries[i];
+            sketch.clear();
+            for (auto it = cids.begin()+1; it != cids.end(); ++it) {
+                sketch.add(hasher.hash(*it));
+            }
+            const char* raw = reinterpret_cast<const char*>(sketch.data());
+            std::memcpy(points[i-batch_start].data(), raw, num_bytes_per_point);
+        }
+        auto clustering_data = kmeans::kmeans_divisive(points.begin(), points.end(), params);
+        std::vector<uint32_t> cluster_sizes(clustering_data.num_clusters + 1);
+        {
+            for (auto cluster_id : clustering_data.clusters) {
+                cluster_sizes[cluster_id]++;
+            }
+            uint64_t val = 0;
+            for (auto& size : cluster_sizes) {
+                uint64_t tmp = size;
+                size = val;
+                val += tmp;
+            }
+        }
+
+        // build permutation
+        assert(clustering_data.clusters.size() == batch_end - batch_start);
+        std::vector<uint32_t> permutation(batch_end - batch_start);
+        std::vector<uint32_t> prev ;
+        for (uint32_t i = 0; i < batch_end - batch_start; ++i) {
+            uint32_t cluster_id = clustering_data.clusters[i];
+            permutation[cluster_sizes[cluster_id]++] = i;
+        }
+        for (auto query_id : permutation) {
+            query_id += batch_start;
+            auto& query = queries[query_id];
+            if (prev.size() == query.size() &&
+                std::equal(prev.begin() + 1, prev.end(), query.begin() + 1)) {
+                query.resize(1);
+            } else {
+                prev = query;
+            }
+            uint32_t s = query.size();
+            ofile.write(reinterpret_cast<char*>(&s), sizeof(s));
+            ofile.write(reinterpret_cast<char*>(query.data()), sizeof(s) * s);
+
+        }
+
+        ++curr_batch;
+    }
+    essentials::logger("Done batch clustering");
+
+    ofile.close();
 }
 
 int intersect_colors_batched(int argc, char** argv) {
@@ -468,7 +692,7 @@ int intersect_colors_batched(int argc, char** argv) {
               << (num_mapped_reads * 100.0) / num_reads << "%)" << std::endl;
 
     std::ofstream output(output_filename);
-    auto sorted = sort_file(tmp_outname, output);
+    sort_file_by_similarity(tmp_outname, output, num_threads);
 
     do_intersection_batched(index, num_threads, tmp_outname, output, num_mapped_reads);
     std::remove(tmp_outname.c_str());

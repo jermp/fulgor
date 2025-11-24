@@ -15,6 +15,9 @@ struct color_info {
     color_info(std::vector<uint32_t>::iterator begin, std::vector<uint32_t>::iterator end,
                std::vector<uint32_t>::iterator curr)
         : begin(begin), end(end), curr(curr) {}
+    color_info(std::vector<uint32_t>& vec)
+        : begin(vec.begin()), end(vec.end()), curr(vec.begin()) {}
+
     std::vector<uint32_t>::iterator begin;
     std::vector<uint32_t>::iterator end;
     std::vector<uint32_t>::iterator curr;
@@ -68,7 +71,11 @@ template <typename ColorSets>
 void intersect_color_ids(fulgor::index<ColorSets> const& index,
                          const std::vector<uint32_t>& color_ids, std::vector<uint32_t>& colors) {
     std::vector<typename ColorSets::iterator_type> iterators;
-    iterators.reserve(color_ids.size() - 1);
+    assert(!color_ids.empty());
+    if (color_ids.empty()) {
+        return;
+    }
+    iterators.reserve(color_ids.size());
     for (auto it = color_ids.begin(); it != color_ids.end(); ++it) {
         uint64_t color_set_id = *it;
         auto fwd_it = index.color_set(color_set_id);
@@ -493,6 +500,184 @@ int do_color_map(index_type const& index, fastx_parser::FastxParser<fastx_parser
     return 0;
 }
 
+/* ---------------------------
+   Small utilities (hashing)
+   --------------------------- */
+static inline uint64_t splitmix64(uint64_t x) {
+    x += 0x9e3779b97f4a7c15ULL;
+    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+    return x ^ (x >> 31);
+}
+static inline double u01_from_uint64(uint64_t x) {
+    // produce uniform double in [0,1) using 53 mantissa bits
+    uint64_t mant = (x >> 11) & ((1ULL<<53) - 1ULL);
+    return (double)mant / (double)(1ULL<<53);
+}
+
+/* ---------------------------
+   SuperMinHash (practical variant)
+   - K: signature size
+   - seed: optional randomness seed
+   Returns vector<double> signature (lower is better)
+   --------------------------- */
+struct SuperMinHash {
+    int K;
+    uint64_t seed;
+    SuperMinHash(int K_=128, uint64_t seed_=0xDEADBEEFBEEF1234ULL) : K(K_), seed(seed_) {
+        if (K <= 0) throw runtime_error("K must be > 0");
+    }
+
+    vector<double> signature(const vector<uint32_t> &set) const {
+        vector<double> sig(K, numeric_limits<double>::infinity());
+        vector<double> perm(K);
+        for (int i = 0; i < K; ++i) perm[i] = (double)i;
+
+        uint64_t local_seed = seed ^ 0x9e3779b97f4a7c15ULL;
+
+        for (auto it = set.begin() + 1; it != set.end(); ++it) {
+            uint32_t v = *it;
+            // Hash element -> uniform u in [0,1) and index j in [0,K-1]
+            uint64_t h = splitmix64((uint64_t)v + local_seed);
+            double u = u01_from_uint64(h);
+            int j = int(h % (uint64_t)K);
+
+            // Update sig[t] for t >= j with candidate u + perm[t], break early if possible
+            for (int t = j; t < K; ++t) {
+                double cand = u + perm[t];
+                if (cand < sig[t]) sig[t] = cand;
+                else break; // early exit often happens
+            }
+
+            // Swap perm[j] with random pos r in [j, K-1]
+            uint64_t h2 = splitmix64(h + 0x9e3779b97f4a7c15ULL);
+            int r = j + int(h2 % (uint64_t)(K - j));
+            swap(perm[j], perm[r]);
+        }
+
+        return sig;
+    }
+};
+
+/* ---------------------------
+   LSH - banding
+   - bands * rows = K
+   - band_key: deterministic 64-bit key combining the quantized signature rows
+   --------------------------- */
+struct LSH {
+    int bands;
+    int rows; // K / bands
+    uint64_t salt;
+    LSH(int bands_, int K, uint64_t salt_ = 0xC0FFEE1234567890ULL) : bands(bands_), salt(salt_) {
+        if (K % bands != 0) throw runtime_error("K must be divisible by bands");
+        rows = K / bands;
+    }
+
+    static inline uint64_t quant_hash_double(double x, uint64_t extra) {
+        // reinterpret double bits then mix
+        uint64_t bits;
+        static_assert(sizeof(bits) == sizeof(x));
+        memcpy(&bits, &x, sizeof(x));
+        return splitmix64(bits + extra);
+    }
+
+    uint64_t band_key(const vector<double> &sig, int band) const {
+        uint64_t acc = 1469598103934665603ULL ^ salt ^ (uint64_t)band;
+        int start = band * rows;
+        for (int i = 0; i < rows; ++i) {
+            uint64_t h = quant_hash_double(sig[start + i], (uint64_t)start + (uint64_t)i + salt);
+            acc ^= splitmix64(h + 0x9e3779b97f4a7c15ULL + (uint64_t)i);
+        }
+        return splitmix64(acc);
+    }
+};
+
+/* ---------------------------
+   Union-Find (disjoint set)
+   --------------------------- */
+struct UnionFind {
+    vector<int> p, r;
+    UnionFind(int n=0){ init(n); }
+    void init(int n){ p.resize(n); r.assign(n,0); for(int i=0;i<n;i++) p[i]=i; }
+    int find(int a){ return p[a]==a? a : p[a]=find(p[a]); }
+    void unite(int a,int b){
+        a=find(a); b=find(b); if(a==b) return;
+        if(r[a]<r[b]) p[a]=b; else if(r[b]<r[a]) p[b]=a; else { p[b]=a; r[a]++; }
+    }
+};
+
+/* ---------------------------
+   Top-level clustering function
+   Input: lists (vector<vector<int>>)
+   Params: K (sig size), bands
+   Output: clusters as vector<vector<int>> (each inner vector contains original indices)
+           and reordered lists (clusters concatenated)
+   --------------------------- */
+vector<vector<uint32_t>> superminhash_lsh_cluster(const vector<vector<uint32_t>> &lists, int K = 128, int bands = 8) {
+    const uint64_t N = lists.size();
+    if (N == 0) return {};
+
+    if (K % bands != 0) throw runtime_error("K must be divisible by bands");
+
+    SuperMinHash smh(K);
+    LSH lsh(bands, K);
+
+    // 1) compute signatures
+    vector<vector<double>> sigs;
+    sigs.reserve(N);
+    for (int i = 0; i < N; ++i) sigs.push_back(smh.signature(lists[i]));
+
+    // 2) build LSH buckets: vector<unordered_map<bucketKey, vector<int>>> per band
+    vector<unordered_map<uint64_t, vector<int>>> tables(bands);
+    for (int i = 0; i < N; ++i) {
+        for (int b = 0; b < bands; ++b) {
+            uint64_t key = lsh.band_key(sigs[i], b);
+            tables[b][key].push_back(i);
+        }
+    }
+
+    // 3) union indices that share a bucket (single-link clustering)
+    UnionFind uf(N);
+    for (int b = 0; b < bands; ++b) {
+        for (auto &kv : tables[b]) {
+            const vector<int> &vec = kv.second;
+            if (vec.size() <= 1) continue;
+            // union all elements in vec into first element
+            int base = vec[0];
+            for (size_t j = 1; j < vec.size(); ++j) uf.unite(base, vec[j]);
+        }
+    }
+
+    // 4) collect clusters by root id
+    unordered_map<int, vector<int>> cmap;
+    cmap.reserve(N * 2);
+    for (int i = 0; i < N; ++i) {
+        int r = uf.find(i);
+        cmap[r].push_back(i);
+    }
+
+    // move clusters into vector
+    vector<vector<int>> clusters;
+    clusters.reserve(cmap.size());
+    for (auto &kv : cmap) clusters.push_back(move(kv.second));
+
+    // 5) produce reordered lists: clusters in arbitrary order, items inside cluster ordered by original id
+    vector<vector<uint32_t>> reordered;
+    reordered.reserve(N);
+    sort(clusters.begin(), clusters.end(), [](const vector<int>&a,const vector<int>&b){
+        // sort clusters by smallest index to get deterministic order
+        int ma = *min_element(a.begin(), a.end());
+        int mb = *min_element(b.begin(), b.end());
+        return ma < mb;
+    });
+    for (auto &c : clusters) {
+        sort(c.begin(), c.end());
+        for (int idx : c) reordered.push_back(lists[idx]);
+    }
+
+    return reordered;
+}
+
 std::vector<std::vector<uint32_t>> sort_file(const std::string& tmp_outname,
                                              std::ofstream& output) {
     std::vector<std::vector<uint32_t>> v;
@@ -557,12 +742,13 @@ std::vector<std::vector<uint32_t>> sort_file(const std::string& tmp_outname,
         ofile.write(reinterpret_cast<char*>(vec_it->data()), sizeof(s) * s);
     }
     ofile.close();
-    return v;
+
+    return superminhash_lsh_cluster(v, 128, 8);
 }
 
 void sketch_lines(moodycamel::BlockingConcurrentQueue<std::vector<std::vector<uint32_t>>*>& q,
                   std::atomic<bool>& done, std::atomic<uint32_t>& in_flight,
-                  std::vector<sketch::hll_t>& sketches, std::vector<uint8_t>& counts) {
+                  std::vector<sketch::hll_t>& sketches) {
     typename sketch::hll_t::HashType hasher;
     std::vector<std::vector<uint32_t>>* sbatch = nullptr;
 
@@ -580,7 +766,6 @@ void sketch_lines(moodycamel::BlockingConcurrentQueue<std::vector<std::vector<ui
                     // interesect the color ids to get the colors
                     for (auto it = cids.begin() + 1; it != cids.end(); ++it) {
                         sketches[*it].add(hasher.hash(cids[0]));
-                        counts[*it] += (counts[*it] < std::numeric_limits<uint8_t>::max());
                     }
                 }
             }
@@ -591,7 +776,7 @@ void sketch_lines(moodycamel::BlockingConcurrentQueue<std::vector<std::vector<ui
 }
 
 void do_sketching(index_type& index, size_t num_threads_in, const std::string& query_filename) {
-    const uint64_t p = 1;
+    const uint64_t p = 8;
     const uint64_t num_color_sets = index.num_color_sets();
     std::vector<sketch::hll_t> sketches(num_color_sets, sketch::hll_t(p));
     std::vector<uint8_t> counts(num_color_sets);
@@ -644,7 +829,7 @@ void do_sketching(index_type& index, size_t num_threads_in, const std::string& q
     workers.reserve(num_threads_in);
     for (size_t i = 0; i < num_threads_in; ++i) {
         workers.push_back(std::thread([&q, &done, &in_flight, &sketches, &counts]() -> void {
-            sketch_lines(q, done, in_flight, sketches, counts);
+            sketch_lines(q, done, in_flight, sketches); //, counts);
         }));
     }
 

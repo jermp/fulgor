@@ -13,7 +13,7 @@ void index<ColorSets>::kmer_conservation(
     if (sequence.length() < m_k2u.k()) return;
 
     kmer_conservation_info.clear();
-    sshash::streaming_query<kmer_type, true> query(&m_k2u);
+    sshash::streaming_query<sshash_type, true> query(&m_k2u);
     query.reset();
     const uint64_t num_kmers = sequence.length() - m_k2u.k() + 1;
     kmer_conservation_triple kct = {0, 0, 0};
@@ -29,11 +29,11 @@ void index<ColorSets>::kmer_conservation(
 
     for (uint64_t i = 0; i != num_kmers; ++i) {
         char const* kmer = sequence.data() + i;
-        auto answer = query.lookup_advanced(kmer);
+        auto answer = query.lookup(kmer);
 
         if (answer.kmer_id != sshash::constants::invalid_uint64) {  // kmer is positive
 
-            uint64_t color_set_id = u2c(answer.contig_id);
+            uint64_t color_set_id = u2c(answer.string_id);
             if (prev_color_set_id != color_set_id) {
                 push_triple();
                 kct.num_kmers = 0;

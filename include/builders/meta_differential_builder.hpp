@@ -13,7 +13,7 @@ struct index<ColorSets>::meta_differential_builder {
         : m_build_config(build_config) {}
 
     void build(index& idx) {
-        if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
+        if (idx.m_k2u.num_kmers() != 0) throw std::runtime_error("index already built");
 
         essentials::logger("step 1. loading index to be partitioned");
         essentials::load(meta_index, m_build_config.index_filename_to_partition.c_str());
@@ -298,14 +298,16 @@ struct index<ColorSets>::meta_differential_builder {
 
                 u2c_builder.set(pos - 1, 1);
 
+                std::string kmer(k, 0);
                 for (uint64_t i = old_unitig_id_begin; i != old_unitig_id_end; ++i) {
-                    auto it = dict.at_contig_id(i);
+                    auto it = dict.at_string_id(i);
                     out << ">\n";
-                    auto [_, kmer] = it.next();
+                    auto [_, uint_kmer] = it.next();
+                    sshash::util::uint_kmer_to_string<kmer_type>(uint_kmer, kmer.data(), k);
                     out << kmer;
                     while (it.has_next()) {
-                        auto [_, kmer] = it.next();
-                        out << kmer[k - 1];  // overlaps!
+                        auto [_, uint_kmer] = it.next();
+                        out << kmer_type::uint64_to_char(uint_kmer.at(k - 1));  // overlaps!
                     }
                     out << '\n';
                 }
@@ -324,10 +326,10 @@ struct index<ColorSets>::meta_differential_builder {
             sshash_config.canonical = dict.canonical();
             sshash_config.verbose = m_build_config.verbose;
             sshash_config.tmp_dirname = m_build_config.tmp_dirname;
-            sshash_config.num_threads = util::largest_power_of_2(m_build_config.num_threads);
+            sshash_config.num_threads = m_build_config.num_threads;
             sshash_config.print();
             idx.m_k2u.build(permuted_unitigs_filename, sshash_config);
-            assert(idx.get_k2u().size() == dict.size());
+            assert(idx.get_k2u().num_kmers() == dict.num_kmers());
             try {  // remove unitig file
                 std::remove(permuted_unitigs_filename.c_str());
             } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
@@ -357,27 +359,25 @@ struct index<ColorSets>::meta_differential_builder {
 
         auto exe = [this, &idx, &num_checked_unitigs](uint64_t start, uint64_t end) {
             assert(start < end);
-            assert(end <= idx.m_k2u.num_contigs());
+            assert(end <= idx.m_k2u.num_strings());
 
             uint64_t prev_new_color_set_id = idx.num_color_sets();
             uint64_t prev_old_color_set_id = idx.num_color_sets();
 
             for (uint64_t unitig_id = start; unitig_id < end; ++unitig_id) {
-                auto it = idx.get_k2u().at_contig_id(unitig_id);
+                auto it = idx.get_k2u().at_string_id(unitig_id);
                 while (it.has_next()) {
-                    auto [_, kmer] = it.next();
-                    uint64_t new_contig_id =
-                        idx.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-                    if (new_contig_id != unitig_id) {
-                        std::cout << "\033[1;31m" << "expected " << unitig_id << " but found " << new_contig_id
+                    auto [_, uint_kmer] = it.next();
+                    uint64_t new_string_id = idx.get_k2u().lookup(uint_kmer).string_id;
+                    if (new_string_id != unitig_id) {
+                        std::cout << "\033[1;31m" << "expected " << unitig_id << " but found " << new_string_id
                                   << ")\033[0m" << std::endl;
                         continue;
                     }
-                    uint64_t old_contig_id =
-                        meta_index.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+                    uint64_t old_string_id = meta_index.get_k2u().lookup(uint_kmer).string_id;
 
-                    uint64_t new_color_set_id = idx.u2c(new_contig_id);
-                    uint64_t old_color_set_id = meta_index.u2c(old_contig_id);
+                    uint64_t new_color_set_id = idx.u2c(new_string_id);
+                    uint64_t old_color_set_id = meta_index.u2c(old_string_id);
 
                     if (new_color_set_id == prev_new_color_set_id && old_color_set_id != prev_old_color_set_id) {
                         std::cout << "\033[1;31m" << "Error while checking unitig " << unitig_id

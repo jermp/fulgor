@@ -1,6 +1,6 @@
 #pragma once
 
-#include "external/sshash/include/dictionary.hpp"
+#include "external/sshash/include/dictionary_types.hpp"
 #include "external/sshash/external/pthash/external/bits/include/integer_codes.hpp"
 #include "external/sshash/external/pthash/external/bits/include/bit_vector.hpp"
 #include "external/sshash/external/pthash/external/bits/include/rank9.hpp"
@@ -11,7 +11,7 @@
 namespace fulgor {
 
 using kmer_type = sshash::default_kmer_t;
-using sshash_type = sshash::dictionary<kmer_type>;
+using sshash_type = sshash::dictionary_type;
 
 template <typename ColorSets>
 struct index {
@@ -57,7 +57,7 @@ struct index {
 
     uint64_t k() const { return m_k2u.k(); }
     uint64_t num_colors() const { return m_color_sets.num_colors(); }
-    uint64_t num_unitigs() const { return m_k2u.num_contigs(); }
+    uint64_t num_unitigs() const { return m_k2u.num_strings(); }
     uint64_t num_color_sets() const { return m_color_sets.num_color_sets(); }
 
     sshash_type const& get_k2u() const { return m_k2u; }

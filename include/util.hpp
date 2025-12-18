@@ -9,7 +9,6 @@
 #include <algorithm>  // for std::set_intersection
 
 #include "external/smhasher/src/City.h"
-#include "external/smhasher/src/City.cpp"
 
 #include "external/FQFeeder/include/blockingconcurrentqueue.h"
 
@@ -90,15 +89,6 @@ void check_version_number(essentials::version_number const& vnum) {
     if (vnum.x != constants::current_version_number::major) {
         throw std::runtime_error("MAJOR index version mismatch: Fulgor index needs rebuilding");
     }
-}
-
-/*
-    Return the largest power of 2 that is <= n.
-    Note: could use bitwise tricks for more efficiency.
-*/
-uint64_t largest_power_of_2(const uint64_t n) {
-    if (n == 0) return 0;
-    return 1 << static_cast<uint64_t>(std::floor(std::log2(n)));
 }
 
 template <typename ForwardIterator>

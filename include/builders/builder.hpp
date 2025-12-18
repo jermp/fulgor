@@ -42,7 +42,7 @@ struct index<ColorSets>::builder {
     builder(build_configuration const& build_config) : m_build_config(build_config) {}
 
     void build(index& idx) {
-        if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
+        if (idx.m_k2u.num_kmers() != 0) throw std::runtime_error("index already built");
 
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
 
@@ -195,7 +195,7 @@ struct index<ColorSets>::builder {
             sshash_config.canonical = true;
             sshash_config.verbose = m_build_config.verbose;
             sshash_config.tmp_dirname = m_build_config.tmp_dirname;
-            sshash_config.num_threads = util::largest_power_of_2(m_build_config.num_threads);
+            sshash_config.num_threads = m_build_config.num_threads;
             sshash_config.print();
             idx.m_k2u.build(input_filename_for_sshash, sshash_config);
             try {  // remove unitig file
@@ -226,11 +226,11 @@ struct index<ColorSets>::builder {
                     ggcat::Slice<uint32_t> const color_set,  //
                     bool /* same_color_set */)               //
                 {
-                    auto lookup_result = idx.m_k2u.lookup_advanced(unitig.data);
-                    const uint64_t unitig_id = lookup_result.contig_id;
+                    auto lookup_result = idx.m_k2u.lookup(unitig.data);
+                    const uint64_t unitig_id = lookup_result.string_id;
                     const uint64_t color_id = idx.u2c(unitig_id);
                     for (uint64_t i = 1; i != unitig.size - idx.m_k2u.k() + 1; ++i) {
-                        uint64_t got = idx.m_k2u.lookup_advanced(unitig.data + i).contig_id;
+                        uint64_t got = idx.m_k2u.lookup(unitig.data + i).string_id;
                         if (got != unitig_id) {
                             std::cout << "got unitig_id " << got << " but expected " << unitig_id
                                       << std::endl;

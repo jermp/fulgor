@@ -130,7 +130,7 @@ struct index<ColorSets>::meta_builder {
     meta_builder(build_configuration const& build_config) : m_build_config(build_config) {}
 
     void build(index& idx) {
-        if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
+        if (idx.m_k2u.num_kmers() != 0) throw std::runtime_error("index already built");
 
         index_type index;
         essentials::logger("step 1. loading index to be partitioned...");
@@ -401,9 +401,10 @@ struct index<ColorSets>::meta_builder {
                 const uint64_t got_size = it_got.size();
 
                 if (exp_size != got_size) {
-                    std::cout << "\033[1;31m" << "got colors set of size " << got_size
-                              << " but expected " << exp_size << " (color_set: " << color_set_id
-                              << ")\033[0m" << std::endl;
+                    std::cout << "\033[1;31m"
+                              << "got colors set of size " << got_size << " but expected "
+                              << exp_size << " (color_set: " << color_set_id << ")\033[0m"
+                              << std::endl;
                     return;
                 }
 
@@ -416,8 +417,9 @@ struct index<ColorSets>::meta_builder {
 
                 for (uint64_t i = 0; i != got_size; ++i, ++it_got) {
                     if (permuted_set[i] != *it_got) {
-                        std::cout << "\033[1;31m" << "got ref " << *it_got << " but expected "
-                                  << permuted_set[i] << "(color_set: " << color_set_id << ")"
+                        std::cout << "\033[1;31m"
+                                  << "got ref " << *it_got << " but expected " << permuted_set[i]
+                                  << "(color_set: " << color_set_id << ")"
                                   << "\033[0m" << std::endl;
                         return;
                     }

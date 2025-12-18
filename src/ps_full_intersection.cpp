@@ -345,16 +345,16 @@ void index<ColorSets>::pseudoalign_full_intersection(std::string const& sequence
     std::vector<uint64_t> unitig_ids;
 
     { /* stream through */
-        sshash::streaming_query<kmer_type, true> query(&m_k2u);
+        sshash::streaming_query<sshash_type, true> query(&m_k2u);
         query.reset();
         const uint64_t num_kmers = sequence.length() - m_k2u.k() + 1;
         for (uint64_t i = 0, prev_unitig_id = -1; i != num_kmers; ++i) {
             char const* kmer = sequence.data() + i;
-            auto answer = query.lookup_advanced(kmer);
+            auto answer = query.lookup(kmer);
             if (answer.kmer_id != sshash::constants::invalid_uint64) {  // kmer is positive
-                if (answer.contig_id != prev_unitig_id) {
-                    unitig_ids.push_back(answer.contig_id);
-                    prev_unitig_id = answer.contig_id;
+                if (answer.string_id != prev_unitig_id) {
+                    unitig_ids.push_back(answer.string_id);
+                    prev_unitig_id = answer.string_id;
                 }
             }
         }

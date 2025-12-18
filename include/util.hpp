@@ -8,9 +8,6 @@
 #include <chrono>
 #include <algorithm>  // for std::set_intersection
 
-#include "external/smhasher/src/City.h"
-#include "external/smhasher/src/City.cpp"
-
 namespace fulgor {
 
 enum index_t { HYBRID, DIFF, META, META_DIFF };
@@ -27,7 +24,7 @@ static const std::string diff_colored_fulgor_filename_extension("dfur");
 static const std::string meta_diff_colored_fulgor_filename_extension("mdfur");
 
 namespace current_version_number {
-constexpr uint8_t x = 4;
+constexpr uint8_t x = 5;
 constexpr uint8_t y = 0;
 constexpr uint8_t z = 0;
 }  // namespace current_version_number
@@ -88,15 +85,6 @@ void check_version_number(essentials::version_number const& vnum) {
     if (vnum.x != constants::current_version_number::x) {
         throw std::runtime_error("MAJOR index version mismatch: Fulgor index needs rebuilding");
     }
-}
-
-/*
-    Return the largest power of 2 that is <= n.
-    Note: could use bitwise tricks for more efficiency.
-*/
-uint64_t largest_power_of_2(const uint64_t n) {
-    if (n == 0) return 0;
-    return 1 << static_cast<uint64_t>(std::floor(std::log2(n)));
 }
 
 template <typename ForwardIterator>

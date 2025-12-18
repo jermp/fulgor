@@ -49,9 +49,9 @@ void index<ColorSets>::print_stats() const {
               << " bits/int)\n";
     std::cout << "k: " << k2u.k() << '\n';
     std::cout << "m: " << k2u.m() << " (minimizer length used in SSHash)\n";
-    std::cout << "Number of kmers in dBG: " << k2u.size() << " ("
-              << static_cast<double>(k2u.num_bits()) / k2u.size() << " bits/kmer)\n";
-    std::cout << "Number of unitigs in dBG: " << k2u.num_contigs() << std::endl;
+    std::cout << "Number of kmers in dBG: " << k2u.num_kmers() << " ("
+              << static_cast<double>(k2u.num_bits()) / k2u.num_kmers() << " bits/kmer)\n";
+    std::cout << "Number of unitigs in dBG: " << k2u.num_strings() << std::endl;
 
     color_sets.print_stats();
 }
@@ -72,15 +72,17 @@ void index<ColorSets>::dump(std::string const& basename) const {
     if (!unitigs_file.is_open()) throw std::runtime_error("cannot open output file");
     const uint64_t u = num_unitigs();
     const uint64_t kmer_length = k();
+    std::string kmer(kmer_length, 0);
     for (uint64_t unitig_id = 0; unitig_id != u; ++unitig_id) {
-        auto it = m_k2u.at_contig_id(unitig_id);
+        auto it = m_k2u.at_string_id(unitig_id);
         const uint64_t color_set_id = u2c(unitig_id);
         unitigs_file << "> unitig_id=" << unitig_id << " color_set_id=" << color_set_id << '\n';
-        auto [_, kmer] = it.next();
+        auto [_, uint_kmer] = it.next();
+        sshash::util::uint_kmer_to_string<kmer_type>(uint_kmer, kmer.data(), kmer_length);
         unitigs_file << kmer;
         while (it.has_next()) {
-            auto [_, kmer] = it.next();
-            unitigs_file << kmer[kmer_length - 1];  // overlaps!
+            auto [_, uint_kmer] = it.next();
+            unitigs_file << kmer_type::uint64_to_char(uint_kmer.at(kmer_length - 1));  // overlaps!
         }
         unitigs_file << '\n';
     }

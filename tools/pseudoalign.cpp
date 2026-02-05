@@ -172,11 +172,19 @@ int pseudoalign(int argc, char** argv) {
     parser.add("threshold",
                "Threshold for threshold_union algorithm. It must be a float in (0.0,1.0].", "-r",
                false);
+    parser.add("deduplicate", "Removes duplicate queries before pseudoalignment (default is false)."
+               " Creates a temporary file in the executable's directory.",
+               "--deduplicate", false, true);
+    parser.add("format", "Format of the output file. Must either ascii, binary, compressed"
+               " (default is ascii).", "--format", false);
     if (!parser.parse()) return 1;
 
     auto index_filename = parser.get<std::string>("index_filename");
     auto query_filename = parser.get<std::string>("query_filename");
     auto output_filename = parser.get<std::string>("output_filename");
+
+    bool deduplicate = parser.get<bool>("deduplicate");
+    auto output_format = parser.parsed("format") ? parser.get<std::string>("format") : "ascii";
 
     uint64_t num_threads = 1;
     if (parser.parsed("num_threads")) num_threads = parser.get<uint64_t>("num_threads");

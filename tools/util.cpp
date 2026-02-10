@@ -2,21 +2,21 @@ using namespace fulgor;
 
 bool is_meta(std::string const& index_filename) {
     return sshash::util::ends_with(index_filename,
-                                   constants::meta_colored_fulgor_filename_extension);
+                                   constants::mfur_filename_extension);
 }
 
 bool is_meta_diff(std::string const& index_filename) {
     return sshash::util::ends_with(index_filename,
-                                   constants::meta_diff_colored_fulgor_filename_extension);
+                                   constants::mdfur_filename_extension);
 }
 
 bool is_diff(std::string const& index_filename) {
     return sshash::util::ends_with(index_filename,
-                                   constants::diff_colored_fulgor_filename_extension);
+                                   constants::dfur_filename_extension);
 }
 
 bool is_hybrid(std::string const& index_filename) {
-    return sshash::util::ends_with(index_filename, constants::fulgor_filename_extension);
+    return sshash::util::ends_with(index_filename, constants::hfur_filename_extension);
 }
 
 template <typename FulgorIndex>
@@ -68,13 +68,13 @@ int verify(int argc, char** argv) {
     util::print_cmd(argc, argv);
     auto index_filename = parser.get<std::string>("index_filename");
     if (is_meta(index_filename)) {
-        verify<meta_index_type>(index_filename);
+        verify<mfur_index_t>(index_filename);
     } else if (is_meta_diff(index_filename)) {
-        verify<meta_differential_index_type>(index_filename);
+        verify<mdfur_index_t>(index_filename);
     } else if (is_diff(index_filename)) {
-        verify<differential_index_type>(index_filename);
+        verify<dfur_index_t>(index_filename);
     } else if (is_hybrid(index_filename)) {
-        verify<index_type>(index_filename);
+        verify<hfur_index_t>(index_filename);
     } else {
         std::cerr << "Wrong filename supplied." << std::endl;
         return 1;
@@ -89,13 +89,13 @@ int stats(int argc, char** argv) {
     util::print_cmd(argc, argv);
     auto index_filename = parser.get<std::string>("index_filename");
     if (is_meta(index_filename)) {
-        print_stats<meta_index_type>(index_filename);
+        print_stats<mfur_index_t>(index_filename);
     } else if (is_meta_diff(index_filename)) {
-        print_stats<meta_differential_index_type>(index_filename);
+        print_stats<mdfur_index_t>(index_filename);
     } else if (is_diff(index_filename)) {
-        print_stats<differential_index_type>(index_filename);
+        print_stats<dfur_index_t>(index_filename);
     } else if (is_hybrid(index_filename)) {
-        print_stats<index_type>(index_filename);
+        print_stats<hfur_index_t>(index_filename);
     } else {
         std::cerr << "Wrong filename supplied." << std::endl;
         return 1;
@@ -110,13 +110,13 @@ int print_filenames(int argc, char** argv) {
     util::print_cmd(argc, argv);
     auto index_filename = parser.get<std::string>("index_filename");
     if (is_meta_diff(index_filename)) {
-        print_filenames<meta_differential_index_type>(index_filename);
+        print_filenames<mdfur_index_t>(index_filename);
     } else if (is_meta(index_filename)) {
-        print_filenames<meta_index_type>(index_filename);
+        print_filenames<mfur_index_t>(index_filename);
     } else if (is_diff(index_filename)) {
-        print_filenames<differential_index_type>(index_filename);
+        print_filenames<dfur_index_t>(index_filename);
     } else if (is_hybrid(index_filename)) {
-        print_filenames<index_type>(index_filename);
+        print_filenames<hfur_index_t>(index_filename);
     } else {
         std::cerr << "Wrong filename supplied." << std::endl;
         return 1;
@@ -145,27 +145,27 @@ int dump(int argc, char** argv) {
     if (is_meta_diff(index_filename)) {
         std::string basename{index_filename.data(),
                              index_filename.length() -
-                                 constants::meta_diff_colored_fulgor_filename_extension.length() -
+                                 constants::mdfur_filename_extension.length() -
                                  1};
-        dump<meta_differential_index_type>(
+        dump<mdfur_index_t>(
             index_filename, output_basename.length() == 0 ? basename : output_basename);
     } else if (is_meta(index_filename)) {
         std::string basename{index_filename.data(),
                              index_filename.length() -
-                                 constants::meta_colored_fulgor_filename_extension.length() - 1};
-        dump<meta_index_type>(index_filename,
+                                 constants::mfur_filename_extension.length() - 1};
+        dump<mfur_index_t>(index_filename,
                               output_basename.length() == 0 ? basename : output_basename);
     } else if (is_diff(index_filename)) {
         std::string basename{index_filename.data(),
                              index_filename.length() -
-                                 constants::diff_colored_fulgor_filename_extension.length() - 1};
-        dump<differential_index_type>(index_filename,
+                                 constants::dfur_filename_extension.length() - 1};
+        dump<dfur_index_t>(index_filename,
                                       output_basename.length() == 0 ? basename : output_basename);
     } else if (is_hybrid(index_filename)) {
         std::string basename{
             index_filename.data(),
-            index_filename.length() - constants::fulgor_filename_extension.length() - 1};
-        dump<index_type>(index_filename,
+            index_filename.length() - constants::hfur_filename_extension.length() - 1};
+        dump<hfur_index_t>(index_filename,
                          output_basename.length() == 0 ? basename : output_basename);
     } else {
         std::cerr << "Wrong filename supplied." << std::endl;

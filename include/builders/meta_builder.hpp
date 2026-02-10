@@ -15,7 +15,7 @@ struct permuter {
     permuter(build_configuration const& build_config)
         : m_build_config(build_config), m_num_partitions(0), m_max_partition_size(0) {}
 
-    void permute(index_type const& index) {
+    void permute(hfur_index_t const& index) {
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
 
         {
@@ -132,7 +132,7 @@ struct index<ColorSets>::meta_builder {
     void build(index& idx) {
         if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
 
-        index_type index;
+        hfur_index_t index;
         essentials::logger("step 1. loading index to be partitioned...");
         essentials::load(index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");

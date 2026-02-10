@@ -15,7 +15,7 @@ struct index<ColorSets>::meta_differential_builder {
     void build(index& idx) {
         if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
 
-        meta_index_type meta_index;
+        mfur_index_t meta_index;
         essentials::logger("step 1. loading index to be partitioned");
         essentials::load(meta_index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");

@@ -338,10 +338,9 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
 }
 
 template <typename ColorSets>
-void index<ColorSets>::pseudoalign_full_intersection(std::string const& sequence,
-                                                     std::vector<uint32_t>& colors) const {
+void index<ColorSets>::fetch_color_set_ids(std::string const& sequence,
+                                                 std::vector<uint32_t>& color_set_ids) const {
     if (sequence.length() < m_k2u.k()) return;
-    colors.clear();
     std::vector<uint64_t> unitig_ids;
 
     { /* stream through */
@@ -362,30 +361,36 @@ void index<ColorSets>::pseudoalign_full_intersection(std::string const& sequence
 
     /* here we use it to hold the color set ids;
        in meta_intersect we use it to hold the partition ids */
-    std::vector<uint32_t> tmp;
-    std::vector<typename ColorSets::iterator_type> iterators;
+    color_set_ids.clear();
 
     /* deduplicate unitig_ids */
     std::sort(unitig_ids.begin(), unitig_ids.end());
     auto end_unitigs = std::unique(unitig_ids.begin(), unitig_ids.end());
-    tmp.reserve(end_unitigs - unitig_ids.begin());
+    color_set_ids.reserve(end_unitigs - unitig_ids.begin());
     for (auto it = unitig_ids.begin(); it != end_unitigs; ++it) {
         uint32_t unitig_id = *it;
         uint32_t color_set_id = u2c(unitig_id);
-        tmp.push_back(color_set_id);
+        color_set_ids.push_back(color_set_id);
     }
 
     /* deduplicate color set ids */
-    std::sort(tmp.begin(), tmp.end());
-    auto end_tmp = std::unique(tmp.begin(), tmp.end());
-    iterators.reserve(end_tmp - tmp.begin());
-    for (auto it = tmp.begin(); it != end_tmp; ++it) {
-        uint64_t color_set_id = *it;
+    std::sort(color_set_ids.begin(), color_set_ids.end());
+    auto end_tmp = std::unique(color_set_ids.begin(), color_set_ids.end());
+    color_set_ids.reserve(end_tmp - color_set_ids.begin());
+}
+
+template <typename ColorSets>
+void index<ColorSets>::pseudoalign_full_intersection(std::vector<uint32_t>& color_set_ids,
+                                                     std::vector<uint32_t>& colors, std::vector<uint32_t>& tmp) const {
+    std::vector<typename ColorSets::iterator_type> iterators;
+    iterators.reserve(color_set_ids.size());
+    for (auto color_set_id : color_set_ids) {
         auto fwd_it = m_color_sets.color_set(color_set_id);
         iterators.push_back(fwd_it);
     }
 
-    tmp.clear();  // don't need color set ids anymore
+    colors.clear();
+    tmp.clear();
     if constexpr (ColorSets::type == index_t::META) {
         meta_intersect<typename ColorSets::iterator_type, false>(iterators, colors, tmp);
     } else if constexpr (ColorSets::type == index_t::META_DIFF) {

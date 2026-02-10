@@ -206,7 +206,7 @@ struct index<ColorSets>::differential_builder {
 
         const uint32_t num_threads = m_build_config.num_threads;
 
-        index_type index;
+        hfur_index_t index;
         essentials::logger("step 1. loading index to be differentiated...");
         essentials::load(index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");

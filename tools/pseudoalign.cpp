@@ -22,20 +22,21 @@ std::string to_string(pseudoalignment_algorithm algo, double threshold) {
     return o;
 }
 
-template <typename FulgorIndex>
+template <typename FulgorIndex, typename Formatter>
 int pseudoalign(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::ReadSeq>& rparser,
                 std::atomic<uint64_t>& num_reads, std::atomic<uint64_t>& num_mapped_reads,
-                pseudoalignment_algorithm algo, const double threshold, std::ofstream& out_file,
+                pseudoalignment_algorithm algo, const double threshold, Formatter& formatter,
                 std::mutex& iomut, std::mutex& ofile_mut, const bool verbose)  //
 {
+    auto output_buffer = formatter.buffer();
     std::vector<uint32_t> tmp, colors;  // result of pseudoalignment
     std::vector<uint32_t> color_set_ids;
     std::stringstream ss;
-    uint64_t buff_size = 0;
-    constexpr uint64_t buff_thresh = 50;
 
     auto rg = rparser.getReadGroup();
     while (rparser.refill(rg)) {
+        uint32_t read_id = rg.chunk_frag_offset().frag_idx;
+
         for (auto const& record : rg) {
             switch (algo) {
                 case pseudoalignment_algorithm::FULL_INTERSECTION:
@@ -48,49 +49,28 @@ int pseudoalign(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser
                 default:
                     break;
             }
-            buff_size += 1;
+
             if (!colors.empty()) {
                 num_mapped_reads += 1;
-                ss << record.name << '\t' << colors.size();
-                for (auto c : colors) { ss << "\t" << c; }
-                ss << '\n';
-            } else {
-                ss << record.name << "\t0\n";
             }
+            output_buffer.write(read_id, colors);
+
             num_reads += 1;
             colors.clear();
             if (verbose and num_reads > 0 and num_reads % 1000000 == 0) {
                 iomut.lock();
-                std::cout << "mapped " << num_reads << " reads" << std::endl;
+                std::cout << "processed " << num_reads << " reads" << std::endl;
                 iomut.unlock();
             }
-            if (buff_size > buff_thresh) {
-                std::string outs = ss.str();
-                ss.str("");
-                ofile_mut.lock();
-                out_file.write(outs.data(), outs.size());
-                ofile_mut.unlock();
-                buff_size = 0;
-            }
+            read_id++;
         }
     }
-
-    // dump anything left in the buffer
-    if (buff_size > 0) {
-        std::string outs = ss.str();
-        ss.str("");
-        ofile_mut.lock();
-        out_file.write(outs.data(), outs.size());
-        ofile_mut.unlock();
-        buff_size = 0;
-    }
-
     return 0;
 }
 
-template <typename FulgorIndex>
+template <typename FulgorIndex, typename Formatter>
 int pseudoalign(FulgorIndex& index, std::string const& query_filename,
-                std::string const& output_filename, uint64_t num_threads, double threshold,
+                Formatter& formatter, uint64_t num_threads, double threshold,
                 pseudoalignment_algorithm ps_alg, const bool verbose) {
 
     std::cerr << "query mode : " << to_string(ps_alg, threshold) << "\n";
@@ -119,17 +99,10 @@ int pseudoalign(FulgorIndex& index, std::string const& query_filename,
     std::mutex iomut;
     std::mutex ofile_mut;
 
-    std::ofstream out_file;
-    out_file.open(output_filename, std::ios::out | std::ios::trunc);
-    if (!out_file) {
-        std::cerr << "could not open output file " + output_filename << std::endl;
-        return 1;
-    }
-
     for (uint64_t i = 1; i != num_threads; ++i) {
         workers.push_back(std::thread([&index, &rparser, &num_reads, &num_mapped_reads, ps_alg,
-                                       threshold, &out_file, &iomut, &ofile_mut, verbose]() {
-            pseudoalign(index, rparser, num_reads, num_mapped_reads, ps_alg, threshold, out_file,
+                                       threshold, &formatter, &iomut, &ofile_mut, verbose]() {
+            pseudoalign(index, rparser, num_reads, num_mapped_reads, ps_alg, threshold, formatter,
                         iomut, ofile_mut, verbose);
         }));
     }
@@ -153,12 +126,13 @@ int pseudoalign(FulgorIndex& index, std::string const& query_filename,
     return 0;
 }
 
-template <typename FulgorIndex>
+template <typename FulgorIndex, typename Formatter>
 void fetch_and_deduplicate_sets(const std::string& query_filename,
-                                std::ofstream& out_file,
+                                Formatter& output_formatter,
                                 std::string& tmp_filename,
                                 FulgorIndex& index,
                                 uint64_t num_threads) {
+    auto output_buffer = output_formatter.buffer();
     essentials::logger("*** START: fetching color set ids");
 
     std::ofstream tmp_file(tmp_filename, std::ios::binary);
@@ -238,7 +212,7 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
             tmp.clear();
         } else {
             // just write out the unmapped reads here
-            out_file << read_num << "\t0\n";
+            output_buffer.write(read_num, {});
         }
     }
 
@@ -340,38 +314,52 @@ int pseudoalign(int argc, char** argv) {
     if (verbose) util::print_cmd(argc, argv);
 
     std::variant<hfur_index_t, mdfur_index_t, mfur_index_t, dfur_index_t> index;
-    if (sshash::util::ends_with(index_filename,
-                                constants::mdfur_filename_extension)) {
+    if (is_meta_diff(index_filename)) {
         index = mdfur_index_t();
-    } else if (sshash::util::ends_with(index_filename,
-                                       constants::mfur_filename_extension)) {
+    } else if (is_meta(index_filename)) {
         index = mfur_index_t();
-    } else if (sshash::util::ends_with(index_filename,
-                                      constants::dfur_filename_extension)) {
+    } else if (is_diff(index_filename)) {
         index = dfur_index_t();
-    } else if (sshash::util::ends_with(index_filename, constants::hfur_filename_extension)) {
+    } else if (is_hybrid(index_filename)) {
         index = hfur_index_t();
     } else {
         std::cerr << "Wrong index filename supplied." << std::endl;
+    }
+
+    std::variant<std::monostate, util::psa_ascii_formatter, util::psa_binary_formatter, util::psa_compressed_formatter> formatter;
+    if (output_format == "ascii") {
+        formatter.emplace<util::psa_ascii_formatter>(output_filename);
+    } else if (output_format == "binary") {
+        formatter.emplace<util::psa_binary_formatter>(output_filename);
+    } else if (output_format == "compressed") {
+        formatter.emplace<util::psa_compressed_formatter>(output_filename);
+    } else {
+        throw std::runtime_error("Unknown output format. Supported formats: ascii, binary, compressed");
     }
 
     std::string tmp_filename = "queries.tmp";
 
     std::visit([&index_filename, &query_filename, &output_filename, &tmp_filename,
                 deduplicate, num_threads, threshold, ps_alg, verbose]
-                      (auto&& index) {
+                      (auto&& index, auto&& formatter) {
         essentials::logger("*** START: loading the index");
         essentials::load(index, index_filename.c_str());
         essentials::logger("*** DONE: loading the index");
 
-        std::ofstream out(output_filename);
-        if (deduplicate) {
-            fetch_and_deduplicate_sets(query_filename, out, tmp_filename, index, num_threads);
+        if constexpr (std::is_same_v<std::decay_t<decltype(formatter)>, util::psa_compressed_formatter>) {
+            formatter.set_num_colors(index.num_colors());
         }
-        pseudoalign(index, query_filename, output_filename, num_threads, threshold, ps_alg, verbose);
-    }, index);
+        if constexpr (!std::is_same_v<std::decay_t<decltype(formatter)>, std::monostate>) {
+            std::ofstream out(output_filename);
+            if (deduplicate) {
+                fetch_and_deduplicate_sets(query_filename, formatter, tmp_filename, index, num_threads);
+            }
+            pseudoalign(index, query_filename, formatter, num_threads, threshold, ps_alg, verbose);
+        }
+
+    }, index, formatter);
 
     std::remove(tmp_filename.c_str());
 
-    return 1;
+    return 0;
 }

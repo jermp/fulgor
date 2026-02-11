@@ -247,12 +247,6 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
 
     if (iterators.empty()) return;
 
-    for (auto it : iterators) {
-        while (it.partition_id() != it.num_partitions()) it.next_partition_id();
-        it.init();
-        it.change_partition();
-    }
-
     std::sort(iterators.begin(), iterators.end(), [](auto const& x, auto const& y) {
         return x.meta_color_set_size() < y.meta_color_set_size();
     });

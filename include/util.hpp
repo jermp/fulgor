@@ -215,5 +215,274 @@ struct hasher_uint128_t {
     uint64_t operator()(const __uint128_t x) const { return static_cast<uint64_t>(x) ^ (x >> 64); }
 };
 
+inline int num_digits(const uint32_t n) {
+    if (n >= 10000) {
+        if (n >= 10000000) {
+            if (n >= 100000000) {
+                if (n >= 1000000000)
+                    return 10;
+                return 9;
+            }
+            return 8;
+        }
+        if (n >= 100000) {
+            if (n >= 1000000)
+                return 7;
+            return 6;
+        }
+        return 5;
+    }
+    if (n >= 100) {
+        if (n >= 1000)
+            return 4;
+        return 3;
+    }
+    if (n >= 10)
+        return 2;
+    return 1;
+}
+
+inline void vec_to_tsv(std::vector<uint32_t> const& vec, std::string& s) {
+    s.clear();
+    s.reserve(vec.size() * 12);
+    char buffer[32];
+    buffer[31] = '\t';
+    uint32_t tmp;
+    for (uint32_t x : vec) {
+        int len = 0;
+        do {
+            tmp = x / 10;
+            buffer[30 - len++] = '0' + (x - tmp * 10);
+            x = tmp;
+        } while (x > 0);
+        s.append(buffer + 31 - len, len + 1);
+    }
+    s.pop_back();
+}
+
+template <typename Formatter>
+struct formatter_buffer {
+    explicit formatter_buffer(Formatter* ptr) : m_formatter(ptr), m_num_bytes(0) {}
+
+    void write(const uint32_t query_id, std::vector<uint32_t> const& vec) {
+        m_num_bytes += m_formatter->format(m_buffer, query_id, vec);
+
+        if (m_num_bytes > (1 << 14)) {
+            m_formatter->flush(m_buffer, m_num_bytes);
+            m_num_bytes = 0;
+        }
+    }
+
+    ~formatter_buffer() {
+        m_formatter->flush(m_buffer, m_num_bytes);
+    }
+
+private:
+    Formatter* m_formatter;
+    typename Formatter::buffer_t m_buffer;
+    uint32_t m_num_bytes;
+};
+
+struct psa_ascii_formatter {
+    typedef std::stringstream buffer_t;
+
+    explicit psa_ascii_formatter(const std::string &output_filename)
+        : m_file(output_filename){}
+
+    formatter_buffer<psa_ascii_formatter> buffer() {
+        return formatter_buffer(this);
+    }
+
+    uint32_t format(buffer_t& ss, uint32_t query_id, std::vector<uint32_t> const& colors) {
+        uint32_t num_bytes = 0;
+        ss << query_id << "\t" << colors.size();
+        num_bytes += num_digits(query_id) + 1 + num_digits(colors.size()); // query_id + tab + size
+
+        if (!colors.empty()) {
+            std::string tmpstr;
+            vec_to_tsv(colors, tmpstr);
+            ss << "\t" << tmpstr;
+            num_bytes += 1 + tmpstr.size(); // tab + size of string
+        }
+
+        ss << "\n";
+        num_bytes += 1; // newline
+        return num_bytes;
+    }
+
+    void flush(buffer_t& buffer, const uint32_t num_bytes) {
+        m_mut.lock();
+        m_file.write(buffer.str().data(), num_bytes);
+        m_mut.unlock();
+        buffer.str("");
+    }
+
+protected:
+    std::ofstream m_file;
+    std::mutex m_mut;
+};
+
+struct psa_slow_formatter {
+    typedef std::stringstream buffer_t;
+
+    explicit psa_slow_formatter(const std::string &output_filename)
+        : m_file(output_filename){}
+
+    formatter_buffer<psa_slow_formatter> buffer() {
+        return formatter_buffer(this);
+    }
+
+    uint32_t format(buffer_t& ss, uint32_t query_id, std::vector<uint32_t> const& colors) {
+        uint32_t num_bytes = 0;
+        ss << query_id << "\t" << colors.size();
+        num_bytes += num_digits(query_id) + 1 + num_digits(colors.size()); // query_id + tab + size
+
+        for(auto c : colors) {
+            ss << '\t' << c;
+            num_bytes += 1 + num_digits(c); // tab + color
+        }
+        ss << "\n";
+        num_bytes += 1; // newline
+
+        return num_bytes;
+    }
+
+    void flush(buffer_t& buffer, const uint32_t num_bytes) {
+        m_mut.lock();
+        m_file.write(buffer.str().data(), num_bytes);
+        m_mut.unlock();
+        buffer.str("");
+    }
+
+protected:
+    std::ofstream m_file;
+    std::mutex m_mut;
+};
+
+struct psa_binary_formatter {
+    typedef std::stringstream buffer_t;
+
+    explicit psa_binary_formatter(const std::string &output_filename)
+        : m_file(output_filename){}
+
+    formatter_buffer<psa_binary_formatter> buffer() {
+        return formatter_buffer(this);
+    }
+
+    uint32_t format(buffer_t& ss, uint32_t query_id, std::vector<uint32_t> const& colors) {
+        uint32_t colors_size = colors.size();
+        ss.write(reinterpret_cast<char*>(&query_id), sizeof(uint32_t));
+        ss.write(reinterpret_cast<char*>(&colors_size), sizeof(uint32_t));
+        if (!colors.empty())
+            ss.write(reinterpret_cast<const char*>(colors.data()), colors.size() * sizeof(uint32_t));
+        return (2 + colors_size) * sizeof(uint32_t); // (query id + size + colors) * 4 Bytes
+    }
+
+    void flush(buffer_t& buffer, const uint32_t num_bytes) {
+        m_mut.lock();
+        m_file.write(buffer.str().data(), num_bytes);
+        m_mut.unlock();
+        buffer.str("");
+    }
+
+protected:
+    std::ofstream m_file;
+    std::mutex m_mut;
+};
+
+struct psa_compressed_formatter {
+    typedef bits::bit_vector::builder buffer_t;
+
+    explicit psa_compressed_formatter(const std::string &output_filename)
+        : m_file(output_filename), m_num_colors(0), m_sparse_set_threshold_size(0), m_very_dense_set_threshold_size(0) {}
+
+    void set_num_colors(uint32_t num_colors) {
+        assert(m_num_colors == 0);
+        m_num_colors = num_colors;
+        m_file.write(reinterpret_cast<char*>(&m_num_colors), sizeof(uint64_t));
+        m_sparse_set_threshold_size = 0.25 * m_num_colors;
+        m_very_dense_set_threshold_size = 0.75 * m_num_colors;
+    }
+
+    formatter_buffer<psa_compressed_formatter> buffer() {
+        return formatter_buffer(this);
+    }
+
+    uint32_t format(buffer_t& bvb, uint32_t query_id, std::vector<uint32_t> const& colors) {
+        assert(m_num_colors != 0);
+        const uint32_t num_bytes_start = bvb.data().size() * sizeof(uint64_t);
+        const uint32_t size = colors.size();
+        bits::util::write_delta(bvb, query_id);
+        bits::util::write_delta(bvb, size); /* encode size */
+        if (size == 0) {
+
+        } else if (size < m_sparse_set_threshold_size) {
+            uint32_t prev_val = colors[0];
+            bits::util::write_delta(bvb, prev_val);
+            for (uint64_t i = 1; i != size; ++i) {
+                uint32_t val = colors[i];
+                assert(val >= prev_val + 1);
+                bits::util::write_delta(bvb, val - (prev_val + 1));
+                prev_val = val;
+            }
+        } else if (size < m_very_dense_set_threshold_size) {
+            bits::bit_vector::builder tmp;
+            tmp.resize(m_num_colors);
+            for (uint64_t i = 0; i != size; ++i) tmp.set(colors[i]);
+            bvb.append(tmp);
+        } else {
+            bool first = true;
+            uint32_t val = 0;
+            uint32_t prev_val = -1;
+            uint32_t written = 0;
+            for (uint64_t i = 0; i != size; ++i) {
+                uint32_t x = colors[i];
+                while (val < x) {
+                    if (first) {
+                        bits::util::write_delta(bvb, val);
+                        first = false;
+                        ++written;
+                    } else {
+                        assert(val >= prev_val + 1);
+                        bits::util::write_delta(bvb, val - (prev_val + 1));
+                        ++written;
+                    }
+                    prev_val = val;
+                    ++val;
+                }
+                assert(val == x);
+                val++;  // skip x
+            }
+            while (val < m_num_colors) {
+                assert(val >= prev_val + 1);
+                bits::util::write_delta(bvb, val - (prev_val + 1));
+                prev_val = val;
+                ++val;
+                ++written;
+            }
+            assert(val == m_num_colors);
+            /* complementary_set_size = m_num_colors - size */
+            assert(m_num_colors - size <= m_num_colors);
+            assert(written == m_num_colors - size);
+        }
+        // ss.write(reinterpret_cast<const char*>(bvb.data().data()), bvb.data().size() * sizeof(uint64_t));
+        return bvb.data().size() * sizeof(uint64_t) - num_bytes_start;
+    }
+
+    void flush(buffer_t& buffer, const uint32_t num_bytes) {
+        m_mut.lock();
+        const uint64_t num_bits = buffer.num_bits();
+        m_file.write(reinterpret_cast<const char*>(&num_bits), sizeof(uint64_t));
+        m_file.write(reinterpret_cast<const char*>(buffer.data().data()), num_bytes);
+        m_mut.unlock();
+        buffer.clear();
+    }
+
+protected:
+    std::ofstream m_file;
+    std::mutex m_mut;
+    uint32_t m_num_colors, m_sparse_set_threshold_size, m_very_dense_set_threshold_size;
+};
+
 }  // namespace util
 }  // namespace fulgor

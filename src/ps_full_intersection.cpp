@@ -370,7 +370,7 @@ void index<ColorSets>::fetch_color_set_ids(std::string const& sequence,
     /* deduplicate color set ids */
     std::sort(color_set_ids.begin(), color_set_ids.end());
     auto end_tmp = std::unique(color_set_ids.begin(), color_set_ids.end());
-    color_set_ids.reserve(end_tmp - color_set_ids.begin());
+    color_set_ids.erase(end_tmp,  color_set_ids.end());
 }
 
 template <typename ColorSets>

@@ -22,93 +22,103 @@ std::string to_string(pseudoalignment_algorithm algo, double threshold) {
     return o;
 }
 
-template <typename FulgorIndex, typename Formatter>
-int pseudoalign(FulgorIndex const& index, fastx_parser::FastxParser<fastx_parser::ReadSeq>& rparser,
+template <typename FulgorIndex, typename Formatter, typename QueryReader>
+int pseudoalign(FulgorIndex const& index, QueryReader& query_reader,
                 std::atomic<uint64_t>& num_reads, std::atomic<uint64_t>& num_mapped_reads,
                 pseudoalignment_algorithm algo, const double threshold, Formatter& formatter,
-                std::mutex& iomut, std::mutex& ofile_mut, const bool verbose)  //
+                std::mutex& iomut, const bool verbose)  //
 {
     auto output_buffer = formatter.buffer();
     std::vector<uint32_t> tmp, colors;  // result of pseudoalignment
     std::vector<uint32_t> color_set_ids;
     std::stringstream ss;
 
-    auto rg = rparser.getReadGroup();
-    while (rparser.refill(rg)) {
-        uint32_t read_id = rg.chunk_frag_offset().frag_idx;
+    auto qg = query_reader.get_query_group();
 
-        for (auto const& record : rg) {
+    while (qg.refill()) {
+        while (qg.has_next()){
+            typename QueryReader::query_t query;
+            qg.value(query);
+
             switch (algo) {
                 case pseudoalignment_algorithm::FULL_INTERSECTION:
-                    index.fetch_color_set_ids(record.seq, color_set_ids);
-                    index.pseudoalign_full_intersection(color_set_ids, colors, tmp);
+                    // index.fetch_color_set_ids(record.seq, color_set_ids);
+                    index.pseudoalign_full_intersection(query.cids, colors, tmp);
                     break;
                 case pseudoalignment_algorithm::THRESHOLD_UNION:
-                    index.pseudoalign_threshold_union(record.seq, colors, threshold);
+                    // index.pseudoalign_threshold_union(record.seq, colors, threshold);
+                    cerr << "THRESHOLD_UNION not supported!! Needs Fixing!!" << endl;
+                    exit(1);
                     break;
                 default:
                     break;
             }
 
-            if (!colors.empty()) {
-                num_mapped_reads += 1;
+            if constexpr (std::is_same_v<util::preprocessed_query_reader, QueryReader>) {
+                for (auto qid: query.ids) {
+                    num_reads += 1;
+                    output_buffer.write(qid, colors);
+                    if (!colors.empty()) {
+                        num_mapped_reads += 1;
+                    }
+                }
+            } else {
+                num_reads += 1;
+                output_buffer.write(query.id, colors);
+                if (!colors.empty()) {
+                    num_mapped_reads += 1;
+                }
             }
-            output_buffer.write(read_id, colors);
 
-            num_reads += 1;
             colors.clear();
+
             if (verbose and num_reads > 0 and num_reads % 1000000 == 0) {
                 iomut.lock();
                 std::cout << "processed " << num_reads << " reads" << std::endl;
                 iomut.unlock();
             }
-            read_id++;
+            qg.next();
         }
     }
     return 0;
 }
 
-template <typename FulgorIndex, typename Formatter>
-int pseudoalign(FulgorIndex& index, std::string const& query_filename,
+template <typename FulgorIndex, typename Formatter,  typename QueryReader>
+int pseudoalign(FulgorIndex& index, QueryReader& query_reader,
                 Formatter& formatter, uint64_t num_threads, double threshold,
                 pseudoalignment_algorithm ps_alg, const bool verbose) {
 
     std::cerr << "query mode : " << to_string(ps_alg, threshold) << "\n";
 
-    std::ifstream is(query_filename.c_str());
-    if (!is.good()) {
-        std::cerr << "error in opening the file '" + query_filename + "'" << std::endl;
-        return 1;
-    }
+    // std::ifstream is(query_filename.c_str());
+    // if (!is.good()) {
+    //     std::cerr << "error in opening the file '" + query_filename + "'" << std::endl;
+    //     return 1;
+    // }
 
-    if (verbose) essentials::logger("performing queries from file '" + query_filename + "'...");
+    // if (verbose) essentials::logger("performing queries from file '" + query_filename + "'...");
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> t;
     t.start();
 
     std::atomic<uint64_t> num_mapped_reads{0};
     std::atomic<uint64_t> num_reads{0};
 
-    auto query_filenames = std::vector<std::string>({query_filename});
+    //auto query_filenames = std::vector<std::string>({query_filename});
     assert(num_threads >= 2);
-    fastx_parser::FastxParser<fastx_parser::ReadSeq> rparser(query_filenames, num_threads,
-                                                             num_threads - 1);
 
-    rparser.start();
     std::vector<std::thread> workers;
     workers.reserve(num_threads);
     std::mutex iomut;
-    std::mutex ofile_mut;
 
     for (uint64_t i = 1; i != num_threads; ++i) {
-        workers.push_back(std::thread([&index, &rparser, &num_reads, &num_mapped_reads, ps_alg,
-                                       threshold, &formatter, &iomut, &ofile_mut, verbose]() {
-            pseudoalign(index, rparser, num_reads, num_mapped_reads, ps_alg, threshold, formatter,
-                        iomut, ofile_mut, verbose);
+        workers.push_back(std::thread([&index, &query_reader, &num_reads, &num_mapped_reads, ps_alg,
+                                       threshold, &formatter, &iomut, verbose]() {
+            pseudoalign(index, query_reader, num_reads, num_mapped_reads, ps_alg, threshold, formatter,
+                        iomut, verbose);
         }));
     }
 
     for (auto& w : workers) w.join();
-    rparser.stop();
 
     t.stop();
     if (verbose) essentials::logger("DONE");
@@ -184,6 +194,14 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
                 ++read_id;
             }
         }
+        if (buff_size > 0) {
+            std::string outs = ss.str();
+            ss.str("");
+            outfile_mut.lock();
+            tmp_file.write(outs.data(), outs.size());
+            outfile_mut.unlock();
+            buff_size = 0;
+        }
     };
 
     for (uint64_t i = 0; i < num_threads; ++i) {
@@ -219,10 +237,10 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
     if (queries.empty()) { return; }
 
     std::sort(queries.begin(), queries.end(),
-              [](const std::vector<uint32_t>& a, const std::vector<uint32_t>& b) -> bool {
-                  return std::lexicographical_compare(a.begin() + 1, a.end(), b.begin() + 1,
-                                                      b.end());
-              });
+    [](const std::vector<uint32_t>& a, const std::vector<uint32_t>& b) -> bool {
+      return std::lexicographical_compare(a.begin() + 1, a.end(), b.begin() + 1,
+                                          b.end());
+    });
 
     auto curr = queries.begin();
     auto next = curr++;
@@ -353,8 +371,12 @@ int pseudoalign(int argc, char** argv) {
             std::ofstream out(output_filename);
             if (deduplicate) {
                 fetch_and_deduplicate_sets(query_filename, formatter, tmp_filename, index, num_threads);
+                util::preprocessed_query_reader query_reader(tmp_filename, num_threads);
+                pseudoalign(index, query_reader, formatter, num_threads, threshold, ps_alg, verbose);
+            } else {
+                util::fastq_query_reader query_reader(query_filename, num_threads, index);
+                pseudoalign(index, query_reader, formatter, num_threads, threshold, ps_alg, verbose);
             }
-            pseudoalign(index, query_filename, formatter, num_threads, threshold, ps_alg, verbose);
         }
 
     }, index, formatter);

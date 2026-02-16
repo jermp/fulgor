@@ -46,7 +46,7 @@ int pseudoalign(FulgorIndex const& index, QueryReader& query_reader,
                     index.pseudoalign_full_intersection(query.cids, colors, tmp);
                     break;
                 case pseudoalignment_algorithm::THRESHOLD_UNION:
-                    // index.pseudoalign_threshold_union(record.seq, colors, threshold);
+                    index.pseudoalign_threshold_union(query.seq, colors, threshold);
                     cerr << "THRESHOLD_UNION not supported!! Needs Fixing!!" << endl;
                     exit(1);
                     break;
@@ -90,20 +90,12 @@ int pseudoalign(FulgorIndex& index, QueryReader& query_reader,
 
     std::cerr << "query mode : " << to_string(ps_alg, threshold) << "\n";
 
-    // std::ifstream is(query_filename.c_str());
-    // if (!is.good()) {
-    //     std::cerr << "error in opening the file '" + query_filename + "'" << std::endl;
-    //     return 1;
-    // }
-
-    // if (verbose) essentials::logger("performing queries from file '" + query_filename + "'...");
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> t;
     t.start();
 
     std::atomic<uint64_t> num_mapped_reads{0};
     std::atomic<uint64_t> num_reads{0};
 
-    //auto query_filenames = std::vector<std::string>({query_filename});
     assert(num_threads >= 2);
 
     std::vector<std::thread> workers;
@@ -141,9 +133,10 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
                                 Formatter& output_formatter,
                                 std::string& tmp_filename,
                                 FulgorIndex& index,
-                                uint64_t num_threads) {
+                                uint64_t num_threads,
+                                bool verbose) {
     auto output_buffer = output_formatter.buffer();
-    essentials::logger("*** START: fetching color set ids");
+    if (verbose) essentials::logger("*** START: fetching color set ids");
 
     std::ofstream tmp_file(tmp_filename, std::ios::binary);
     auto query_filenames = std::vector({query_filename});
@@ -211,8 +204,8 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
     rparser.stop();
     tmp_file.close();
 
-    essentials::logger("*** DONE: fetching color set ids");
-    essentials::logger("*** START: deduplicating queries");
+    if (verbose) essentials::logger("*** DONE: fetching color set ids");
+    if (verbose) essentials::logger("*** START: deduplicating queries");
 
     std::ifstream ifile(tmp_filename, std::ios::binary);
     std::vector<std::vector<uint32_t>> queries;
@@ -273,7 +266,7 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
     }
     ofile.close();
 
-    essentials::logger("*** DONE: deduplicating queries");
+    if (verbose) essentials::logger("*** DONE: deduplicating queries");
 }
 
 int pseudoalign(int argc, char** argv) {
@@ -325,6 +318,9 @@ int pseudoalign(int argc, char** argv) {
 
     auto ps_alg = pseudoalignment_algorithm::FULL_INTERSECTION;
     if (threshold != constants::invalid_threshold) {
+        if (deduplicate) {
+            throw new std::runtime_error("Deduplication not available for threshold < 1.0. Remove --deduplicate flag.");
+        }
         ps_alg = pseudoalignment_algorithm::THRESHOLD_UNION;
     }
 
@@ -352,7 +348,7 @@ int pseudoalign(int argc, char** argv) {
     } else if (output_format == "compressed") {
         formatter.emplace<util::psa_compressed_formatter>(output_filename);
     } else {
-        throw std::runtime_error("Unknown output format. Supported formats: ascii, binary, compressed");
+        throw std::runtime_error("Unknown output format. Supported formats: ascii, binary, compressed.");
     }
 
     std::string tmp_filename = "queries.tmp";
@@ -360,17 +356,20 @@ int pseudoalign(int argc, char** argv) {
     std::visit([&index_filename, &query_filename, &output_filename, &tmp_filename,
                 deduplicate, num_threads, threshold, ps_alg, verbose]
                       (auto&& index, auto&& formatter) {
-        essentials::logger("*** START: loading the index");
+        if (verbose) essentials::logger("*** START: loading the index");
         essentials::load(index, index_filename.c_str());
-        essentials::logger("*** DONE: loading the index");
+        if (verbose) essentials::logger("*** DONE: loading the index");
+
+        if (verbose) essentials::logger("performing queries from file '" + query_filename + "'...");
 
         if constexpr (std::is_same_v<std::decay_t<decltype(formatter)>, util::psa_compressed_formatter>) {
             formatter.set_num_colors(index.num_colors());
         }
         if constexpr (!std::is_same_v<std::decay_t<decltype(formatter)>, std::monostate>) {
             std::ofstream out(output_filename);
+
             if (deduplicate) {
-                fetch_and_deduplicate_sets(query_filename, formatter, tmp_filename, index, num_threads);
+                fetch_and_deduplicate_sets(query_filename, formatter, tmp_filename, index, num_threads, verbose);
                 util::preprocessed_query_reader query_reader(tmp_filename, num_threads);
                 pseudoalign(index, query_reader, formatter, num_threads, threshold, ps_alg, verbose);
             } else {

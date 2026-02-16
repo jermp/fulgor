@@ -506,6 +506,7 @@ struct fastq_query_reader {
 
         uint32_t id;
         std::vector<uint32_t> cids;
+        std::string seq;
     };
 
     struct query_group {
@@ -526,6 +527,7 @@ struct fastq_query_reader {
             query.id = curr_read_id;
             query.cids.clear();
             qb->index.fetch_color_set_ids(curr_record->seq, query.cids);
+            query.seq = curr_record->seq;
         }
 
         bool refill() {
@@ -570,6 +572,7 @@ struct preprocessed_query_reader {
 
         std::vector<uint32_t> ids;
         std::vector<uint32_t> cids;
+        std::string seq = nullptr;
     };
 
     preprocessed_query_reader(std::string const& query_filename, uint64_t num_threads)

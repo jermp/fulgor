@@ -572,7 +572,7 @@ struct preprocessed_query_reader {
 
         std::vector<uint32_t> ids;
         std::vector<uint32_t> cids;
-        std::string seq = nullptr;
+        std::string seq;
     };
 
     preprocessed_query_reader(std::string const& query_filename, uint64_t num_threads)
@@ -647,13 +647,18 @@ struct preprocessed_query_reader {
         }
 
         bool refill() {
+            std::lock_guard lock(reader->mut);
             while (!reader->done or (reader->in_flight > 0)) {
                 if (reader->m_queue.try_dequeue(sbatch)) break;
             }
             if (sbatch != nullptr) {
                 curr_query = sbatch->begin();
             }
-            return !reader->done or (reader->in_flight-- > 0);
+            if (reader->in_flight > 0) {
+                reader->in_flight -= 1;
+                return true;
+            }
+            return !reader->done;
         }
 
     private:
@@ -676,6 +681,7 @@ private:
     std::thread m_producer;
     std::atomic<bool> done{false};
     std::atomic<uint32_t> in_flight{0};
+    std::mutex mut;
 
 
 };

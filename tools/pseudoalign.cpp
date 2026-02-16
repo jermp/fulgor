@@ -35,7 +35,6 @@ int pseudoalign(FulgorIndex const& index, QueryReader& query_reader,
     std::stringstream ss;
 
     auto qg = query_reader.get_query_group();
-
     while (qg.refill()) {
         while (qg.has_next()){
             typename QueryReader::query_t query;

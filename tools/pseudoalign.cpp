@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <variant>
 
 #include "src/ps_full_intersection.cpp"
 #include "src/ps_threshold_union.cpp"

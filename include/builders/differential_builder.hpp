@@ -162,7 +162,7 @@ private:
             essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> timer;
             timer.start();
             if (num_points == 0) {
-                std::cout << "Found empty partition" << endl;
+                std::cout << "Found empty partition" << std::endl;
                 clustering_data.num_clusters = 0;
                 clustering_data.clusters = {};
                 return 0;

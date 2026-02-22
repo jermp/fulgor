@@ -5,6 +5,7 @@
 
 #include "src/ps_full_intersection.cpp"
 #include "src/ps_threshold_union.cpp"
+#include "src/ps_utils.cpp"
 
 using namespace fulgor;
 
@@ -47,14 +48,12 @@ int pseudoalign(FulgorIndex const& index, QueryReader& query_reader,
                     break;
                 case pseudoalignment_algorithm::THRESHOLD_UNION:
                     index.pseudoalign_threshold_union(query.seq, colors, threshold);
-                    cerr << "THRESHOLD_UNION not supported!! Needs Fixing!!" << endl;
-                    exit(1);
                     break;
                 default:
                     break;
             }
 
-            if constexpr (std::is_same_v<util::preprocessed_query_reader, QueryReader>) {
+            if constexpr (std::is_same_v<preprocessed_query_reader, QueryReader>) {
                 for (auto qid: query.ids) {
                     num_reads += 1;
                     output_buffer.write(qid, colors);
@@ -83,7 +82,7 @@ int pseudoalign(FulgorIndex const& index, QueryReader& query_reader,
     return 0;
 }
 
-template <typename FulgorIndex, typename Formatter,  typename QueryReader>
+template <typename FulgorIndex, typename Formatter, typename QueryReader>
 int pseudoalign(FulgorIndex& index, QueryReader& query_reader,
                 Formatter& formatter, uint64_t num_threads, double threshold,
                 pseudoalignment_algorithm ps_alg, const bool verbose) {
@@ -148,7 +147,7 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
 
     constexpr int32_t buff_thresh = 50;
     std::atomic<uint64_t> num_reads = 0;
-    auto fetch = [&rparser, &index, &tmp_file, &outfile_mut, &iomut, &num_reads] () {
+    auto fetch = [&rparser, &index, &tmp_file, &outfile_mut, &iomut, &num_reads, verbose] () {
         uint32_t buff_size = 0;
         std::vector<uint32_t> color_set_ids;
         std::stringstream ss;
@@ -161,7 +160,6 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
                 index.fetch_color_set_ids(record.seq, color_set_ids);
 
                 buff_size += 1;
-                num_reads += 1;
 
                 ss.write(reinterpret_cast<char*>(&read_id), sizeof(read_id));
                 uint32_t num_color_sets = static_cast<uint32_t>(color_set_ids.size());
@@ -171,7 +169,7 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
                 }
 
                 color_set_ids.clear();
-                if (num_reads > 0 and num_reads % 1000000 == 0) {
+                if (verbose && num_reads > 0 && ++num_reads % 1000000 == 0) {
                     iomut.lock();
                     std::cout << "fetched " << num_reads << " reads" << std::endl;
                     iomut.unlock();
@@ -340,13 +338,13 @@ int pseudoalign(int argc, char** argv) {
         std::cerr << "Wrong index filename supplied." << std::endl;
     }
 
-    std::variant<std::monostate, util::psa_ascii_formatter, util::psa_binary_formatter, util::psa_compressed_formatter> formatter;
+    std::variant<std::monostate, psa_ascii_formatter, psa_binary_formatter, psa_compressed_formatter> formatter;
     if (output_format == "ascii") {
-        formatter.emplace<util::psa_ascii_formatter>(output_filename);
+        formatter.emplace<psa_ascii_formatter>(output_filename);
     } else if (output_format == "binary") {
-        formatter.emplace<util::psa_binary_formatter>(output_filename);
+        formatter.emplace<psa_binary_formatter>(output_filename);
     } else if (output_format == "compressed") {
-        formatter.emplace<util::psa_compressed_formatter>(output_filename);
+        formatter.emplace<psa_compressed_formatter>(output_filename);
     } else {
         throw std::runtime_error("Unknown output format. Supported formats: ascii, binary, compressed.");
     }
@@ -362,7 +360,7 @@ int pseudoalign(int argc, char** argv) {
 
         if (verbose) essentials::logger("performing queries from file '" + query_filename + "'...");
 
-        if constexpr (std::is_same_v<std::decay_t<decltype(formatter)>, util::psa_compressed_formatter>) {
+        if constexpr (std::is_same_v<std::decay_t<decltype(formatter)>, psa_compressed_formatter>) {
             formatter.set_num_colors(index.num_colors());
         }
         if constexpr (!std::is_same_v<std::decay_t<decltype(formatter)>, std::monostate>) {
@@ -370,10 +368,10 @@ int pseudoalign(int argc, char** argv) {
 
             if (deduplicate) {
                 fetch_and_deduplicate_sets(query_filename, formatter, tmp_filename, index, num_threads, verbose);
-                util::preprocessed_query_reader query_reader(tmp_filename, num_threads);
+                preprocessed_query_reader query_reader(tmp_filename, num_threads);
                 pseudoalign(index, query_reader, formatter, num_threads, threshold, ps_alg, verbose);
             } else {
-                util::fastq_query_reader query_reader(query_filename, num_threads, index);
+                fastq_query_reader query_reader(query_filename, num_threads, index);
                 pseudoalign(index, query_reader, formatter, num_threads, threshold, ps_alg, verbose);
             }
         }

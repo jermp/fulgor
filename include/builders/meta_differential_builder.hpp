@@ -357,7 +357,7 @@ struct index<ColorSets>::meta_differential_builder {
 
             auto exe = [&](uint64_t thread_id) {
                 uint64_t l = slice_size * thread_id;
-                uint64_t r = min(slice_size * (thread_id + 1), idx.m_k2u.num_contigs());
+                uint64_t r = std::min(slice_size * (thread_id + 1), idx.m_k2u.num_contigs());
 
                 for (uint64_t unitig_id = l; unitig_id < r; ++unitig_id) {
                     auto it = idx.get_k2u().at_contig_id(unitig_id);

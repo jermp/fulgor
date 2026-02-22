@@ -289,7 +289,7 @@ struct differential {
                 next_differential_val();
                 next_representative_val();
             }
-            m_curr_val = min(m_curr_differential_val, m_curr_representative_val);
+            m_curr_val = std::min(m_curr_differential_val, m_curr_representative_val);
         }
     };
 

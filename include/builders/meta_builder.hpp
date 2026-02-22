@@ -156,7 +156,7 @@ struct index<ColorSets>::meta_builder {
             essentials::logger("step 4. building partial/meta color sets");
             timer.start();
 
-            atomic_uint64_t num_integers_in_metacolor_sets = 0;
+            std::atomic_uint64_t num_integers_in_metacolor_sets = 0;
             uint64_t num_partial_color_sets = 0;
 
             typename ColorSets::builder color_sets_builder;
@@ -186,7 +186,7 @@ struct index<ColorSets>::meta_builder {
             thread_slices[num_threads] = index.num_color_sets();
 
             auto exe = [&](uint64_t thread_id) {
-                string tmp_filename = metacolor_set_file_name(thread_id);
+                std::string tmp_filename = metacolor_set_file_name(thread_id);
                 uint64_t partition_id = 0;
                 uint32_t meta_color_set_size = 0;
                 std::vector<uint32_t> partial_color_set;
@@ -320,7 +320,7 @@ struct index<ColorSets>::meta_builder {
                     std::remove(metacolor_set_file_name(thread_id).c_str());
 
                     thread_id++;
-                    string tmp_filename = metacolor_set_file_name(thread_id);
+                    std::string tmp_filename = metacolor_set_file_name(thread_id);
                     metacolor_set_in = std::ifstream(tmp_filename, std::ios::binary);
                     if (!metacolor_set_in.is_open())
                         throw std::runtime_error("error in opening file: " + tmp_filename);

@@ -9,6 +9,21 @@
 
 namespace fulgor {
 
+enum class pseudoalignment_algorithm : uint8_t { FULL_INTERSECTION, THRESHOLD_UNION };
+
+std::string to_string(const pseudoalignment_algorithm algo, const double threshold) {
+    std::string o;
+    switch (algo) {
+        case pseudoalignment_algorithm::FULL_INTERSECTION:
+            o = "full-intersection";
+            break;
+        case pseudoalignment_algorithm::THRESHOLD_UNION:
+            o = "threshold-union (threshold = " + std::to_string(threshold) + ")";
+            break;
+    }
+    return o;
+}
+
 template <typename Formatter>
 struct formatter_buffer {
     explicit formatter_buffer(Formatter* ptr) : m_formatter(ptr), m_num_bytes(0) {}
@@ -257,8 +272,8 @@ struct fastq_query_reader {
     };
 
     struct query_group {
-        query_group(fastq_query_reader* qb_)
-            : qb(qb_), rg(qb->rparser.getReadGroup()) {}
+        explicit query_group(fastq_query_reader* qb_)
+            : qb(qb_), rg(qb->rparser.getReadGroup()), curr_read_id(0) {}
 
         bool has_next() {
             return curr_record != rg.end();
@@ -325,13 +340,12 @@ struct preprocessed_query_reader {
     preprocessed_query_reader(std::string const& query_filename, uint64_t num_threads)
         : m_query_file(query_filename), m_queue(3*num_threads)
     {
-        const uint64_t batch_thresh = 10000;
+         constexpr uint64_t batch_thresh = 10000;
 
         m_producer = std::thread([this] () -> void {
             auto* batch = new std::vector<query_t>();
             batch->reserve(batch_thresh);
             uint32_t list_len = 0, query_id;
-            size_t nbatches = 0;
 
             query_t query;
             this->m_query_file.read(reinterpret_cast<char*>(&list_len), sizeof(list_len));
@@ -355,7 +369,6 @@ struct preprocessed_query_reader {
                     while (!this->m_queue.try_enqueue(batch)) {}
                     batch = new std::vector<query_t>();
                     this->in_flight += 1;
-                    ++nbatches;
                 }
 
                 query.clear();
@@ -376,10 +389,10 @@ struct preprocessed_query_reader {
     }
 
     struct query_group {
-        query_group(preprocessed_query_reader* qb_)
+        explicit query_group(preprocessed_query_reader* qb_)
             : reader(qb_), sbatch(nullptr) {}
 
-        bool has_next() {
+        bool has_next() const {
             return sbatch != nullptr && curr_query != sbatch->end();
         }
 
@@ -388,7 +401,7 @@ struct preprocessed_query_reader {
         }
         void operator++() { next(); }
 
-        void value(query_t& query) {
+        void value(query_t& query) const {
             query.ids = std::move(curr_query->ids);
             query.cids = std::move(curr_query->cids);
         }
@@ -430,4 +443,37 @@ private:
     std::atomic<uint32_t> in_flight{0};
     std::mutex mut;
 };
+
+struct ps_options {
+    explicit ps_options(const pseudoalignment_algorithm algo, const bool verbose, const uint64_t num_threads)
+        : verbose(verbose)
+        , algo(algo)
+        , num_threads(num_threads)
+        , num_reads(0)
+        , num_mapped_reads(0) {}
+
+    void increment_processed_reads(const int val = 1) {
+        uint64_t prev = num_reads.fetch_add(val);
+        if (verbose && prev >> batch_size != (prev + val) >> batch_size) {
+            io_mut.lock();
+            std::cout << "processed " << num_reads << " reads" << std::endl;
+            io_mut.unlock();
+        }
+    }
+
+    void increment_mapped_reads(const int val = 1) {
+        num_mapped_reads += val;
+    }
+
+    const bool verbose;
+    const pseudoalignment_algorithm algo;
+    const uint64_t num_threads;
+    std::mutex io_mut;
+    std::atomic<uint64_t> num_reads;
+    std::atomic<uint64_t> num_mapped_reads;
+
+private:
+    const uint64_t batch_size = 20;
+};
+
 }

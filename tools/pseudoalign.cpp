@@ -9,26 +9,9 @@
 
 using namespace fulgor;
 
-enum class pseudoalignment_algorithm : uint8_t { FULL_INTERSECTION, THRESHOLD_UNION };
-
-std::string to_string(pseudoalignment_algorithm algo, double threshold) {
-    std::string o;
-    switch (algo) {
-        case pseudoalignment_algorithm::FULL_INTERSECTION:
-            o = "full-intersection";
-            break;
-        case pseudoalignment_algorithm::THRESHOLD_UNION:
-            o = "threshold-union (threshold = " + std::to_string(threshold) + ")";
-            break;
-    }
-    return o;
-}
-
 template <typename FulgorIndex, typename Formatter, typename QueryReader>
-int pseudoalign(FulgorIndex const& index, QueryReader& query_reader,
-                std::atomic<uint64_t>& num_reads, std::atomic<uint64_t>& num_mapped_reads,
-                pseudoalignment_algorithm algo, const double threshold, Formatter& formatter,
-                std::mutex& iomut, const bool verbose)  //
+int pseudoalign_worker(FulgorIndex const& index, QueryReader& query_reader,
+                       Formatter& formatter, const double threshold, ps_options& options)  //
 {
     auto output_buffer = formatter.buffer();
     std::vector<uint32_t> tmp, colors;  // result of pseudoalignment
@@ -41,9 +24,8 @@ int pseudoalign(FulgorIndex const& index, QueryReader& query_reader,
             typename QueryReader::query_t query;
             qg.value(query);
 
-            switch (algo) {
+            switch (options.algo) {
                 case pseudoalignment_algorithm::FULL_INTERSECTION:
-                    // index.fetch_color_set_ids(record.seq, color_set_ids);
                     index.pseudoalign_full_intersection(query.cids, colors, tmp);
                     break;
                 case pseudoalignment_algorithm::THRESHOLD_UNION:
@@ -54,28 +36,22 @@ int pseudoalign(FulgorIndex const& index, QueryReader& query_reader,
             }
 
             if constexpr (std::is_same_v<preprocessed_query_reader, QueryReader>) {
+                options.increment_processed_reads(query.ids.size());
                 for (auto qid: query.ids) {
-                    num_reads += 1;
                     output_buffer.write(qid, colors);
                     if (!colors.empty()) {
-                        num_mapped_reads += 1;
+                        options.increment_mapped_reads();
                     }
                 }
             } else {
-                num_reads += 1;
+                options.increment_processed_reads();
                 output_buffer.write(query.id, colors);
                 if (!colors.empty()) {
-                    num_mapped_reads += 1;
+                    options.increment_mapped_reads();
                 }
             }
 
             colors.clear();
-
-            if (verbose and num_reads > 0 and num_reads % 1000000 == 0) {
-                iomut.lock();
-                std::cout << "processed " << num_reads << " reads" << std::endl;
-                iomut.unlock();
-            }
             qg.next();
         }
     }
@@ -83,45 +59,35 @@ int pseudoalign(FulgorIndex const& index, QueryReader& query_reader,
 }
 
 template <typename FulgorIndex, typename Formatter, typename QueryReader>
-int pseudoalign(FulgorIndex& index, QueryReader& query_reader,
-                Formatter& formatter, uint64_t num_threads, double threshold,
-                pseudoalignment_algorithm ps_alg, const bool verbose) {
-
-    std::cerr << "query mode : " << to_string(ps_alg, threshold) << "\n";
-
+int pseudoalign_orchestrator(FulgorIndex& index, QueryReader& query_reader,
+                Formatter& formatter, const double threshold, ps_options& options) {
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> t;
     t.start();
 
-    std::atomic<uint64_t> num_mapped_reads{0};
-    std::atomic<uint64_t> num_reads{0};
-
+    uint64_t num_threads = options.num_threads;
     assert(num_threads >= 2);
 
     std::vector<std::thread> workers;
     workers.reserve(num_threads);
-    std::mutex iomut;
-
     for (uint64_t i = 1; i != num_threads; ++i) {
-        workers.push_back(std::thread([&index, &query_reader, &num_reads, &num_mapped_reads, ps_alg,
-                                       threshold, &formatter, &iomut, verbose]() {
-            pseudoalign(index, query_reader, num_reads, num_mapped_reads, ps_alg, threshold, formatter,
-                        iomut, verbose);
+        workers.push_back(std::thread([&index, &query_reader, &formatter, threshold, &options]() {
+            pseudoalign_worker(index, query_reader, formatter, threshold, options);
         }));
     }
 
     for (auto& w : workers) w.join();
 
     t.stop();
-    if (verbose) essentials::logger("DONE");
+    if (options.verbose) essentials::logger("DONE");
 
-    if (verbose) {
-        std::cout << "mapped " << num_reads << " reads" << std::endl;
+    if (options.verbose) {
+        std::cout << "mapped " << options.num_reads << " reads" << std::endl;
         std::cout << "elapsed = " << t.elapsed() << " millisec / ";
         std::cout << t.elapsed() / 1000 << " sec / ";
         std::cout << t.elapsed() / 1000 / 60 << " min / ";
-        std::cout << (t.elapsed() * 1000) / num_reads << " musec/read" << std::endl;
-        std::cout << "num_mapped_reads " << num_mapped_reads << "/" << num_reads << " ("
-                  << (num_mapped_reads * 100.0) / num_reads << "%)" << std::endl;
+        std::cout << (t.elapsed() * 1000) / options.num_reads << " musec/read" << std::endl;
+        std::cout << "num_mapped_reads " << options.num_mapped_reads << "/" << options.num_reads << " ("
+                  << (options.num_mapped_reads * 100.0) / options.num_reads << "%)" << std::endl;
     }
 
     return 0;
@@ -132,22 +98,21 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
                                 Formatter& output_formatter,
                                 std::string& tmp_filename,
                                 FulgorIndex& index,
-                                uint64_t num_threads,
-                                bool verbose) {
+                                ps_options& options) {
     auto output_buffer = output_formatter.buffer();
-    if (verbose) essentials::logger("*** START: fetching color set ids");
+    if (options.verbose) essentials::logger("*** START: fetching color set ids");
 
     std::ofstream tmp_file(tmp_filename, std::ios::binary);
     auto query_filenames = std::vector({query_filename});
-    fastx_parser::FastxParser<fastx_parser::ReadSeq> rparser(query_filenames, num_threads,
-                                                             num_threads - 1);
+    fastx_parser::FastxParser<fastx_parser::ReadSeq> rparser(query_filenames, options.num_threads,
+                                                             options.num_threads - 1);
     rparser.start();
     std::vector<std::thread> workers;
     std::mutex outfile_mut, iomut;
 
     constexpr int32_t buff_thresh = 50;
-    std::atomic<uint64_t> num_reads = 0;
-    auto fetch = [&rparser, &index, &tmp_file, &outfile_mut, &iomut, &num_reads, verbose] () {
+    std::atomic<uint64_t> num_fetched_reads = 0;
+    auto fetch = [&rparser, &index, &tmp_file, &outfile_mut, &iomut, &num_fetched_reads, &options] () {
         uint32_t buff_size = 0;
         std::vector<uint32_t> color_set_ids;
         std::stringstream ss;
@@ -169,9 +134,9 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
                 }
 
                 color_set_ids.clear();
-                if (verbose && num_reads > 0 && ++num_reads % 1000000 == 0) {
+                if (options.verbose && num_fetched_reads > 0 && ++num_fetched_reads % 1000000 == 0) {
                     iomut.lock();
-                    std::cout << "fetched " << num_reads << " reads" << std::endl;
+                    std::cout << "fetched " << num_fetched_reads << " reads" << std::endl;
                     iomut.unlock();
                 }
                 if (buff_size > buff_thresh) {
@@ -195,18 +160,20 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
         }
     };
 
-    for (uint64_t i = 0; i < num_threads; ++i) {
+    for (uint64_t i = 1; i < options.num_threads; ++i) {
         workers.push_back(std::thread(fetch));
     }
     for (auto& w : workers) w.join();
     rparser.stop();
     tmp_file.close();
 
-    if (verbose) essentials::logger("*** DONE: fetching color set ids");
-    if (verbose) essentials::logger("*** START: deduplicating queries");
+    if (options.verbose) essentials::logger("*** DONE: fetching color set ids");
+    if (options.verbose) essentials::logger("*** START: deduplicating queries");
 
     std::ifstream ifile(tmp_filename, std::ios::binary);
     std::vector<std::vector<uint32_t>> queries;
+    queries.reserve(num_fetched_reads);
+
     std::vector<uint32_t> tmp;
     uint32_t read_num = 0;
     while (ifile.read(reinterpret_cast<char*>(&read_num), sizeof(read_num))) {
@@ -250,9 +217,8 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
         }
     }
 
-    std::cerr << "number of identical lists = " << identical_lists << " (ignoring "
+    std::cerr << "number of identical lists = " << identical_lists << " (skipping "
               << identical_sizes << " set ids)\n";
-    std::cerr << "sorted!\n";
     ifile.close();
     std::ofstream ofile(tmp_filename, std::ios::trunc | std::ios::binary);
     for (auto& query : queries) {
@@ -264,7 +230,7 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
     }
     ofile.close();
 
-    if (verbose) essentials::logger("*** DONE: deduplicating queries");
+    if (options.verbose) essentials::logger("*** DONE: deduplicating queries");
 }
 
 int pseudoalign(int argc, char** argv) {
@@ -309,7 +275,7 @@ int pseudoalign(int argc, char** argv) {
 
     double threshold = constants::invalid_threshold;
     if (parser.parsed("threshold")) threshold = parser.get<double>("threshold");
-    if (threshold == 0.0 or threshold > 1.0) {
+    if (threshold <= 0.0 or threshold > 1.0) {
         std::cerr << "threshold must be a float in (0.0,1.0]" << std::endl;
         return 1;
     }
@@ -317,7 +283,8 @@ int pseudoalign(int argc, char** argv) {
     auto ps_alg = pseudoalignment_algorithm::FULL_INTERSECTION;
     if (threshold != constants::invalid_threshold) {
         if (deduplicate) {
-            throw new std::runtime_error("Deduplication not available for threshold < 1.0. Remove --deduplicate flag.");
+            cerr << "Deduplication not available for threshold < 1.0. Remove --deduplicate flag." << std::endl;
+            return 1;
         }
         ps_alg = pseudoalignment_algorithm::THRESHOLD_UNION;
     }
@@ -336,6 +303,7 @@ int pseudoalign(int argc, char** argv) {
         index = hfur_index_t();
     } else {
         std::cerr << "Wrong index filename supplied." << std::endl;
+        return 1;
     }
 
     std::variant<std::monostate, psa_ascii_formatter, psa_binary_formatter, psa_compressed_formatter> formatter;
@@ -346,13 +314,24 @@ int pseudoalign(int argc, char** argv) {
     } else if (output_format == "compressed") {
         formatter.emplace<psa_compressed_formatter>(output_filename);
     } else {
-        throw std::runtime_error("Unknown output format. Supported formats: ascii, binary, compressed.");
+        std::cout << "Unknown output format. Supported formats: ascii, binary, compressed." << std::endl;
+        return 1;
     }
 
     std::string tmp_filename = "queries.tmp";
+    ps_options options(ps_alg, verbose, num_threads);
+
+    if (verbose) {
+        std::cout << "\n---------------------------------" << std::endl;
+        std::cout << "[Index]     " << index_filename << std::endl;
+        std::cout << "[Queries]   " << query_filename << std::endl;
+        std::cout << "[Output]    " << output_filename << std::endl;
+        std::cout << "[Algorithm] " << to_string(ps_alg, threshold) << (deduplicate ? "(dedup.)" : "") << std::endl;
+        std::cout << "---------------------------------\n" << std::endl;
+    }
 
     std::visit([&index_filename, &query_filename, &output_filename, &tmp_filename,
-                deduplicate, num_threads, threshold, ps_alg, verbose]
+                deduplicate, num_threads, threshold, verbose, &options]
                       (auto&& index, auto&& formatter) {
         if (verbose) essentials::logger("*** START: loading the index");
         essentials::load(index, index_filename.c_str());
@@ -367,12 +346,12 @@ int pseudoalign(int argc, char** argv) {
             std::ofstream out(output_filename);
 
             if (deduplicate) {
-                fetch_and_deduplicate_sets(query_filename, formatter, tmp_filename, index, num_threads, verbose);
+                fetch_and_deduplicate_sets(query_filename, formatter, tmp_filename, index, options);
                 preprocessed_query_reader query_reader(tmp_filename, num_threads);
-                pseudoalign(index, query_reader, formatter, num_threads, threshold, ps_alg, verbose);
+                pseudoalign_orchestrator(index, query_reader, formatter, threshold, options);
             } else {
                 fastq_query_reader query_reader(query_filename, num_threads, index);
-                pseudoalign(index, query_reader, formatter, num_threads, threshold, ps_alg, verbose);
+                pseudoalign_orchestrator(index, query_reader, formatter, threshold, options);
             }
         }
 

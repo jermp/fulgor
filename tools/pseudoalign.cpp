@@ -274,10 +274,12 @@ int pseudoalign(int argc, char** argv) {
     }
 
     double threshold = constants::invalid_threshold;
-    if (parser.parsed("threshold")) threshold = parser.get<double>("threshold");
-    if (threshold <= 0.0 or threshold > 1.0) {
-        std::cerr << "threshold must be a float in (0.0,1.0]" << std::endl;
-        return 1;
+    if (parser.parsed("threshold")) {
+        threshold = parser.get<double>("threshold");
+        if (threshold <= 0.0 or threshold > 1.0) {
+            std::cerr << "threshold must be a float in (0.0,1.0]" << std::endl;
+            return 1;
+        }
     }
 
     auto ps_alg = pseudoalignment_algorithm::FULL_INTERSECTION;

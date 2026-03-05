@@ -67,6 +67,7 @@ int pseudoalign_orchestrator(FulgorIndex& index, QueryReader& query_reader,
     uint64_t num_threads = options.num_threads;
     assert(num_threads >= 2);
 
+    if (options.verbose) essentials::logger("*** START: pseudoalignment");
     std::vector<std::thread> workers;
     workers.reserve(num_threads);
     for (uint64_t i = 1; i != num_threads; ++i) {
@@ -78,10 +79,10 @@ int pseudoalign_orchestrator(FulgorIndex& index, QueryReader& query_reader,
     for (auto& w : workers) w.join();
 
     t.stop();
-    if (options.verbose) essentials::logger("DONE");
+    if (options.verbose) essentials::logger("*** DONE: pseudoalignment");
 
     if (options.verbose) {
-        std::cout << "mapped " << options.num_reads << " reads" << std::endl;
+        std::cout << "processed " << options.num_reads << " reads" << std::endl;
         std::cout << "elapsed = " << t.elapsed() << " millisec / ";
         std::cout << t.elapsed() / 1000 << " sec / ";
         std::cout << t.elapsed() / 1000 / 60 << " min / ";

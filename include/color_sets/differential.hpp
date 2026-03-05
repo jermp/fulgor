@@ -99,11 +99,11 @@ struct differential {
                     prev_val = val;
                 }
             }
-
         }
 
-        void append(differential::builder const& db) {
-            if (db.m_color_set_offsets.size() - 1 == 0) return;
+        void append(builder const& db) {
+            // I don't know why the following line was here, but removing it seems to solve bugs
+            // if (db.m_color_set_offsets.size() - 1 == 0) return;
             uint64_t delta = m_bvb.num_bits();
             m_bvb.append(db.m_bvb);
             m_num_total_integers += db.m_num_total_integers;

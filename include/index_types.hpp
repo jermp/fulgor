@@ -7,7 +7,7 @@
 
 namespace fulgor {
 typedef index<hybrid> hybrid_colors_index_type;
-typedef hybrid_colors_index_type index_type;  // in use
+typedef hybrid_colors_index_type hfur_index_t;  // in use
 }  // namespace fulgor
 
 #include "builders/meta_builder.hpp"
@@ -15,7 +15,7 @@ typedef hybrid_colors_index_type index_type;  // in use
 
 namespace fulgor {
 typedef index<meta<hybrid>> meta_hybrid_colors_index_type;
-typedef meta_hybrid_colors_index_type meta_index_type;  // in use
+typedef meta_hybrid_colors_index_type mfur_index_t;  // in use
 }  // namespace fulgor
 
 #include "builders/differential_builder.hpp"
@@ -23,7 +23,7 @@ typedef meta_hybrid_colors_index_type meta_index_type;  // in use
 
 namespace fulgor {
 typedef index<differential> differential_colors_index_type;
-typedef differential_colors_index_type differential_index_type;  // in use
+typedef differential_colors_index_type dfur_index_t;  // in use
 }  // namespace fulgor
 
 #include "color_sets/meta_differential.hpp"
@@ -31,5 +31,5 @@ typedef differential_colors_index_type differential_index_type;  // in use
 
 namespace fulgor {
 typedef index<meta_differential> meta_differential_colors_index_type;
-typedef meta_differential_colors_index_type meta_differential_index_type;  // in use
+typedef meta_differential_colors_index_type mdfur_index_t;  // in use
 }  // namespace fulgor

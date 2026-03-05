@@ -15,7 +15,7 @@ struct permuter {
     permuter(build_configuration const& build_config)
         : m_build_config(build_config), m_num_partitions(0), m_max_partition_size(0) {}
 
-    void permute(index_type const& index) {
+    void permute(hfur_index_t const& index) {
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
 
         {
@@ -132,7 +132,7 @@ struct index<ColorSets>::meta_builder {
     void build(index& idx) {
         if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
 
-        index_type index;
+        hfur_index_t index;
         essentials::logger("step 1. loading index to be partitioned...");
         essentials::load(index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");
@@ -156,7 +156,7 @@ struct index<ColorSets>::meta_builder {
             essentials::logger("step 4. building partial/meta color sets");
             timer.start();
 
-            atomic_uint64_t num_integers_in_metacolor_sets = 0;
+            std::atomic_uint64_t num_integers_in_metacolor_sets = 0;
             uint64_t num_partial_color_sets = 0;
 
             typename ColorSets::builder color_sets_builder;
@@ -186,7 +186,7 @@ struct index<ColorSets>::meta_builder {
             thread_slices[num_threads] = index.num_color_sets();
 
             auto exe = [&](uint64_t thread_id) {
-                string tmp_filename = metacolor_set_file_name(thread_id);
+                std::string tmp_filename = metacolor_set_file_name(thread_id);
                 uint64_t partition_id = 0;
                 uint32_t meta_color_set_size = 0;
                 std::vector<uint32_t> partial_color_set;
@@ -320,7 +320,7 @@ struct index<ColorSets>::meta_builder {
                     std::remove(metacolor_set_file_name(thread_id).c_str());
 
                     thread_id++;
-                    string tmp_filename = metacolor_set_file_name(thread_id);
+                    std::string tmp_filename = metacolor_set_file_name(thread_id);
                     metacolor_set_in = std::ifstream(tmp_filename, std::ios::binary);
                     if (!metacolor_set_in.is_open())
                         throw std::runtime_error("error in opening file: " + tmp_filename);

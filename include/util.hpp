@@ -11,6 +11,8 @@
 #include "external/smhasher/src/City.h"
 #include "external/smhasher/src/City.cpp"
 
+#include "external/FQFeeder/include/blockingconcurrentqueue.h"
+
 namespace fulgor {
 
 enum index_t { HYBRID, DIFF, META, META_DIFF };
@@ -21,10 +23,10 @@ namespace constants {
 constexpr double invalid_threshold = -1.0;
 constexpr uint64_t default_ram_limit_in_GiB = 8;
 static const std::string default_tmp_dirname(".");
-static const std::string fulgor_filename_extension("fur");
-static const std::string meta_colored_fulgor_filename_extension("mfur");
-static const std::string diff_colored_fulgor_filename_extension("dfur");
-static const std::string meta_diff_colored_fulgor_filename_extension("mdfur");
+static const std::string hfur_filename_extension("fur");
+static const std::string mfur_filename_extension("mfur");
+static const std::string dfur_filename_extension("dfur");
+static const std::string mdfur_filename_extension("mdfur");
 
 namespace current_version_number {
 constexpr uint8_t x = 4;
@@ -214,6 +216,51 @@ __uint128_t hash128(char const* bytes, uint64_t num_bytes, const uint64_t seed =
 struct hasher_uint128_t {
     uint64_t operator()(const __uint128_t x) const { return static_cast<uint64_t>(x) ^ (x >> 64); }
 };
+
+inline int num_digits(const uint32_t n) {
+    if (n >= 10000) {
+        if (n >= 10000000) {
+            if (n >= 100000000) {
+                if (n >= 1000000000)
+                    return 10;
+                return 9;
+            }
+            return 8;
+        }
+        if (n >= 100000) {
+            if (n >= 1000000)
+                return 7;
+            return 6;
+        }
+        return 5;
+    }
+    if (n >= 100) {
+        if (n >= 1000)
+            return 4;
+        return 3;
+    }
+    if (n >= 10)
+        return 2;
+    return 1;
+}
+
+inline void vec_to_tsv(std::vector<uint32_t> const& vec, std::string& s) {
+    s.clear();
+    s.reserve(vec.size() * 12);
+    char buffer[32];
+    buffer[31] = '\t';
+    uint32_t tmp;
+    for (uint32_t x : vec) {
+        int len = 0;
+        do {
+            tmp = x / 10;
+            buffer[30 - len++] = '0' + (x - tmp * 10);
+            x = tmp;
+        } while (x > 0);
+        s.append(buffer + 31 - len, len + 1);
+    }
+    s.pop_back();
+}
 
 }  // namespace util
 }  // namespace fulgor

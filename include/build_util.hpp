@@ -5,7 +5,7 @@
 
 namespace fulgor {
 
-void build_reference_sketches(index_type const& index,
+void build_reference_sketches(hfur_index_t const& index,
                               uint64_t p,                  // use 2^p bytes per HLL sketch
                               uint64_t num_threads,        // num. threads for construction
                               std::string output_filename  // where the sketches will be serialized

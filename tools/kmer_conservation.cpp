@@ -168,19 +168,19 @@ int kmer_conservation(int argc, char** argv) {
     if (verbose) util::print_cmd(argc, argv);
 
     if (sshash::util::ends_with(index_filename,
-                                constants::meta_diff_colored_fulgor_filename_extension)) {
-        return kmer_conservation<meta_differential_index_type>(
+                                constants::mdfur_filename_extension)) {
+        return kmer_conservation<mdfur_index_t>(
             index_filename, query_filename, output_filename, num_threads, verbose);
     } else if (sshash::util::ends_with(index_filename,
-                                       constants::meta_colored_fulgor_filename_extension)) {
-        return kmer_conservation<meta_index_type>(index_filename, query_filename, output_filename,
+                                       constants::mfur_filename_extension)) {
+        return kmer_conservation<mfur_index_t>(index_filename, query_filename, output_filename,
                                                   num_threads, verbose);
     } else if (sshash::util::ends_with(index_filename,
-                                       constants::diff_colored_fulgor_filename_extension)) {
-        return kmer_conservation<differential_index_type>(index_filename, query_filename,
+                                       constants::dfur_filename_extension)) {
+        return kmer_conservation<dfur_index_t>(index_filename, query_filename,
                                                           output_filename, num_threads, verbose);
-    } else if (sshash::util::ends_with(index_filename, constants::fulgor_filename_extension)) {
-        return kmer_conservation<index_type>(index_filename, query_filename, output_filename,
+    } else if (sshash::util::ends_with(index_filename, constants::hfur_filename_extension)) {
+        return kmer_conservation<hfur_index_t>(index_filename, query_filename, output_filename,
                                              num_threads, verbose);
     }
 

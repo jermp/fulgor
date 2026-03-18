@@ -15,7 +15,6 @@ struct index<ColorSets>::meta_differential_builder {
     void build(index& idx) {
         if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
 
-        mfur_index_t meta_index;
         essentials::logger("step 1. loading index to be partitioned");
         essentials::load(meta_index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");
@@ -348,72 +347,99 @@ struct index<ColorSets>::meta_differential_builder {
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
+    }
 
-        if (m_build_config.check) {
-            essentials::logger("step 8. check correctness...");
-            timer.start();
+    void check(index& idx) {
+        essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+        essentials::logger("step 8. check correctness...");
+        timer.start();
+        std::atomic<uint64_t> num_checked_unitigs(0);
 
-            uint64_t slice_size = ceil(idx.m_k2u.num_contigs() / m_build_config.num_threads);
+        auto exe = [this, &idx, &num_checked_unitigs](uint64_t start, uint64_t end) {
+            assert(start < end);
+            assert(end < idx.m_k2u.num_contigs());
 
-            auto exe = [&](uint64_t thread_id) {
-                uint64_t l = slice_size * thread_id;
-                uint64_t r = std::min(slice_size * (thread_id + 1), idx.m_k2u.num_contigs());
+            uint64_t prev_new_color_set_id = idx.num_color_sets();
+            uint64_t prev_old_color_set_id = idx.num_color_sets();
 
-                for (uint64_t unitig_id = l; unitig_id < r; ++unitig_id) {
-                    auto it = idx.get_k2u().at_contig_id(unitig_id);
-                    while (it.has_next()) {
-                        auto [_, kmer] = it.next();
-                        uint64_t new_contig_id =
-                            idx.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-                        if (new_contig_id != unitig_id) {
-                            std::cout << "expected " << unitig_id << " but found " << new_contig_id
-                                      << std::endl;
-                            continue;
-                        }
-                        uint64_t old_contig_id =
-                            meta_index.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+            for (uint64_t unitig_id = start; unitig_id < end; ++unitig_id) {
+                auto it = idx.get_k2u().at_contig_id(unitig_id);
+                while (it.has_next()) {
+                    auto [_, kmer] = it.next();
+                    uint64_t new_contig_id =
+                        idx.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+                    if (new_contig_id != unitig_id) {
+                        std::cout << "\033[1;31m" << "expected " << unitig_id << " but found " << new_contig_id
+                                  << ")\033[0m" << std::endl;
+                        continue;
+                    }
+                    uint64_t old_contig_id =
+                        meta_index.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
 
-                        uint64_t new_color_id = idx.u2c(new_contig_id);
-                        uint64_t old_color_id = meta_index.u2c(old_contig_id);
+                    uint64_t new_color_set_id = idx.u2c(new_contig_id);
+                    uint64_t old_color_set_id = meta_index.u2c(old_contig_id);
 
-                        auto exp_it = meta_index.color_set(old_color_id);
-                        auto res_it = idx.color_set(new_color_id);
-                        if (res_it.size() != exp_it.size()) {
-                            std::cout << "Error while checking color " << new_color_id
-                                      << ", different sizes: expected " << exp_it.size()
-                                      << " but got " << res_it.size() << std::endl;
-                            continue;
-                        }
-                        for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
-                            auto exp = *exp_it;
-                            auto got = *res_it;
-                            if (exp != got) {
-                                std::cout << "Error while checking color " << new_color_id
-                                          << ", mismatch at position " << j << ": expected " << exp
-                                          << " but got " << got << std::endl;
-                            }
+                    if (new_color_set_id == prev_new_color_set_id && old_color_set_id != prev_old_color_set_id) {
+                        std::cout << "\033[1;31m" << "Error while checking unitig " << unitig_id
+                                  << ", expected color set id " << prev_old_color_set_id
+                                  << " but got " << old_color_set_id << ")\033[0m" << std::endl;
+                        continue;
+                    }
+
+                    if (new_color_set_id == prev_new_color_set_id) continue;
+                    prev_new_color_set_id = new_color_set_id;
+                    prev_old_color_set_id = old_color_set_id;
+
+                    auto exp_it = meta_index.color_set(old_color_set_id);
+                    auto res_it = idx.color_set(new_color_set_id);
+                    if (res_it.size() != exp_it.size()) {
+                        std::cout << "\033[1;31m" << "Error while checking color " << new_color_set_id
+                                  << ", different sizes: expected " << exp_it.size()
+                                  << " but got " << res_it.size() << ")\033[0m" << std::endl;
+                        continue;
+                    }
+                    for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
+                        auto exp = *exp_it;
+                        auto got = *res_it;
+                        if (exp != got) {
+                            std::cout << "\033[1;31m" << "Error while checking color " << new_color_set_id
+                                      << ", mismatch at position " << j << ": expected " << exp
+                                      << " but got " << got << ")\033[0m" << std::endl;
                         }
                     }
                 }
-            };
 
-            std::vector<std::thread> threads(m_build_config.num_threads);
-            for (uint64_t thread_id = 0; thread_id != m_build_config.num_threads; ++thread_id) {
-                threads[thread_id] = std::thread(exe, thread_id);
+                if (++num_checked_unitigs % 1000 == 0) {
+                    std::cout << "\rChecked " << num_checked_unitigs << "/"
+                              << idx.m_k2u.num_contigs() << " unitigs" << std::flush;
+                }
             }
-            for (auto& t : threads) {
-                if (t.joinable()) t.join();
-            }
+        };
 
-            timer.stop();
-            std::cout << "** checking correctness took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
-            essentials::logger("DONE!");
+        kmeans::thread_pool threads(m_build_config.num_threads);
+        uint64_t num_unitigs =idx.m_k2u.num_contigs();
+        uint64_t load_per_thread = num_unitigs / m_build_config.num_threads / 32;
+        uint64_t start = 0, end = load_per_thread;
+        while (end < num_unitigs) {
+            threads.enqueue([&, start, end]{ exe(start, end); });
+            start = end;
+            end = std::min(end + load_per_thread, num_unitigs);
         }
+        threads.enqueue([&, start, end]{ exe(start, end); }); // last one
+        threads.wait();
+
+        std::cout << "\rChecked " << num_checked_unitigs << "/" << idx.m_k2u.num_contigs()
+                  << " unitigs (" << std::endl;
+
+        timer.stop();
+        std::cout << "** checking correctness took " << timer.elapsed() << " seconds / "
+                  << timer.elapsed() / 60 << " minutes" << std::endl;
+        essentials::logger("CHECKS DONE!");
     }
 
 private:
     build_configuration m_build_config;
+    mfur_index_t meta_index;
 };
 
 }  // namespace fulgor

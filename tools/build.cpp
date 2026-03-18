@@ -20,18 +20,26 @@ void meta_color(build_configuration const& build_config, const bool force)  //
 
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();
+
     mfur_index_t index;
-    typename mfur_index_t::meta_builder builder(build_config);
+    mfur_index_t::meta_builder builder(build_config);
     builder.build(index);
-    index.print_stats();
+
     timer.stop();
-    essentials::logger("DONE");
+    essentials::logger("BUILDING DONE");
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
-    essentials::logger("DONE");
+    essentials::logger("STORING DONE");
+
+    if (build_config.verbose) {
+        index.print_stats();
+    }
+    if (build_config.check) {
+        builder.check(index);
+    }
 }
 
 void diff_color(build_configuration const& build_config, const bool force)  //
@@ -54,18 +62,26 @@ void diff_color(build_configuration const& build_config, const bool force)  //
 
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();
+
     dfur_index_t index;
-    typename dfur_index_t::differential_builder builder(build_config);
+    dfur_index_t::differential_builder builder(build_config);
     builder.build(index);
-    index.print_stats();
+
     timer.stop();
-    essentials::logger("DONE");
+    essentials::logger("BUILDING DONE");
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
-    essentials::logger("DONE");
+    essentials::logger("STORING DONE");
+
+    if (build_config.verbose) {
+        index.print_stats();
+    }
+    if (build_config.check) {
+        builder.check(index);
+    }
 }
 
 void meta_diff_color(build_configuration const& build_config, const bool force)  //
@@ -98,27 +114,36 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
         std::cout << ".mfur file found, skipping meta partitioning" << std::endl;
     }
 
-    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-    timer.start();
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> build_timer;
+    build_timer.start();
+
     build_configuration meta_diff_build_config = build_config;
     meta_diff_build_config.index_filename_to_partition =
         build_config.index_filename_to_partition.substr(
             0, build_config.index_filename_to_partition.length() -
                    constants::hfur_filename_extension.length() - 1) +
         "." + constants::mfur_filename_extension;
+
     mdfur_index_t index;
-    typename mdfur_index_t::meta_differential_builder builder(
+    mdfur_index_t::meta_differential_builder builder(
         meta_diff_build_config);
     builder.build(index);
-    index.print_stats();
-    timer.stop();
-    essentials::logger("DONE");
-    std::cout << "** building the index took " << timer.elapsed() << " seconds / "
-              << timer.elapsed() / 60 << " minutes" << std::endl;
+    build_timer.stop();
+
+    essentials::logger("BUILD DONE");
+    std::cout << "** building the index took " << build_timer.elapsed() << " seconds / "
+              << build_timer.elapsed() / 60 << " minutes" << std::endl;
 
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
-    essentials::logger("DONE");
+    essentials::logger("STORING DONE");
+
+    if (build_config.verbose) {
+        index.print_stats();
+    }
+    if (build_config.check) {
+        builder.check(index);
+    }
 }
 
 int build(int argc, char** argv) {
@@ -206,18 +231,24 @@ int build(int argc, char** argv) {
     timer.start();
 
     hfur_index_t index;
-    typename hfur_index_t::builder builder(build_config);
+    hfur_index_t::builder builder(build_config);
     builder.build(index);
-    index.print_stats();
 
     timer.stop();
-    essentials::logger("DONE");
+    essentials::logger("BUILDING DONE");
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
-    essentials::logger("DONE");
+    essentials::logger("STORING DONE");
+
+    if (build_config.verbose) {
+        index.print_stats();
+    }
+    if (build_config.check) {
+        builder.check(index);
+    }
 
     if (build_config.meta_colored and build_config.diff_colored) {
         meta_diff_color(build_config, force);

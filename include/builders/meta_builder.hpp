@@ -110,7 +110,7 @@ struct permuter {
 
     uint64_t num_partitions() const { return m_num_partitions; }
     uint64_t max_partition_size() const { return m_max_partition_size; }
-    std::vector<uint32_t> permutation() const { return m_permutation; }
+    std::vector<uint32_t>& permutation() { return m_permutation; }
     std::vector<uint32_t> partition_size() const { return m_partition_size; }
     std::vector<std::string> filenames() const { return m_filenames; }
 
@@ -132,20 +132,19 @@ struct index<ColorSets>::meta_builder {
     void build(index& idx) {
         if (idx.m_k2u.size() != 0) throw std::runtime_error("index already built");
 
-        hfur_index_t index;
         essentials::logger("step 1. loading index to be partitioned...");
-        essentials::load(index, m_build_config.index_filename_to_partition.c_str());
+        essentials::load(base_index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");
 
         const uint64_t num_threads = m_build_config.num_threads;
-        const uint64_t num_colors = index.num_colors();
-        const uint64_t num_color_sets = index.num_color_sets();
+        const uint64_t num_colors = base_index.num_colors();
+        const uint64_t num_color_sets = base_index.num_color_sets();
 
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
 
         permuter p(m_build_config);
-        p.permute(index);
-        auto const& permutation = p.permutation();
+        p.permute(base_index);
+        std::swap(permutation, p.permutation());
 
         const uint64_t num_partitions = p.num_partitions();
         const uint64_t max_partition_size = p.max_partition_size();
@@ -181,9 +180,9 @@ struct index<ColorSets>::meta_builder {
             std::vector<std::shared_mutex> partitions_mutex(num_partitions);
 
             for (uint64_t i = 0; i < num_threads; ++i) {
-                thread_slices[i] = index.num_color_sets() / num_threads * i;
+                thread_slices[i] = base_index.num_color_sets() / num_threads * i;
             }
-            thread_slices[num_threads] = index.num_color_sets();
+            thread_slices[num_threads] = base_index.num_color_sets();
 
             auto exe = [&](uint64_t thread_id) {
                 std::string tmp_filename = metacolor_set_file_name(thread_id);
@@ -234,7 +233,7 @@ struct index<ColorSets>::meta_builder {
                      color_set_id != thread_slices[thread_id + 1]; ++color_set_id) {
                     /* permute set */
                     permuted_set.clear();
-                    auto it = index.color_set(color_set_id);
+                    auto it = base_index.color_set(color_set_id);
                     uint64_t set_size = it.size();
                     for (uint64_t i = 0; i != set_size; ++i, ++it) {
                         uint32_t ref_id = *it;
@@ -357,9 +356,9 @@ struct index<ColorSets>::meta_builder {
         {
             essentials::logger("step 5. copy u2c + rank1_index and k2u");
             timer.start();
-            idx.m_u2c = index.get_u2c();
-            idx.m_u2c_rank1_index = index.get_u2c_rank1_index();
-            idx.m_k2u = index.get_k2u();
+            idx.m_u2c = base_index.get_u2c();
+            idx.m_u2c_rank1_index = base_index.get_u2c_rank1_index();
+            idx.m_k2u = base_index.get_k2u();
             timer.stop();
             std::cout << "** copying u2c and k2u took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
@@ -375,27 +374,30 @@ struct index<ColorSets>::meta_builder {
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
+    }
 
-        if (m_build_config.check) {
-            essentials::logger("step 7. check correctness...");
+    void check(index& idx) {
+        const uint64_t num_color_sets = idx.num_color_sets();
+        const uint64_t num_colors = idx.num_colors();
+        essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+        essentials::logger("step 7. check correctness...");
+        timer.start();
 
+        std::atomic<uint64_t> num_checked_color_sets(0);
+
+        uint64_t load = 0;
+        for (uint64_t color_set_id = 0; color_set_id != num_color_sets; ++color_set_id) {
+            load += idx.color_set(color_set_id).size();
+        }
+        uint64_t load_per_thread = load / m_build_config.num_threads + 1;
+
+        auto exe = [this, &idx, &num_checked_color_sets, num_colors, num_color_sets](uint64_t start, uint64_t end) {
+            assert(end > start);
             std::vector<uint32_t> permuted_set;
             permuted_set.reserve(num_colors);
 
-            uint8_t progress_bar_size = 20;
-            uint8_t curr_progress = 0;
-            std::string progress_bar(progress_bar_size, ' ');
-            uint64_t color_set_id = 0;
-            for (; color_set_id != num_color_sets; ++color_set_id)  //
-            {
-                if (color_set_id >= 1.0 * curr_progress * num_color_sets / progress_bar_size) {
-                    progress_bar[curr_progress++] = '#';
-                }
-                if (color_set_id % 1000 == 0) {
-                    std::cout << "\r Progress: [" << progress_bar << "] " << color_set_id << "/"
-                              << num_color_sets << std::flush;
-                }
-                auto it_exp = index.color_set(color_set_id);
+            for (uint64_t color_set_id = start; color_set_id != end; ++color_set_id) {
+                auto it_exp = base_index.color_set(color_set_id);
                 auto it_got = idx.color_set(color_set_id);
                 const uint64_t exp_size = it_exp.size();
                 const uint64_t got_size = it_got.size();
@@ -422,15 +424,42 @@ struct index<ColorSets>::meta_builder {
                         return;
                     }
                 }
+
+                if (++num_checked_color_sets % 1000 == 0) {
+                    std::cout << "\rChecked " << num_checked_color_sets << "/"
+                              << num_color_sets << " color sets" << std::flush;
+                }
             }
-            std::cout << "\r Progress: [" << progress_bar << "] " << color_set_id << "/"
-                      << num_color_sets << std::endl;
-            essentials::logger("DONE!");
+        };
+
+        std::vector<std::thread> threads(m_build_config.num_threads);
+        uint64_t start = 0, curr_set_id = 0, curr_load = 0;
+        for (uint64_t thread_id = 0; thread_id != m_build_config.num_threads; ++thread_id) {
+            while (curr_load < load_per_thread && curr_set_id < num_color_sets) {
+                curr_load += idx.color_set(curr_set_id).size();
+                ++curr_set_id;
+            }
+            threads[thread_id] = std::thread(exe, start, curr_set_id);
+            start = curr_set_id;
+            curr_load = 0;
         }
+        for (auto& t : threads) {
+            if (t.joinable()) t.join();
+        }
+
+        std::cout << "\rChecked " << num_checked_color_sets << "/"
+                          << num_color_sets << " color sets" << std::endl;
+
+        timer.stop();
+        std::cout << "** checking correctness took " << timer.elapsed() << " seconds / "
+                  << timer.elapsed() / 60 << " minutes" << std::endl;
+        essentials::logger("CHECKS DONE!");
     }
 
 private:
     build_configuration m_build_config;
+    hfur_index_t base_index;
+    std::vector<uint32_t> permutation;
 
     std::string metacolor_set_file_name(uint32_t id) {
         return m_build_config.tmp_dirname + "/metacolor_set_" + std::to_string(id) + ".bin";

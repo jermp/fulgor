@@ -8,7 +8,7 @@ void meta_color(build_configuration const& build_config, const bool force)  //
                                   "." + constants::mfur_filename_extension;
 
     if (std::filesystem::exists(output_filename)) {
-        std::cerr << "An index with the name '" << output_filename << "' alreay exists."
+        std::cerr << "An index with the name '" << output_filename << "' already exists."
                   << std::endl;
         if (force) {
             std::cerr << "Option '--force' specified: re-building the index." << std::endl;
@@ -50,7 +50,7 @@ void diff_color(build_configuration const& build_config, const bool force)  //
                                   "." + constants::dfur_filename_extension;
 
     if (std::filesystem::exists(output_filename)) {
-        std::cerr << "An index with the name '" << output_filename << "' alreay exists."
+        std::cerr << "An index with the name '" << output_filename << "' already exists."
                   << std::endl;
         if (force) {
             std::cerr << "Option '--force' specified: re-building the index." << std::endl;
@@ -92,7 +92,7 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
                                   "." + constants::mdfur_filename_extension;
 
     if (std::filesystem::exists(output_filename)) {
-        std::cerr << "An index with the name '" << output_filename << "' alreay exists."
+        std::cerr << "An index with the name '" << output_filename << "' already exists."
                   << std::endl;
         if (force) {
             std::cerr << "Option '--force' specified: re-building the index." << std::endl;
@@ -192,7 +192,7 @@ int build(int argc, char** argv) {
     }
 
     if (std::filesystem::exists(output_filename)) {
-        std::cerr << "An index with the name '" << output_filename << "' alreay exists."
+        std::cerr << "An index with the name '" << output_filename << "' already exists."
                   << std::endl;
         if (force) {
             std::cerr << "Option '--force' specified: re-building the index." << std::endl;

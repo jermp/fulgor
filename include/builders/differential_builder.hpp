@@ -414,9 +414,9 @@ struct index<ColorSets>::differential_builder {
             auto exp_it = index.color_set(permutation[color_set_id].second);
             auto res_it = idx.color_set(color_set_id);
             if (res_it.size() != exp_it.size()) {
-                std::cout << "Error while checking color " << color_set_id
+                std::cout << "\033[1;31m" << "Error while checking color " << color_set_id
                           << ", different sizes: expected " << exp_it.size() << " but got "
-                          << res_it.size() << std::endl;
+                          << res_it.size() << ")\033[0m" << std::endl;
                 continue;
             }
 
@@ -424,9 +424,9 @@ struct index<ColorSets>::differential_builder {
                 auto exp = *exp_it;
                 auto got = *res_it;
                 if (exp != got) {
-                    std::cout << "Error while checking color " << color_set_id
+                    std::cout << "\033[1;31m" << "Error while checking color " << color_set_id
                               << ", mismatch at position " << j << ": expected " << exp
-                              << " but got " << got << std::endl;
+                              << " but got " << got << ")\033[0m" << std::endl;
                 }
             }
         }
@@ -439,8 +439,8 @@ struct index<ColorSets>::differential_builder {
                 auto [_, kmer] = it.next();
                 uint64_t new_contig_id = idx.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
                 if (new_contig_id != unitig_id) {
-                    std::cout << "expected " << unitig_id << " but found " << new_contig_id
-                              << std::endl;
+                    std::cout << "\033[1;31m" << "expected " << unitig_id << " but found " << new_contig_id
+                              << ")\033[0m" << std::endl;
                     continue;
                 }
                 uint64_t old_contig_id =
@@ -452,18 +452,18 @@ struct index<ColorSets>::differential_builder {
                 auto exp_it = index.color_set(old_color_set_id);
                 auto res_it = idx.color_set(new_color_set_id);
                 if (res_it.size() != exp_it.size()) {
-                    std::cout << "Error while checking color " << new_color_set_id
+                    std::cout << "\033[1;31m" << "Error while checking color " << new_color_set_id
                               << ", different sizes: expected " << exp_it.size() << " but got "
-                              << res_it.size() << std::endl;
+                              << res_it.size() << ")\033[0m" << std::endl;
                     continue;
                 }
                 for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
                     auto exp = *exp_it;
                     auto got = *res_it;
                     if (exp != got) {
-                        std::cout << "Error while checking color " << new_color_set_id
+                        std::cout << "\033[1;31m" << "Error while checking color " << new_color_set_id
                                   << ", mismatch at position " << j << ": expected " << exp
-                                  << " but got " << got << std::endl;
+                                  << " but got " << got << ")\033[0m" << std::endl;
                     }
                 }
             }

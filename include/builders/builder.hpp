@@ -236,23 +236,23 @@ struct index<ColorSets>::builder {
                 for (uint64_t i = 1; i != unitig.size - idx.m_k2u.k() + 1; ++i) {
                     uint64_t got = idx.m_k2u.lookup_advanced(unitig.data + i).contig_id;
                     if (got != unitig_id) {
-                        std::cout << "got unitig_id " << got << " but expected " << unitig_id
-                                  << std::endl;
+                        std::cout << "\033[1;31m" << "got unitig_id " << got << " but expected " << unitig_id
+                                  << ")\033[0m" << std::endl;
                         return;
                     }
                 }
                 auto fwd_it = idx.m_color_sets.color_set(color_id);
                 const uint64_t size = fwd_it.size();
                 if (size != color_set.size) {
-                    std::cout << "got color_set size " << size << " but expected "
-                              << color_set.size << std::endl;
+                    std::cout << "\033[1;31m" << "got color_set size " << size << " but expected "
+                              << color_set.size << ")\033[0m" << std::endl;
                     return;
                 }
                 for (uint64_t i = 0; i != size; ++i, ++fwd_it) {
                     uint32_t ref = *fwd_it;
                     if (ref != color_set.data[i]) {
-                        std::cout << "got ref " << ref << " but expected " << color_set.data[i]
-                                  << std::endl;
+                        std::cout << "\033[1;31m" << "got ref " << ref << " but expected " << color_set.data[i]
+                                  << ")\033[0m" << std::endl;
                         return;
                     }
                 }

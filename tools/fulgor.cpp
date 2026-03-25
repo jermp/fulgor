@@ -33,6 +33,7 @@ int help(char* arg0) {
         << "  build              build an index\n"
         << "  pseudoalign        perform pseudoalignment to an index\n"
         << "  kmer-conservation  print color set info for each positive kmer in query\n"
+        << "  check              verify that an index was built correctly by comparing it to another one\n"
         << "  verify             verify that index works correctly with current library version\n"
         << "  stats              print index statistics\n"
         << "  print-filenames    print all reference filenames\n"
@@ -53,12 +54,17 @@ int main(int argc, char** argv) {
     auto tool = std::string(argv[1]);
 
     /* basic tools */
-    if (tool == "build") {
+    if (tool == "help") {
+        help(argv[0]);
+        return 0;
+    } else if (tool == "build") {
         return build(argc - 1, argv + 1);
     } else if (tool == "pseudoalign") {
         return pseudoalign(argc - 1, argv + 1);
     } else if (tool == "kmer-conservation") {
         return kmer_conservation(argc - 1, argv + 1);
+    } else if (tool == "check") {
+        return check(argc - 1, argv + 1);
     } else if (tool == "verify") {
         return verify(argc - 1, argv + 1);
     } else if (tool == "stats") {

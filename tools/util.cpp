@@ -196,6 +196,17 @@ int check(BaseIndex base, TargetIndex target, uint64_t num_threads, bool verbose
     threads.enqueue([&, start, num_unitigs]{ exe(start, num_unitigs); }); // last one
     threads.wait();
 
+    std::cout << "\033[3A"; // Move up 3 lines
+
+    std::cout << "\033[2K"; // Clear line
+    std::cout << "Unitigs checked:     " << num_checked_unitigs << "/" << num_unitigs << std::endl;
+
+    std::cout << "\033[2K"; // Clear line
+    std::cout << "Color sets checked:  " << num_checked_color_sets << "/" << num_color_sets << std::endl;
+
+    std::cout << "\033[2K"; // Clear line
+    std::cout << "Kmers checked:       " << num_checked_kmers << "/" << num_kmers << std::endl;
+
     return 0;
 }
 

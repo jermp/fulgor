@@ -107,83 +107,94 @@ int check(BaseIndex base, TargetIndex target, uint64_t num_threads, bool verbose
     std::vector<bool> checked_color_sets(num_color_sets, false);
     std::atomic<uint64_t> num_checked_unitigs(0), num_checked_color_sets(0), num_checked_kmers(0);
 
-    std::cout << "Unitigs checked:     0/" << num_unitigs << std::endl;
-    std::cout << "Color sets checked:  0/" << num_color_sets << std::endl;
-    std::cout << "Kmers checked:       0/" << num_kmers << std::endl;
-
-    for (uint64_t unitig_id = 0; unitig_id != num_unitigs; ++unitig_id) {
-        ++num_checked_unitigs;
-
-        if (num_checked_unitigs % 1000 == 0) {
-            std::cout << "\033[3A"; // Move up 3 lines
-
-            std::cout << "\033[2K"; // Clear line
-            std::cout << "Unitigs checked:     " << num_checked_unitigs << "/" << num_unitigs << std::endl;
-
-            std::cout << "\033[2K"; // Clear line
-            std::cout << "Color sets checked:  " << num_checked_color_sets << "/" << num_color_sets << std::endl;
-
-            std::cout << "\033[2K"; // Clear line
-            std::cout << "Kmers checked:       " << num_checked_kmers << "/" << num_kmers << std::endl;
-        }
-
-        auto it = target.get_k2u().at_contig_id(unitig_id);
-        auto [_, kmer] = it.next();
-        const uint64_t base_contig_id = base.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-        const uint64_t target_contig_id = target.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-        ++num_checked_kmers;
-
-        while (it.has_next()) {
-            ++num_checked_kmers;
-            auto [_, kmer] = it.next();
-            const uint64_t curr_target_contig_id = target.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-            const uint64_t curr_base_contig_id = base.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-            if (target_contig_id != curr_target_contig_id) { // should never happen
-                std::cerr << "\033[1;31m" << "expected " << target_contig_id << " but found " << curr_target_contig_id
-                          << "\033[0m" << std::endl;
-                continue; // FIXME: goto or flag
-            }
-            if (base_contig_id != curr_base_contig_id) {
-                std::cerr << "\033[1;31m" << "expected " << base_contig_id << " but found " << curr_base_contig_id
-                          << "\033[0m" << std::endl;
-                continue; // FIXME: goto or flag
-            }
-        }
-
-        uint64_t base_color_set_id = base.u2c(base_contig_id);
-        uint64_t target_color_set_id = target.u2c(target_contig_id);
-
-        if (checked_color_sets[target_color_set_id]) continue;
-        checked_color_sets[target_color_set_id] = true;
-        ++num_checked_color_sets;
-
-        auto base_it = base.color_set(base_color_set_id);
-        auto target_it = target.color_set(target_color_set_id);
-
-        if (target_it.size() != base_it.size()) {
-            std::cerr << "\033[1;31m" << "Error while checking color set " << target_color_set_id
-                      << ", different sizes: expected " << base_it.size()
-                      << " but got " << target_it.size() << "\033[0m" << std::endl;
-            continue;
-        }
-
-        std::vector<uint32_t> permuted_base;
-        for (uint64_t j = 0; j < base_it.size(); ++j, ++base_it) {
-            permuted_base.push_back(base_to_target[*base_it]);
-        }
-        std::sort(permuted_base.begin(), permuted_base.end());
-        auto pbase_it = permuted_base.begin();
-
-        for (uint64_t j = 0; j < target_it.size(); ++j, ++pbase_it, ++target_it) {
-            auto base_val = *pbase_it;
-            auto target_val = *target_it;
-            if (base_val != target_val) {
-                std::cerr << "\033[1;31m" << "Error while checking color set " << target_color_set_id
-                          << ", mismatch at position " << j << ": expected " << base_to_target[base_val]
-                          << " but got " << target_val << "\033[0m" << std::endl;
-            }
-        }
+    if (verbose) {
+        std::cout << "Unitigs checked:     0/" << num_unitigs << std::endl;
+        std::cout << "Color sets checked:  0/" << num_color_sets << std::endl;
+        std::cout << "Kmers checked:       0/" << num_kmers << std::endl;
     }
+
+    auto exe = [&](uint64_t unitig_begin, uint64_t unitig_end) {
+        for (uint64_t unitig_id = unitig_begin; unitig_id != unitig_end; ++unitig_id) {
+            if (verbose && ++num_checked_unitigs % 1000 == 0) {
+                std::cout << "\033[3A"; // Move up 3 lines
+
+                std::cout << "\033[2K"; // Clear line
+                std::cout << "Unitigs checked:     " << num_checked_unitigs << "/" << num_unitigs << std::endl;
+
+                std::cout << "\033[2K"; // Clear line
+                std::cout << "Color sets checked:  " << num_checked_color_sets << "/" << num_color_sets << std::endl;
+
+                std::cout << "\033[2K"; // Clear line
+                std::cout << "Kmers checked:       " << num_checked_kmers << "/" << num_kmers << std::endl;
+            }
+
+            auto it = target.get_k2u().at_contig_id(unitig_id);
+            auto [_, kmer] = it.next();
+            const uint64_t base_contig_id = base.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+            const uint64_t target_contig_id = target.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+            ++num_checked_kmers;
+
+            while (it.has_next()) {
+                ++num_checked_kmers;
+                auto [_, kmer] = it.next();
+                const uint64_t curr_target_contig_id = target.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+                const uint64_t curr_base_contig_id = base.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+                if (target_contig_id != curr_target_contig_id) { // should never happen
+                    std::cerr << "\033[1;31m" << "expected unitig " << target_contig_id << " but found " << curr_target_contig_id
+                              << "\033[0m" << std::endl;
+                }
+                if (base_contig_id != curr_base_contig_id) {
+                    std::cerr << "\033[1;31m" << "expected unitig " << base_contig_id << " but found " << curr_base_contig_id
+                              << "\033[0m" << std::endl;
+                }
+            }
+
+            uint64_t base_color_set_id = base.u2c(base_contig_id);
+            uint64_t target_color_set_id = target.u2c(target_contig_id);
+
+            if (checked_color_sets[target_color_set_id]) continue;
+            checked_color_sets[target_color_set_id] = true;
+            ++num_checked_color_sets;
+
+            auto base_it = base.color_set(base_color_set_id);
+            auto target_it = target.color_set(target_color_set_id);
+
+            if (target_it.size() != base_it.size()) {
+                std::cerr << "\033[1;31m" << "Error while checking color set " << target_color_set_id
+                          << ", different sizes: expected " << base_it.size()
+                          << " but got " << target_it.size() << "\033[0m" << std::endl;
+                continue;
+            }
+
+            std::vector<uint32_t> permuted_base;
+            for (uint64_t j = 0; j < base_it.size(); ++j, ++base_it) {
+                permuted_base.push_back(base_to_target[*base_it]);
+            }
+            std::sort(permuted_base.begin(), permuted_base.end());
+            auto pbase_it = permuted_base.begin();
+
+            for (uint64_t j = 0; j < target_it.size(); ++j, ++pbase_it, ++target_it) {
+                auto base_val = *pbase_it;
+                auto target_val = *target_it;
+                if (base_val != target_val) {
+                    std::cerr << "\033[1;31m" << "Error while checking color set " << target_color_set_id
+                              << ", mismatch at position " << j << ": expected " << base_to_target[base_val]
+                              << " but got " << target_val << "\033[0m" << std::endl;
+                }
+            }
+        }
+    };
+
+    kmeans::thread_pool threads(num_threads);
+    const uint64_t load_per_thread = num_unitigs / (num_threads << 10);
+    uint64_t start = 0, end = load_per_thread;
+    while (end < num_unitigs) {
+        threads.enqueue([&, start, end]{ exe(start, std::min(end, num_unitigs)); });
+        start = end;
+        end = std::min(end + load_per_thread, num_unitigs);
+    }
+    threads.enqueue([&, start, num_unitigs]{ exe(start, num_unitigs); }); // last one
+    threads.wait();
 
     return 0;
 }

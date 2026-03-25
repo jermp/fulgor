@@ -1,6 +1,6 @@
 [![Build](https://github.com/jermp/fulgor/actions/workflows/build.yml/badge.svg)](https://github.com/jermp/fulgor/actions/workflows/build.yml)
 [![CodeQL](https://github.com/jermp/fulgor/actions/workflows/codeql.yml/badge.svg)](https://github.com/jermp/fulgor/actions/workflows/codeql.yml)
-[![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/fulgor/README.html)
+![install with bioconda](https://img.shields.io/badge/Install%20with-bioconda-brightgreen.svg?style=flat&logo=anaconda&logoColor=lightgray&labelColor=rgb(40,47,56)&color=rgb(68,190,80))
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="img/fulgor_on_dark.png">
@@ -86,24 +86,30 @@ Tools and usage
 ---------------
 
 There is one executable called `fulgor` after the compilation, which can be used to run a tool.
-Run `./fulgor` to see a list of available tools.
+Run `./fulgor help` to see a list of available tools.
 
-	== Fulgor: a colored de Bruijn graph index ========================================
-
-	Usage: ./fulgor <tool> ...
-
-	Tools:
-	  build              build an index
-	  pseudoalign        perform pseudoalignment to an index
-	  kmer-conservation  print color set info for each positive kmer in query
-	  verify             verify that index works correctly with current library version
-	  stats              print index statistics
-	  print-filenames    print all reference filenames
-
-	Advanced tools:
-	  permute            permute the reference names of an index
-	  dump               write unitigs and color sets of an index in text format
-	  color              build a meta- or a diff- or a meta-diff- index
+    == Fulgor: a colored de Bruijn graph index ========================================
+    
+    Usage: ./fulgor <tool> ...
+    
+    Construction:
+      build              build an index
+      color              build a meta- or a diff- or a meta-diff- index
+      permute            permute the reference names of an index
+    
+    Queries:
+      pseudoalign        perform pseudoalignment to an index
+      kmer-conservation  print color set info for each positive kmer in query
+    
+    Debug:
+      check              perform an in-depth check to verify that an index was built correctly.
+      verify             verify that index works correctly with current library version
+      stats              print index statistics
+      print-filenames    print all reference filenames
+      dump               write unitigs and color sets of an index in text format
+    
+    Other:
+      help               print this helper and exit gracefully
 
 For large-scale indexing, it could be necessary to increase the number of file descriptors that can be opened simultaneously:
 

@@ -217,46 +217,61 @@ struct index<ColorSets>::builder {
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
+    }
 
-        if (m_build_config.check)  //
-        {
-            essentials::logger("step 5. check correctness...");
-            m_ccdbg.loop_through_unitigs(
-                [&](ggcat::Slice<char> const unitig,         //
-                    ggcat::Slice<uint32_t> const color_set,  //
-                    bool /* same_color_set */)               //
-                {
-                    auto lookup_result = idx.m_k2u.lookup_advanced(unitig.data);
-                    const uint64_t unitig_id = lookup_result.contig_id;
-                    const uint64_t color_id = idx.u2c(unitig_id);
-                    for (uint64_t i = 1; i != unitig.size - idx.m_k2u.k() + 1; ++i) {
-                        uint64_t got = idx.m_k2u.lookup_advanced(unitig.data + i).contig_id;
-                        if (got != unitig_id) {
-                            std::cout << "got unitig_id " << got << " but expected " << unitig_id
-                                      << std::endl;
-                            return;
-                        }
-                    }
-                    auto fwd_it = idx.m_color_sets.color_set(color_id);
-                    const uint64_t size = fwd_it.size();
-                    if (size != color_set.size) {
-                        std::cout << "got color_set size " << size << " but expected "
-                                  << color_set.size << std::endl;
+    void check(index& idx) {
+        essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+        essentials::logger("step 5. check correctness...");
+        timer.start();
+        std::atomic<uint64_t> num_checked_unitigs(0);
+
+        m_ccdbg.loop_through_unitigs(
+            [&](ggcat::Slice<char> const unitig,         //
+                ggcat::Slice<uint32_t> const color_set,  //
+                bool /* same_color_set */)               //
+            {
+                auto lookup_result = idx.m_k2u.lookup_advanced(unitig.data);
+                const uint64_t unitig_id = lookup_result.contig_id;
+                const uint64_t color_id = idx.u2c(unitig_id);
+                for (uint64_t i = 1; i != unitig.size - idx.m_k2u.k() + 1; ++i) {
+                    uint64_t got = idx.m_k2u.lookup_advanced(unitig.data + i).contig_id;
+                    if (got != unitig_id) {
+                        std::cout << "\033[1;31m" << "got unitig_id " << got << " but expected " << unitig_id
+                                  << ")\033[0m" << std::endl;
                         return;
                     }
-                    for (uint64_t i = 0; i != size; ++i, ++fwd_it) {
-                        uint32_t ref = *fwd_it;
-                        if (ref != color_set.data[i]) {
-                            std::cout << "got ref " << ref << " but expected " << color_set.data[i]
-                                      << std::endl;
-                            return;
-                        }
+                }
+                auto fwd_it = idx.m_color_sets.color_set(color_id);
+                const uint64_t size = fwd_it.size();
+                if (size != color_set.size) {
+                    std::cout << "\033[1;31m" << "got color_set size " << size << " but expected "
+                              << color_set.size << ")\033[0m" << std::endl;
+                    return;
+                }
+                for (uint64_t i = 0; i != size; ++i, ++fwd_it) {
+                    uint32_t ref = *fwd_it;
+                    if (ref != color_set.data[i]) {
+                        std::cout << "\033[1;31m" << "got ref " << ref << " but expected " << color_set.data[i]
+                                  << ")\033[0m" << std::endl;
+                        return;
                     }
-                },
-                m_build_config.num_threads  //
-            );
-            essentials::logger("DONE!");
-        }
+                }
+
+                if (++num_checked_unitigs % 1000 == 0) {
+                    std::cout << "\rChecked " << num_checked_unitigs << "/"
+                              << idx.m_k2u.num_contigs() << " unitigs" << std::flush;
+                }
+            },
+            m_build_config.num_threads  //
+        );
+
+        std::cout << "\rChecked " << num_checked_unitigs << "/"
+                              << idx.m_k2u.num_contigs() << " unitigs" << std::endl;
+
+        timer.stop();
+        std::cout << "** checking correctness took " << timer.elapsed() << " seconds / "
+                  << timer.elapsed() / 60 << " minutes" << std::endl;
+        essentials::logger("CHECKS DONE!");
     }
 
 private:

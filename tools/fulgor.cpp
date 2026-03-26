@@ -29,20 +29,31 @@ int help(char* arg0) {
     std::cout << "Usage: " << arg0 << " <tool> ...\n\n";
 
     std::cout
-        << "Tools:\n"
+        << "Construction:\n"
         << "  build              build an index\n"
+        << "  color              build a meta- or a diff- or a meta-diff- index\n"
+        << "  permute            permute the reference names of an index\n"
+        << std::endl;
+
+    std::cout
+        << "Queries:\n"
         << "  pseudoalign        perform pseudoalignment to an index\n"
         << "  kmer-conservation  print color set info for each positive kmer in query\n"
+        << std::endl;
+
+    std::cout
+        << "Debug:\n"
+        << "  check              perform an in-depth check to verify that an index was built correctly\n"
         << "  verify             verify that index works correctly with current library version\n"
         << "  stats              print index statistics\n"
         << "  print-filenames    print all reference filenames\n"
+        << "  dump               write unitigs and color sets of an index in text format\n"
         << std::endl;
 
-    std::cout << "Advanced tools:\n"
-              << "  permute            permute the reference names of an index\n"
-              << "  dump               write unitigs and color sets of an index in text format\n"
-              << "  color              build a meta- or a diff- or a meta-diff- index\n"
-              << std::endl;
+    std::cout
+        << "Other:\n"
+        << "  help               print this helper and exit gracefully\n"
+        << std::endl;
 
     return 1;
 }
@@ -53,12 +64,17 @@ int main(int argc, char** argv) {
     auto tool = std::string(argv[1]);
 
     /* basic tools */
-    if (tool == "build") {
+    if (tool == "help") {
+        help(argv[0]);
+        return 0;
+    } else if (tool == "build") {
         return build(argc - 1, argv + 1);
     } else if (tool == "pseudoalign") {
         return pseudoalign(argc - 1, argv + 1);
     } else if (tool == "kmer-conservation") {
         return kmer_conservation(argc - 1, argv + 1);
+    } else if (tool == "check") {
+        return check(argc - 1, argv + 1);
     } else if (tool == "verify") {
         return verify(argc - 1, argv + 1);
     } else if (tool == "stats") {

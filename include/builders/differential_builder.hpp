@@ -123,7 +123,7 @@ struct differential_permuter {
 
     uint64_t num_partitions() const { return m_num_partitions; }
     uint64_t num_colors() const { return m_num_colors; }
-    std::vector<std::pair<uint32_t, uint32_t>> permutation() const { return m_permutation; }
+    std::vector<std::pair<uint32_t, uint32_t>>& permutation() { return m_permutation; }
 
 private:
     build_configuration m_build_config;
@@ -206,7 +206,6 @@ struct index<ColorSets>::differential_builder {
 
         const uint32_t num_threads = m_build_config.num_threads;
 
-        hfur_index_t index;
         essentials::logger("step 1. loading index to be differentiated...");
         essentials::load(index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");
@@ -215,7 +214,7 @@ struct index<ColorSets>::differential_builder {
 
         differential_permuter p(m_build_config);
         p.permute(index);
-        auto const& permutation = p.permutation();
+        std::swap(permutation, p.permutation());
         const uint64_t num_partitions = p.num_partitions();
         const uint64_t num_color_sets = index.num_color_sets();
         const uint64_t num_colors = index.num_colors();
@@ -405,65 +404,66 @@ struct index<ColorSets>::differential_builder {
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
+    }
 
-        if (m_build_config.check) {
-            essentials::logger("step 7. check correctness...");
+    void check(index& idx) {
+        essentials::logger("step 7. check correctness...");
+        const uint64_t num_color_sets = idx.num_color_sets();
 
-            for (uint64_t color_set_id = 0; color_set_id < num_color_sets; color_set_id++) {
-                auto exp_it = index.color_set(permutation[color_set_id].second);
-                auto res_it = idx.color_set(color_set_id);
-                if (res_it.size() != exp_it.size()) {
-                    std::cout << "Error while checking color " << color_set_id
-                              << ", different sizes: expected " << exp_it.size() << " but got "
-                              << res_it.size() << std::endl;
+        for (uint64_t color_set_id = 0; color_set_id < num_color_sets; color_set_id++) {
+            auto exp_it = index.color_set(permutation[color_set_id].second);
+            auto res_it = idx.color_set(color_set_id);
+            if (res_it.size() != exp_it.size()) {
+                std::cout << "\033[1;31m" << "Error while checking color " << color_set_id
+                          << ", different sizes: expected " << exp_it.size() << " but got "
+                          << res_it.size() << ")\033[0m" << std::endl;
+                continue;
+            }
+
+            for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
+                auto exp = *exp_it;
+                auto got = *res_it;
+                if (exp != got) {
+                    std::cout << "\033[1;31m" << "Error while checking color " << color_set_id
+                              << ", mismatch at position " << j << ": expected " << exp
+                              << " but got " << got << ")\033[0m" << std::endl;
+                }
+            }
+        }
+
+        std::cout << " COLORS DONE." << std::endl;
+
+        for (uint64_t unitig_id = 0; unitig_id < idx.m_k2u.num_contigs(); ++unitig_id) {
+            auto it = idx.get_k2u().at_contig_id(unitig_id);
+            while (it.has_next()) {
+                auto [_, kmer] = it.next();
+                uint64_t new_contig_id = idx.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+                if (new_contig_id != unitig_id) {
+                    std::cout << "\033[1;31m" << "expected " << unitig_id << " but found " << new_contig_id
+                              << ")\033[0m" << std::endl;
                     continue;
                 }
+                uint64_t old_contig_id =
+                    index.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
 
+                uint64_t new_color_set_id = idx.u2c(new_contig_id);
+                uint64_t old_color_set_id = index.u2c(old_contig_id);
+
+                auto exp_it = index.color_set(old_color_set_id);
+                auto res_it = idx.color_set(new_color_set_id);
+                if (res_it.size() != exp_it.size()) {
+                    std::cout << "\033[1;31m" << "Error while checking color " << new_color_set_id
+                              << ", different sizes: expected " << exp_it.size() << " but got "
+                              << res_it.size() << ")\033[0m" << std::endl;
+                    continue;
+                }
                 for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
                     auto exp = *exp_it;
                     auto got = *res_it;
                     if (exp != got) {
-                        std::cout << "Error while checking color " << color_set_id
+                        std::cout << "\033[1;31m" << "Error while checking color " << new_color_set_id
                                   << ", mismatch at position " << j << ": expected " << exp
-                                  << " but got " << got << std::endl;
-                    }
-                }
-            }
-
-            std::cout << " COLORS DONE." << std::endl;
-
-            for (uint64_t unitig_id = 0; unitig_id < idx.m_k2u.num_contigs(); ++unitig_id) {
-                auto it = idx.get_k2u().at_contig_id(unitig_id);
-                while (it.has_next()) {
-                    auto [_, kmer] = it.next();
-                    uint64_t new_contig_id = idx.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-                    if (new_contig_id != unitig_id) {
-                        std::cout << "expected " << unitig_id << " but found " << new_contig_id
-                                  << std::endl;
-                        continue;
-                    }
-                    uint64_t old_contig_id =
-                        index.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-
-                    uint64_t new_color_set_id = idx.u2c(new_contig_id);
-                    uint64_t old_color_set_id = index.u2c(old_contig_id);
-
-                    auto exp_it = index.color_set(old_color_set_id);
-                    auto res_it = idx.color_set(new_color_set_id);
-                    if (res_it.size() != exp_it.size()) {
-                        std::cout << "Error while checking color " << new_color_set_id
-                                  << ", different sizes: expected " << exp_it.size() << " but got "
-                                  << res_it.size() << std::endl;
-                        continue;
-                    }
-                    for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
-                        auto exp = *exp_it;
-                        auto got = *res_it;
-                        if (exp != got) {
-                            std::cout << "Error while checking color " << new_color_set_id
-                                      << ", mismatch at position " << j << ": expected " << exp
-                                      << " but got " << got << std::endl;
-                        }
+                                  << " but got " << got << ")\033[0m" << std::endl;
                     }
                 }
             }
@@ -472,5 +472,7 @@ struct index<ColorSets>::differential_builder {
 
 private:
     build_configuration m_build_config;
+    hfur_index_t index;
+    std::vector<std::pair<uint32_t, uint32_t>> permutation;
 };
 }  // namespace fulgor

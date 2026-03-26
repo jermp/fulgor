@@ -230,7 +230,7 @@ This file has one line for each processed read, formatted as follows:
 
 where `[list]` is a TAB-separated list of integer triples, of length `[list-length]`.
 (`[TAB]` is the character `\t`.)
-If a triple is `(p n i)`, it means that the `n` kmers starting from that at position `p` in the query all have color set id `i`.
+If a triple is `(p n i)`, it means that the `n` kmers starting at position `p` in the query all have color set id `i`.
 
 Obtaining an iterator over the actual color set of id `i`, is as simple as
 
@@ -247,4 +247,4 @@ where the variable `it` is the iterator and `it.size()` is the size of the color
 	SRR801268.987	1	(0 23 1)
 	SRR801268.988	1	(0 8 3)
 
-For example, in the second query, the triple `(12 6 3)` indicates that the 6 kmers starting from that at position 12 in the query all have color set id 3.
+For example, in the second query, the triple `(12 6 3)` indicates that the 6 kmers starting at position 12 in the query all have color set id 3.

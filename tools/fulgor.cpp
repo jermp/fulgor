@@ -24,6 +24,12 @@ int help(char* arg0) {
     std::cout << "== Fulgor: a colored de Bruijn graph index "
                  "========================================"
               << std::endl
+              << "  (v"
+              << essentials::version_number(
+                  constants::current_version_number::major,
+                  constants::current_version_number::minor,
+                  constants::current_version_number::patch).to_string() << ')'
+              << std::endl
               << std::endl;
 
     std::cout << "Usage: " << arg0 << " <tool> ...\n\n";

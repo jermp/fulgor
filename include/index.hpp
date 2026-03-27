@@ -23,9 +23,9 @@ struct index {
     struct meta_differential_builder;
 
     index()
-        : m_vnum(constants::current_version_number::x,  //
-                 constants::current_version_number::y,  //
-                 constants::current_version_number::z)  //
+        : m_vnum(constants::current_version_number::major,  //
+                 constants::current_version_number::minor,  //
+                 constants::current_version_number::patch)  //
     {}
 
     typename color_sets_type::iterator_type color_set(uint64_t color_set_id) const {

@@ -29,9 +29,9 @@ static const std::string dfur_filename_extension("dfur");
 static const std::string mdfur_filename_extension("mdfur");
 
 namespace current_version_number {
-constexpr uint8_t x = 4;
-constexpr uint8_t y = 0;
-constexpr uint8_t z = 0;
+constexpr uint8_t major = 4;
+constexpr uint8_t minor = 1;
+constexpr uint8_t patch = 0;
 }  // namespace current_version_number
 
 }  // namespace constants
@@ -87,7 +87,7 @@ void print_cmd(int argc, char** argv) {
 std::string filename(std::string const& path) { return path.substr(path.find_last_of("/\\") + 1); }
 
 void check_version_number(essentials::version_number const& vnum) {
-    if (vnum.x != constants::current_version_number::x) {
+    if (vnum.x != constants::current_version_number::major) {
         throw std::runtime_error("MAJOR index version mismatch: Fulgor index needs rebuilding");
     }
 }

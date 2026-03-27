@@ -3,10 +3,10 @@ name: Production Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*' # Trigger only when a tag like v1.0.0 is pushed
 
 jobs:
-  validate-and-release:
+  build-and-release:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -14,28 +14,40 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      # This pulls the artifact saved by the 'Build' workflow
-      - name: Download Binary
-        uses: actions/download-artifact@v4
         with:
-          name: compiled-fulgor-binary
-          path: ./ # Places it in the root
+          submodules: recursive # Ensures your submodules are there for the build
 
-      - name: Verify and Archive
+      - name: Install Dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install --assume-yes --no-install-recommends ca-certificates cmake git gcc-14 g++-14
+          echo "CC=/usr/bin/gcc-14" >> $GITHUB_ENV
+          echo "CXX=/usr/bin/g++-14" >> $GITHUB_ENV
+
+      - name: Build Fulgor
+        run: |
+          cmake -B ./build
+          cmake --build ./build --parallel
+          # Ensure the binary is in the root or known path for the check
+          cp ./build/fulgor ./fulgor 
           chmod +x ./fulgor
-          
-          # 1. Version Check
+
+      - name: Verify Version Match
+        run: |
+          # Get version from binary
           BINARY_VERSION=$(./fulgor help | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+')
+          # Get version from the tag you just pushed
           GIT_TAG=${{ github.ref_name }}
+
+          echo "Binary: $BINARY_VERSION | Tag: $GIT_TAG"
+
           if [ "$BINARY_VERSION" != "$GIT_TAG" ]; then
-            echo "::error::Mismatch! Binary is $BINARY_VERSION, Tag is $GIT_TAG"
+            echo "::error::Version Mismatch! Binary is $BINARY_VERSION but Tag is $GIT_TAG"
             exit 1
           fi
-          
-          # 2. Run release custom script
-          bash scripts/create_release.sh --format zip {{ github.ref_name }}.tar.gz
+
+      - name: Run Archive Script
+        run: bash scripts/create_release.sh --format zip ${{ github.ref_name }}.tar.gz
 
       - name: Create GitHub Pre-Release
         uses: softprops/action-gh-release@v2

@@ -43,3 +43,11 @@ jobs:
         run: |
           cmake -B ./build
           cmake --build ./build --parallel
+      - name: Save Binary as Artifact
+        # Logic: Only on 'main' AND only for the GCC 14 matrix leg
+        if: github.ref == 'refs/heads/main' && matrix.compiler.name == 'gcc' && matrix.compiler.version == 14
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-fulgor-binary
+          path: ./build/fulgor
+          retention-days: 5

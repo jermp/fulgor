@@ -24,9 +24,9 @@ bool is_hybrid(std::string const& index_filename) {
 template <typename FulgorIndex>
 void verify(std::string const& index_filename) {
     FulgorIndex index;
-    essentials::version_number vnum(constants::current_version_number::x,   //
-                                    constants::current_version_number::y,   //
-                                    constants::current_version_number::z);  //
+    essentials::version_number vnum(constants::current_version_number::major,   //
+                                    constants::current_version_number::minor,   //
+                                    constants::current_version_number::patch);  //
     essentials::loader l(index_filename.c_str());
     l.visit(vnum);
     std::cout << "read version number = " << vnum.to_string() << std::endl;

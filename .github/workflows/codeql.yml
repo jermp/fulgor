@@ -2,9 +2,13 @@ name: "CodeQL"
 
 on:
   push:
+    branches:
+      - '**'
     tags-ignore:
       - 'v*'
   pull_request:
+    branches:
+      - '**'
 
 jobs:
   analyze:

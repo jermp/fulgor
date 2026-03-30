@@ -3,7 +3,7 @@ name: Production Release
 on:
   push:
     tags:
-      - 'v*' # Trigger only when a tag like v1.0.0 is pushed
+      - 'v*'
 
 jobs:
   build-and-release:

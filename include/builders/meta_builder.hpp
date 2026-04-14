@@ -391,7 +391,8 @@ struct index<ColorSets>::meta_builder {
         }
         uint64_t load_per_thread = load / m_build_config.num_threads + 1;
 
-        auto exe = [this, &idx, &num_checked_color_sets, num_colors, num_color_sets](uint64_t start, uint64_t end) {
+        auto exe = [this, &idx, &num_checked_color_sets, num_colors, num_color_sets](uint64_t start,
+                                                                                     uint64_t end) {
             assert(end > start);
             std::vector<uint32_t> permuted_set;
             permuted_set.reserve(num_colors);
@@ -403,9 +404,10 @@ struct index<ColorSets>::meta_builder {
                 const uint64_t got_size = it_got.size();
 
                 if (exp_size != got_size) {
-                    std::cout << "\033[1;31m" << "got colors set of size " << got_size
-                              << " but expected " << exp_size << " (color_set: " << color_set_id
-                              << ")\033[0m" << std::endl;
+                    std::cout << "\033[1;31m"
+                              << "got colors set of size " << got_size << " but expected "
+                              << exp_size << " (color_set: " << color_set_id << ")\033[0m"
+                              << std::endl;
                     return;
                 }
 
@@ -418,16 +420,17 @@ struct index<ColorSets>::meta_builder {
 
                 for (uint64_t i = 0; i != got_size; ++i, ++it_got) {
                     if (permuted_set[i] != *it_got) {
-                        std::cout << "\033[1;31m" << "got ref " << *it_got << " but expected "
-                                  << permuted_set[i] << "(color_set: " << color_set_id << ")"
+                        std::cout << "\033[1;31m"
+                                  << "got ref " << *it_got << " but expected " << permuted_set[i]
+                                  << "(color_set: " << color_set_id << ")"
                                   << "\033[0m" << std::endl;
                         return;
                     }
                 }
 
                 if (++num_checked_color_sets % 1000 == 0) {
-                    std::cout << "\rChecked " << num_checked_color_sets << "/"
-                              << num_color_sets << " color sets" << std::flush;
+                    std::cout << "\rChecked " << num_checked_color_sets << "/" << num_color_sets
+                              << " color sets" << std::flush;
                 }
             }
         };
@@ -447,8 +450,8 @@ struct index<ColorSets>::meta_builder {
             if (t.joinable()) t.join();
         }
 
-        std::cout << "\rChecked " << num_checked_color_sets << "/"
-                          << num_color_sets << " color sets" << std::endl;
+        std::cout << "\rChecked " << num_checked_color_sets << "/" << num_color_sets
+                  << " color sets" << std::endl;
 
         timer.stop();
         std::cout << "** checking correctness took " << timer.elapsed() << " seconds / "

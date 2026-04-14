@@ -84,7 +84,9 @@ struct index<ColorSets>::meta_differential_builder {
                                                                    num_partition_colors);
                 std::vector<std::thread> threads(thread_slices.size());
 
-                auto encode_color_sets = [&thread_builders, &thread_slices, &permutation, &meta_partition, num_partition_colors](uint64_t thread_id) {
+                auto encode_color_sets = [&thread_builders, &thread_slices, &permutation,
+                                          &meta_partition,
+                                          num_partition_colors](uint64_t thread_id) {
                     auto& color_sets_builder = thread_builders[thread_id];
                     auto& [begin, end] = thread_slices[thread_id];
                     color_sets_builder.reserve_num_bits(16 * essentials::GB * 8);
@@ -366,10 +368,10 @@ struct index<ColorSets>::meta_differential_builder {
                 auto it = idx.get_k2u().at_contig_id(unitig_id);
                 while (it.has_next()) {
                     auto [_, kmer] = it.next();
-                    uint64_t new_contig_id =
-                        idx.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+                    uint64_t new_contig_id = idx.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
                     if (new_contig_id != unitig_id) {
-                        std::cout << "\033[1;31m" << "expected " << unitig_id << " but found " << new_contig_id
+                        std::cout << "\033[1;31m"
+                                  << "expected " << unitig_id << " but found " << new_contig_id
                                   << ")\033[0m" << std::endl;
                         continue;
                     }
@@ -379,8 +381,10 @@ struct index<ColorSets>::meta_differential_builder {
                     uint64_t new_color_set_id = idx.u2c(new_contig_id);
                     uint64_t old_color_set_id = meta_index.u2c(old_contig_id);
 
-                    if (new_color_set_id == prev_new_color_set_id && old_color_set_id != prev_old_color_set_id) {
-                        std::cout << "\033[1;31m" << "Error while checking unitig " << unitig_id
+                    if (new_color_set_id == prev_new_color_set_id &&
+                        old_color_set_id != prev_old_color_set_id) {
+                        std::cout << "\033[1;31m"
+                                  << "Error while checking unitig " << unitig_id
                                   << ", expected color set id " << prev_old_color_set_id
                                   << " but got " << old_color_set_id << ")\033[0m" << std::endl;
                         continue;
@@ -393,16 +397,18 @@ struct index<ColorSets>::meta_differential_builder {
                     auto exp_it = meta_index.color_set(old_color_set_id);
                     auto res_it = idx.color_set(new_color_set_id);
                     if (res_it.size() != exp_it.size()) {
-                        std::cout << "\033[1;31m" << "Error while checking color " << new_color_set_id
-                                  << ", different sizes: expected " << exp_it.size()
-                                  << " but got " << res_it.size() << ")\033[0m" << std::endl;
+                        std::cout << "\033[1;31m"
+                                  << "Error while checking color " << new_color_set_id
+                                  << ", different sizes: expected " << exp_it.size() << " but got "
+                                  << res_it.size() << ")\033[0m" << std::endl;
                         continue;
                     }
                     for (uint64_t j = 0; j < exp_it.size(); ++j, ++exp_it, ++res_it) {
                         auto exp = *exp_it;
                         auto got = *res_it;
                         if (exp != got) {
-                            std::cout << "\033[1;31m" << "Error while checking color " << new_color_set_id
+                            std::cout << "\033[1;31m"
+                                      << "Error while checking color " << new_color_set_id
                                       << ", mismatch at position " << j << ": expected " << exp
                                       << " but got " << got << ")\033[0m" << std::endl;
                         }
@@ -417,15 +423,15 @@ struct index<ColorSets>::meta_differential_builder {
         };
 
         kmeans::thread_pool threads(m_build_config.num_threads);
-        const uint64_t num_unitigs =idx.m_k2u.num_contigs();
+        const uint64_t num_unitigs = idx.m_k2u.num_contigs();
         const uint64_t load_per_thread = num_unitigs / (m_build_config.num_threads << 10);
         uint64_t start = 0, end = load_per_thread;
         while (end < num_unitigs) {
-            threads.enqueue([&, start, end]{ exe(start, std::min(end, num_unitigs)); });
+            threads.enqueue([&, start, end] { exe(start, std::min(end, num_unitigs)); });
             start = end;
             end = std::min(end + load_per_thread, num_unitigs);
         }
-        threads.enqueue([&, start, num_unitigs]{ exe(start, num_unitigs); }); // last one
+        threads.enqueue([&, start, num_unitigs] { exe(start, num_unitigs); });  // last one
         threads.wait();
 
         std::cout << "\rChecked " << num_checked_unitigs << "/" << idx.m_k2u.num_contigs()

@@ -3,18 +3,15 @@
 using namespace fulgor;
 
 bool is_meta(std::string const& index_filename) {
-    return sshash::util::ends_with(index_filename,
-                                   constants::mfur_filename_extension);
+    return sshash::util::ends_with(index_filename, constants::mfur_filename_extension);
 }
 
 bool is_meta_diff(std::string const& index_filename) {
-    return sshash::util::ends_with(index_filename,
-                                   constants::mdfur_filename_extension);
+    return sshash::util::ends_with(index_filename, constants::mdfur_filename_extension);
 }
 
 bool is_diff(std::string const& index_filename) {
-    return sshash::util::ends_with(index_filename,
-                                   constants::dfur_filename_extension);
+    return sshash::util::ends_with(index_filename, constants::dfur_filename_extension);
 }
 
 bool is_hybrid(std::string const& index_filename) {
@@ -63,7 +60,7 @@ void dump(std::string const& index_filename, std::string const& basename) {
     index.dump(basename);
 }
 
-template<typename BaseIndex, typename TargetIndex>
+template <typename BaseIndex, typename TargetIndex>
 int check(BaseIndex base, TargetIndex target, uint64_t num_threads, bool verbose) {
     if (target.num_colors() != base.num_colors()) {
         std::cerr << "Number of colors mismatch" << target.num_colors() << std::endl;
@@ -97,9 +94,10 @@ int check(BaseIndex base, TargetIndex target, uint64_t num_threads, bool verbose
         std::sort(base_permutation.begin(), base_permutation.end(), [&](uint32_t a, uint32_t b) {
             return base.get_filenames()[a] < base.get_filenames()[b];
         });
-        std::sort(target_permutation.begin(), target_permutation.end(), [&](uint32_t a, uint32_t b) {
-            return target.get_filenames()[a] < target.get_filenames()[b];
-        });
+        std::sort(target_permutation.begin(), target_permutation.end(),
+                  [&](uint32_t a, uint32_t b) {
+                      return target.get_filenames()[a] < target.get_filenames()[b];
+                  });
 
         for (uint64_t i = 0; i != num_colors; ++i) {
             base_to_target[base_permutation[i]] = target_permutation[i];
@@ -119,38 +117,46 @@ int check(BaseIndex base, TargetIndex target, uint64_t num_threads, bool verbose
     auto exe = [&](uint64_t unitig_begin, uint64_t unitig_end) {
         for (uint64_t unitig_id = unitig_begin; unitig_id != unitig_end; ++unitig_id) {
             if (verbose && ++num_checked_unitigs % 1000 == 0) {
-                std::cout << "\033[3A"; // Move up 3 lines
+                std::cout << "\033[3A";  // Move up 3 lines
 
-                std::cout << "\033[2K"; // Clear line
-                std::cout << "Unitigs checked:     " << num_checked_unitigs << "/" << num_unitigs << std::endl;
+                std::cout << "\033[2K";  // Clear line
+                std::cout << "Unitigs checked:     " << num_checked_unitigs << "/" << num_unitigs
+                          << std::endl;
 
-                std::cout << "\033[2K"; // Clear line
-                std::cout << "Color sets checked:  " << num_checked_color_sets << "/" << num_color_sets << std::endl;
+                std::cout << "\033[2K";  // Clear line
+                std::cout << "Color sets checked:  " << num_checked_color_sets << "/"
+                          << num_color_sets << std::endl;
 
-                std::cout << "\033[2K"; // Clear line
-                std::cout << "Kmers checked:       " << num_checked_kmers << "/" << num_kmers << std::endl;
+                std::cout << "\033[2K";  // Clear line
+                std::cout << "Kmers checked:       " << num_checked_kmers << "/" << num_kmers
+                          << std::endl;
             }
 
             auto it = target.get_k2u().at_contig_id(unitig_id);
             auto [_, kmer] = it.next();
             const uint64_t base_contig_id = base.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-            const uint64_t target_contig_id = target.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+            const uint64_t target_contig_id =
+                target.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
             ++num_checked_kmers;
 
             while (it.has_next()) {
                 ++num_checked_kmers;
                 auto [_, kmer] = it.next();
-                const uint64_t curr_target_contig_id = target.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-                const uint64_t curr_base_contig_id = base.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-                if (target_contig_id != curr_target_contig_id) { // should never happen
+                const uint64_t curr_target_contig_id =
+                    target.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+                const uint64_t curr_base_contig_id =
+                    base.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+                if (target_contig_id != curr_target_contig_id) {  // should never happen
                     errors_found = true;
-                    std::cerr << "\033[1;31m" << "expected unitig " << target_contig_id << " but found " << curr_target_contig_id
-                              << "\033[0m" << std::endl;
+                    std::cerr << "\033[1;31m"
+                              << "expected unitig " << target_contig_id << " but found "
+                              << curr_target_contig_id << "\033[0m" << std::endl;
                 }
                 if (base_contig_id != curr_base_contig_id) {
                     errors_found = true;
-                    std::cerr << "\033[1;31m" << "expected unitig " << base_contig_id << " but found " << curr_base_contig_id
-                              << "\033[0m" << std::endl;
+                    std::cerr << "\033[1;31m"
+                              << "expected unitig " << base_contig_id << " but found "
+                              << curr_base_contig_id << "\033[0m" << std::endl;
                 }
             }
 
@@ -166,9 +172,10 @@ int check(BaseIndex base, TargetIndex target, uint64_t num_threads, bool verbose
 
             if (target_it.size() != base_it.size()) {
                 errors_found = true;
-                std::cerr << "\033[1;31m" << "Error while checking color set " << target_color_set_id
-                          << ", different sizes: expected " << base_it.size()
-                          << " but got " << target_it.size() << "\033[0m" << std::endl;
+                std::cerr << "\033[1;31m"
+                          << "Error while checking color set " << target_color_set_id
+                          << ", different sizes: expected " << base_it.size() << " but got "
+                          << target_it.size() << "\033[0m" << std::endl;
                 continue;
             }
 
@@ -184,9 +191,11 @@ int check(BaseIndex base, TargetIndex target, uint64_t num_threads, bool verbose
                 auto target_val = *target_it;
                 if (base_val != target_val) {
                     errors_found = true;
-                    std::cerr << "\033[1;31m" << "Error while checking color set " << target_color_set_id
-                              << ", mismatch at position " << j << ": expected " << base_to_target[base_val]
-                              << " but got " << target_val << "\033[0m" << std::endl;
+                    std::cerr << "\033[1;31m"
+                              << "Error while checking color set " << target_color_set_id
+                              << ", mismatch at position " << j << ": expected "
+                              << base_to_target[base_val] << " but got " << target_val << "\033[0m"
+                              << std::endl;
                 }
             }
         }
@@ -196,23 +205,25 @@ int check(BaseIndex base, TargetIndex target, uint64_t num_threads, bool verbose
     const uint64_t load_per_thread = num_unitigs / (num_threads << 10);
     uint64_t start = 0, end = load_per_thread;
     while (end < num_unitigs) {
-        threads.enqueue([&, start, end]{ exe(start, std::min(end, num_unitigs)); });
+        threads.enqueue([&, start, end] { exe(start, std::min(end, num_unitigs)); });
         start = end;
         end = std::min(end + load_per_thread, num_unitigs);
     }
-    threads.enqueue([&, start, num_unitigs]{ exe(start, num_unitigs); }); // last one
+    threads.enqueue([&, start, num_unitigs] { exe(start, num_unitigs); });  // last one
     threads.wait();
 
     if (verbose) {
-        std::cout << "\033[3A"; // Move up 3 lines
+        std::cout << "\033[3A";  // Move up 3 lines
 
-        std::cout << "\033[2K"; // Clear line
-        std::cout << "Unitigs checked:     " << num_checked_unitigs << "/" << num_unitigs << std::endl;
+        std::cout << "\033[2K";  // Clear line
+        std::cout << "Unitigs checked:     " << num_checked_unitigs << "/" << num_unitigs
+                  << std::endl;
 
-        std::cout << "\033[2K"; // Clear line
-        std::cout << "Color sets checked:  " << num_checked_color_sets << "/" << num_color_sets << std::endl;
+        std::cout << "\033[2K";  // Clear line
+        std::cout << "Color sets checked:  " << num_checked_color_sets << "/" << num_color_sets
+                  << std::endl;
 
-        std::cout << "\033[2K"; // Clear line
+        std::cout << "\033[2K";  // Clear line
         std::cout << "Kmers checked:       " << num_checked_kmers << "/" << num_kmers << std::endl;
     }
 
@@ -301,30 +312,29 @@ int dump(int argc, char** argv) {
     }
 
     if (is_meta_diff(index_filename)) {
-        std::string basename{index_filename.data(),
-                             index_filename.length() -
-                                 constants::mdfur_filename_extension.length() -
-                                 1};
-        dump<mdfur_index_t>(
-            index_filename, output_basename.length() == 0 ? basename : output_basename);
+        std::string basename{
+            index_filename.data(),
+            index_filename.length() - constants::mdfur_filename_extension.length() - 1};
+        dump<mdfur_index_t>(index_filename,
+                            output_basename.length() == 0 ? basename : output_basename);
     } else if (is_meta(index_filename)) {
-        std::string basename{index_filename.data(),
-                             index_filename.length() -
-                                 constants::mfur_filename_extension.length() - 1};
+        std::string basename{
+            index_filename.data(),
+            index_filename.length() - constants::mfur_filename_extension.length() - 1};
         dump<mfur_index_t>(index_filename,
-                              output_basename.length() == 0 ? basename : output_basename);
+                           output_basename.length() == 0 ? basename : output_basename);
     } else if (is_diff(index_filename)) {
-        std::string basename{index_filename.data(),
-                             index_filename.length() -
-                                 constants::dfur_filename_extension.length() - 1};
+        std::string basename{
+            index_filename.data(),
+            index_filename.length() - constants::dfur_filename_extension.length() - 1};
         dump<dfur_index_t>(index_filename,
-                                      output_basename.length() == 0 ? basename : output_basename);
+                           output_basename.length() == 0 ? basename : output_basename);
     } else if (is_hybrid(index_filename)) {
         std::string basename{
             index_filename.data(),
             index_filename.length() - constants::hfur_filename_extension.length() - 1};
         dump<hfur_index_t>(index_filename,
-                         output_basename.length() == 0 ? basename : output_basename);
+                           output_basename.length() == 0 ? basename : output_basename);
     } else {
         std::cerr << "Wrong filename supplied." << std::endl;
         return 1;
@@ -334,11 +344,14 @@ int dump(int argc, char** argv) {
 
 int check(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
-    parser.add("base_filename", "The *correct* Fulgor index to be checked against.", "--base", true);
-    parser.add("target_filename","The Fulgor index to be checked for correctness. Cannot be a .fur index.", "--target", true);
+    parser.add("base_filename", "The *correct* Fulgor index to be checked against.", "--base",
+               true);
+    parser.add("target_filename",
+               "The Fulgor index to be checked for correctness. Cannot be a .fur index.",
+               "--target", true);
     parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
-    parser.add("verbose", "Verbose output during processing (default is false).", "--verbose", false,
-           true);
+    parser.add("verbose", "Verbose output during processing (default is false).", "--verbose",
+               false, true);
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
 
@@ -374,18 +387,20 @@ int check(int argc, char** argv) {
     }
 
     uint64_t with_errors = 0;
-    std::visit([&base_filename, &target_filename, &with_errors, num_threads, verbose]
-                  (auto&& base, auto&& target) {
-        if (verbose) essentials::logger("*** START: loading the base index");
-        essentials::load(base, base_filename.c_str());
-        if (verbose) essentials::logger("*** DONE: loading the base index");
+    std::visit(
+        [&base_filename, &target_filename, &with_errors, num_threads, verbose](auto&& base,
+                                                                               auto&& target) {
+            if (verbose) essentials::logger("*** START: loading the base index");
+            essentials::load(base, base_filename.c_str());
+            if (verbose) essentials::logger("*** DONE: loading the base index");
 
-        if (verbose) essentials::logger("*** START: loading the target index");
-        essentials::load(target, target_filename.c_str());
-        if (verbose) essentials::logger("*** DONE: loading the target index");
+            if (verbose) essentials::logger("*** START: loading the target index");
+            essentials::load(target, target_filename.c_str());
+            if (verbose) essentials::logger("*** DONE: loading the target index");
 
-        with_errors = check(base, target, num_threads, verbose);
-    }, base_index, target_index);
+            with_errors = check(base, target, num_threads, verbose);
+        },
+        base_index, target_index);
 
     if (with_errors) {
         essentials::logger("*** Completed with errors, try to rebuild the index");
@@ -395,4 +410,3 @@ int check(int argc, char** argv) {
 
     return 0;
 }
-

@@ -27,6 +27,7 @@ Please, cite these papers if you use Fulgor.
 * [Indexing an example Salmonella Enterica pangenome](#indexing-an-example-salmonella-enterica-pangenome)
 * [Pseudoalignment output format](#pseudoalignment-output-format)
 * [Kmer conservation output format](#kmer-conservation-output-format)
+* [Dump output format](#dump-output-format)
 
 Dependencies
 ------------
@@ -200,19 +201,21 @@ The tool `pseudoalign` writes the result to an output file, in plain text format
 
 This file has one line for each mapped read, formatted as follows:
 
-	[read-name][TAB][list-lenght][TAB][list]
+	[read-id][TAB][list-lenght][TAB][list]
 
 where `[list]` is a TAB-separated list of increasing integers, of length `[list-length]`, representing the list of reference identifiers to which the read is mapped. (`[TAB]` is the character `\t`.)
 
 #### Example
 
-	NODE_11_length_149361_cov_9.71634_ID_21 1       0
-	NODE_3406_length_341_cov_20.0437_ID_681	1       0
-	NODE_4745_length_118_cov_12.7931_ID_949	3       0       3       7
-	NODE_102_length_2047_cov_18.1471_ID_203 1       0
-	NODE_477_length_1163_cov_22.0531_ID_953 2       0       8
-	NODE_9_length_173161_cov_9.33695_ID_17  1       0
-	NODE_22_length_45757_cov_12.1361_ID_43  1       0
+	1	1	0
+	2	1	0
+	3	3	0	3	7
+	4	1	0
+	5	2	0	8
+	6	1	0
+	7	1	0
+
+**Note**: Read ids might not be consecutive in the output file if multiple threads are used to perform the queries.
 
 #### Important note
 
@@ -254,3 +257,68 @@ where the variable `it` is the iterator and `it.size()` is the size of the color
 	SRR801268.988	1	(0 8 3)
 
 For example, in the second query, the triple `(12 6 3)` indicates that the 6 kmers starting at position 12 in the query all have color set id 3.
+
+
+Dump output format
+------------------
+
+The tool `dump` writes in plain textual format the content of an index.
+In particular, it outputs three files:
+
+- `[basename].metadata.txt`
+- `[basename].unitigs.fa`
+- `[basename].color_sets.txt`
+
+where `[basename]` is a chosen output name.
+
+The file `[basename].metadata.txt` contains the following basic statistics (one per line and in the following order): the value of k, the number of distinct kmers, the number of colors, the number of unitigs, and the number of color sets, using a simple `key=value` format.
+
+Example:
+
+	k=31
+	num_kmers=43788757
+	num_colors=4546
+	num_unitigs=1884865
+	num_color_sets=972178
+
+**Important note**: The values of `num_unitigs` and `num_color_sets` could (slightly) change if the index is re-built because GGCAT does not compute *maximal* unitigs.
+
+The file `[basename].unitigs.fa` contains the unitig sequences written in FASTA format.
+Each sequence has a header containing the id of the unitig (an increasing integer id) and the id of the corresponding color set.
+
+Example:
+
+	(...)
+	> unitig_id=13 color_set_id=0
+	TGGTTCTGGCGTGCTCCAGCTCATCCAGCATTGCCAGCACA
+	> unitig_id=14 color_set_id=0
+	CGATAAGGAATGGCTTGAAAAGCCAACAGAACAACGTCATCTCTCAGATCTGCTTCCGTTA
+	> unitig_id=15 color_set_id=0
+	GGAGCGGATTTTCTCCGTGAAATTCCCCAGCATTTGTCAGGAGTGTAAACATTCCTCCGAG
+	> unitig_id=16 color_set_id=0
+	ATTTGCTTTACCTGCCGCAGCTTAACAAGCGCCAGATACAGACGCTGGCCACCATGACGGC
+	> unitig_id=17 color_set_id=0
+	GGTCTTACCTGTGCGGCGGGAAAACTCATCAACGGTGATGGGGTCTGGGATCTTAAACAAT
+	> unitig_id=18 color_set_id=1
+	CGATAAGGAATGGCTTGAAAAGCCAACAGAGCAACGTCATCTCTCAGATCTGCTTCCGTTA
+	> unitig_id=19 color_set_id=1
+	ATTGTTTAAGATCCCAGACCCCATCACCGTCGATGA
+	> unitig_id=20 color_set_id=2
+	CTTGCTATGAGTTGCGGTTTTTTGATCCTGCCCCAGCGGTTCAGCAAGCGTCCTGACATACTGGCAACATCCTTTTCCTTCATGAACTCCAGCATTAACTCGTTGTGCTCTCTTTGGTATGAGTGAGCCATCTCCATCAG
+	> unitig_id=21 color_set_id=2
+	CACTTTCTAAAAGGTAAAGACGCTATGAATCATCAATTGGCTAATCTCGATTTCCGGGACATGGTGGTTGTTTCTGGTGATCGCGTGATCACAACCTCCCGCAAGGTAGCAGCTTACTTCGACAAGCAGCATCACCACATCATTCAGAAAATCGAAAAGCTAGACTGTTCGGATGAATTTCTAACCAGCAACTTTTCGCGGGTTACCTATGAACACAAGGGTAATCAGTATGTTGAATATGAAATTTCCAAAGACGGTGCGATGTACATCATCATGTCGTTTACCGGCAAAAAAGCTGCCGCCATCAAAGAGGCGTTTATCAAAGCATTTAATTGGATGCGTGACAG
+	(...)
+
+In this example the unitigs 13, 14, 15, 16, and 17 have the same color set (whose id is 0),
+the unitigs 18 and 19 have the same color set (of id is 1), and the unitigs 20 and 21 have the name color set (of id 2).
+
+Lastly, the file `[basename].color_sets.txt` lists the color sets, one per line.
+Each color set is written as `color_set_id=[X] size=[Y] [color-set]`, where `[X]` is the id of the set, `[Y]` its size, and `[color-set]` a space-separated list of `[Y]` increasing integers.
+
+Example:
+
+	color_set_id=0 size=3 424 3145 3578
+	color_set_id=1 size=49 163 440 454 635 667 684 998 1703 1730 1735 1760 1812 1814 1815 1817 1819 1834 1842 1874 1881 2011 2036 2047 2185 2245 2301 2321 2356 2669 2687 2788 2897 2960 2961 2965 3057 3163 3461 3519 3805 3806 3960 3967 3976 4105 4119 4159 4183 4385
+	color_set_id=2 size=3 1384 1693 3645
+	(...)
+

@@ -167,21 +167,18 @@ int kmer_conservation(int argc, char** argv) {
     bool verbose = parser.get<bool>("verbose");
     if (verbose) util::print_cmd(argc, argv);
 
-    if (sshash::util::ends_with(index_filename,
-                                constants::mdfur_filename_extension)) {
-        return kmer_conservation<mdfur_index_t>(
-            index_filename, query_filename, output_filename, num_threads, verbose);
-    } else if (sshash::util::ends_with(index_filename,
-                                       constants::mfur_filename_extension)) {
+    if (sshash::util::ends_with(index_filename, constants::mdfur_filename_extension)) {
+        return kmer_conservation<mdfur_index_t>(index_filename, query_filename, output_filename,
+                                                num_threads, verbose);
+    } else if (sshash::util::ends_with(index_filename, constants::mfur_filename_extension)) {
         return kmer_conservation<mfur_index_t>(index_filename, query_filename, output_filename,
-                                                  num_threads, verbose);
-    } else if (sshash::util::ends_with(index_filename,
-                                       constants::dfur_filename_extension)) {
-        return kmer_conservation<dfur_index_t>(index_filename, query_filename,
-                                                          output_filename, num_threads, verbose);
+                                               num_threads, verbose);
+    } else if (sshash::util::ends_with(index_filename, constants::dfur_filename_extension)) {
+        return kmer_conservation<dfur_index_t>(index_filename, query_filename, output_filename,
+                                               num_threads, verbose);
     } else if (sshash::util::ends_with(index_filename, constants::hfur_filename_extension)) {
         return kmer_conservation<hfur_index_t>(index_filename, query_filename, output_filename,
-                                             num_threads, verbose);
+                                               num_threads, verbose);
     }
 
     std::cerr << "Wrong index filename supplied." << std::endl;

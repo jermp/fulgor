@@ -34,12 +34,8 @@ void meta_color(build_configuration const& build_config, const bool force)  //
     essentials::save(index, output_filename.c_str());
     essentials::logger("STORING DONE");
 
-    if (build_config.verbose) {
-        index.print_stats();
-    }
-    if (build_config.check) {
-        builder.check(index);
-    }
+    if (build_config.verbose) { index.print_stats(); }
+    if (build_config.check) { builder.check(index); }
 }
 
 void diff_color(build_configuration const& build_config, const bool force)  //
@@ -76,12 +72,8 @@ void diff_color(build_configuration const& build_config, const bool force)  //
     essentials::save(index, output_filename.c_str());
     essentials::logger("STORING DONE");
 
-    if (build_config.verbose) {
-        index.print_stats();
-    }
-    if (build_config.check) {
-        builder.check(index);
-    }
+    if (build_config.verbose) { index.print_stats(); }
+    if (build_config.check) { builder.check(index); }
 }
 
 void meta_diff_color(build_configuration const& build_config, const bool force)  //
@@ -103,9 +95,9 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
     }
 
     std::string meta_filename = build_config.index_filename_to_partition.substr(
-                                      0, build_config.index_filename_to_partition.length() -
-                                             constants::hfur_filename_extension.length() - 1) +
-                                  "." + constants::mfur_filename_extension;
+                                    0, build_config.index_filename_to_partition.length() -
+                                           constants::hfur_filename_extension.length() - 1) +
+                                "." + constants::mfur_filename_extension;
 
     /* first build a meta-colored Fulgor index */
     if (!std::filesystem::exists(meta_filename)) {
@@ -125,8 +117,7 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
         "." + constants::mfur_filename_extension;
 
     mdfur_index_t index;
-    mdfur_index_t::meta_differential_builder builder(
-        meta_diff_build_config);
+    mdfur_index_t::meta_differential_builder builder(meta_diff_build_config);
     builder.build(index);
     build_timer.stop();
 
@@ -138,12 +129,8 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
     essentials::save(index, output_filename.c_str());
     essentials::logger("STORING DONE");
 
-    if (build_config.verbose) {
-        index.print_stats();
-    }
-    if (build_config.check) {
-        builder.check(index);
-    }
+    if (build_config.verbose) { index.print_stats(); }
+    if (build_config.check) { builder.check(index); }
 }
 
 int build(int argc, char** argv) {
@@ -243,12 +230,8 @@ int build(int argc, char** argv) {
     essentials::save(index, output_filename.c_str());
     essentials::logger("STORING DONE");
 
-    if (build_config.verbose) {
-        index.print_stats();
-    }
-    if (build_config.check) {
-        builder.check(index);
-    }
+    if (build_config.verbose) { index.print_stats(); }
+    if (build_config.check) { builder.check(index); }
 
     if (build_config.meta_colored and build_config.diff_colored) {
         meta_diff_color(build_config, force);

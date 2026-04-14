@@ -10,8 +10,8 @@
 using namespace fulgor;
 
 template <typename FulgorIndex, typename Formatter, typename QueryReader>
-int pseudoalign_worker(FulgorIndex const& index, QueryReader& query_reader,
-                       Formatter& formatter, const double threshold, ps_options& options)  //
+int pseudoalign_worker(FulgorIndex const& index, QueryReader& query_reader, Formatter& formatter,
+                       const double threshold, ps_options& options)  //
 {
     auto output_buffer = formatter.buffer();
     std::vector<uint32_t> tmp, colors;  // result of pseudoalignment
@@ -20,7 +20,7 @@ int pseudoalign_worker(FulgorIndex const& index, QueryReader& query_reader,
 
     auto qg = query_reader.get_query_group();
     while (qg.refill()) {
-        while (qg.has_next()){
+        while (qg.has_next()) {
             typename QueryReader::query_t query;
             qg.value(query);
 
@@ -37,18 +37,14 @@ int pseudoalign_worker(FulgorIndex const& index, QueryReader& query_reader,
 
             if constexpr (std::is_same_v<preprocessed_query_reader, QueryReader>) {
                 options.increment_processed_reads(query.ids.size());
-                for (auto qid: query.ids) {
+                for (auto qid : query.ids) {
                     output_buffer.write(qid, colors);
-                    if (!colors.empty()) {
-                        options.increment_mapped_reads();
-                    }
+                    if (!colors.empty()) { options.increment_mapped_reads(); }
                 }
             } else {
                 options.increment_processed_reads();
                 output_buffer.write(query.id, colors);
-                if (!colors.empty()) {
-                    options.increment_mapped_reads();
-                }
+                if (!colors.empty()) { options.increment_mapped_reads(); }
             }
 
             colors.clear();
@@ -59,8 +55,8 @@ int pseudoalign_worker(FulgorIndex const& index, QueryReader& query_reader,
 }
 
 template <typename FulgorIndex, typename Formatter, typename QueryReader>
-int pseudoalign_orchestrator(FulgorIndex& index, QueryReader& query_reader,
-                Formatter& formatter, const double threshold, ps_options& options) {
+int pseudoalign_orchestrator(FulgorIndex& index, QueryReader& query_reader, Formatter& formatter,
+                             const double threshold, ps_options& options) {
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> t;
     t.start();
 
@@ -87,18 +83,17 @@ int pseudoalign_orchestrator(FulgorIndex& index, QueryReader& query_reader,
         std::cout << t.elapsed() / 1000 << " sec / ";
         std::cout << t.elapsed() / 1000 / 60 << " min / ";
         std::cout << (t.elapsed() * 1000) / options.num_reads << " musec/read" << std::endl;
-        std::cout << "num_mapped_reads " << options.num_mapped_reads << "/" << options.num_reads << " ("
-                  << (options.num_mapped_reads * 100.0) / options.num_reads << "%)" << std::endl;
+        std::cout << "num_mapped_reads " << options.num_mapped_reads << "/" << options.num_reads
+                  << " (" << (options.num_mapped_reads * 100.0) / options.num_reads << "%)"
+                  << std::endl;
     }
 
     return 0;
 }
 
 template <typename FulgorIndex, typename Formatter>
-void fetch_and_deduplicate_sets(const std::string& query_filename,
-                                Formatter& output_formatter,
-                                std::string& tmp_filename,
-                                FulgorIndex& index,
+void fetch_and_deduplicate_sets(const std::string& query_filename, Formatter& output_formatter,
+                                std::string& tmp_filename, FulgorIndex& index,
                                 ps_options& options) {
     auto output_buffer = output_formatter.buffer();
     if (options.verbose) essentials::logger("*** START: fetching color set ids");
@@ -113,7 +108,8 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
 
     constexpr int32_t buff_thresh = 50;
     std::atomic<uint64_t> num_fetched_reads = 0;
-    auto fetch = [&rparser, &index, &tmp_file, &outfile_mut, &iomut, &num_fetched_reads, &options] () {
+    auto fetch = [&rparser, &index, &tmp_file, &outfile_mut, &iomut, &num_fetched_reads,
+                  &options]() {
         uint32_t buff_size = 0;
         std::vector<uint32_t> color_set_ids;
         std::stringstream ss;
@@ -122,7 +118,7 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
         while (rparser.refill(rg)) {
             uint32_t read_id = rg.chunk_frag_offset().frag_idx;
 
-            for (auto const& record: rg) {
+            for (auto const& record : rg) {
                 index.fetch_color_set_ids(record.seq, color_set_ids);
 
                 buff_size += 1;
@@ -131,11 +127,13 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
                 uint32_t num_color_sets = static_cast<uint32_t>(color_set_ids.size());
                 ss.write(reinterpret_cast<char*>(&num_color_sets), sizeof(num_color_sets));
                 if (num_color_sets > 0) {
-                    ss.write(reinterpret_cast<char*>(color_set_ids.data()), num_color_sets * sizeof(color_set_ids[0]));
+                    ss.write(reinterpret_cast<char*>(color_set_ids.data()),
+                             num_color_sets * sizeof(color_set_ids[0]));
                 }
 
                 color_set_ids.clear();
-                if (options.verbose && num_fetched_reads > 0 && ++num_fetched_reads % 1000000 == 0) {
+                if (options.verbose && num_fetched_reads > 0 &&
+                    ++num_fetched_reads % 1000000 == 0) {
                     iomut.lock();
                     std::cout << "fetched " << num_fetched_reads << " reads" << std::endl;
                     iomut.unlock();
@@ -161,9 +159,7 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
         }
     };
 
-    for (uint64_t i = 1; i < options.num_threads; ++i) {
-        workers.push_back(std::thread(fetch));
-    }
+    for (uint64_t i = 1; i < options.num_threads; ++i) { workers.push_back(std::thread(fetch)); }
     for (auto& w : workers) w.join();
     rparser.stop();
     tmp_file.close();
@@ -196,10 +192,10 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
     if (queries.empty()) { return; }
 
     std::sort(queries.begin(), queries.end(),
-    [](const std::vector<uint32_t>& a, const std::vector<uint32_t>& b) -> bool {
-      return std::lexicographical_compare(a.begin() + 1, a.end(), b.begin() + 1,
-                                          b.end());
-    });
+              [](const std::vector<uint32_t>& a, const std::vector<uint32_t>& b) -> bool {
+                  return std::lexicographical_compare(a.begin() + 1, a.end(), b.begin() + 1,
+                                                      b.end());
+              });
 
     auto curr = queries.begin();
     auto next = curr++;
@@ -225,9 +221,7 @@ void fetch_and_deduplicate_sets(const std::string& query_filename,
     for (auto& query : queries) {
         uint32_t s = query.size();
         ofile.write(reinterpret_cast<char*>(&s), sizeof(s));
-        if (s > 0) {
-            ofile.write(reinterpret_cast<char*>(query.data()), sizeof(query[0]) * s);
-        }
+        if (s > 0) { ofile.write(reinterpret_cast<char*>(query.data()), sizeof(query[0]) * s); }
     }
     ofile.close();
 
@@ -251,11 +245,15 @@ int pseudoalign(int argc, char** argv) {
     parser.add("threshold",
                "Threshold for threshold_union algorithm. It must be a float in (0.0,1.0].", "-r",
                false);
-    parser.add("deduplicate", "Removes duplicate queries before pseudoalignment (default is false)."
-               " Only works on Full-Intersection. Creates a temporary file in the executable's directory.",
-               "--deduplicate", false, true);
-    parser.add("format", "Format of the output file. Must either ascii, binary, compressed"
-               " (default is ascii).", "--format", false);
+    parser.add(
+        "deduplicate",
+        "Removes duplicate queries before pseudoalignment (default is false)."
+        " Only works on Full-Intersection. Creates a temporary file in the executable's directory.",
+        "--deduplicate", false, true);
+    parser.add("format",
+               "Format of the output file. Must either ascii, binary, compressed"
+               " (default is ascii).",
+               "--format", false);
     if (!parser.parse()) return 1;
 
     auto index_filename = parser.get<std::string>("index_filename");
@@ -286,7 +284,8 @@ int pseudoalign(int argc, char** argv) {
     auto ps_alg = pseudoalignment_algorithm::FULL_INTERSECTION;
     if (threshold != constants::invalid_threshold) {
         if (deduplicate) {
-            cerr << "Deduplication not available for threshold < 1.0. Remove --deduplicate flag." << std::endl;
+            cerr << "Deduplication not available for threshold < 1.0. Remove --deduplicate flag."
+                 << std::endl;
             return 1;
         }
         ps_alg = pseudoalignment_algorithm::THRESHOLD_UNION;
@@ -309,7 +308,9 @@ int pseudoalign(int argc, char** argv) {
         return 1;
     }
 
-    std::variant<std::monostate, psa_ascii_formatter, psa_binary_formatter, psa_compressed_formatter> formatter;
+    std::variant<std::monostate, psa_ascii_formatter, psa_binary_formatter,
+                 psa_compressed_formatter>
+        formatter;
     if (output_format == "ascii") {
         formatter.emplace<psa_ascii_formatter>(output_filename);
     } else if (output_format == "binary") {
@@ -317,7 +318,8 @@ int pseudoalign(int argc, char** argv) {
     } else if (output_format == "compressed") {
         formatter.emplace<psa_compressed_formatter>(output_filename);
     } else {
-        std::cout << "Unknown output format. Supported formats: ascii, binary, compressed." << std::endl;
+        std::cout << "Unknown output format. Supported formats: ascii, binary, compressed."
+                  << std::endl;
         return 1;
     }
 
@@ -329,36 +331,40 @@ int pseudoalign(int argc, char** argv) {
         std::cout << "[Index]     " << index_filename << std::endl;
         std::cout << "[Queries]   " << query_filename << std::endl;
         std::cout << "[Output]    " << output_filename << std::endl;
-        std::cout << "[Algorithm] " << to_string(ps_alg, threshold) << (deduplicate ? "(dedup.)" : "") << std::endl;
+        std::cout << "[Algorithm] " << to_string(ps_alg, threshold)
+                  << (deduplicate ? "(dedup.)" : "") << std::endl;
         std::cout << "---------------------------------\n" << std::endl;
     }
 
-    std::visit([&index_filename, &query_filename, &output_filename, &tmp_filename,
-                deduplicate, num_threads, threshold, verbose, &options]
-                      (auto&& index, auto&& formatter) {
-        if (verbose) essentials::logger("*** START: loading the index");
-        essentials::load(index, index_filename.c_str());
-        if (verbose) essentials::logger("*** DONE: loading the index");
+    std::visit(
+        [&index_filename, &query_filename, &output_filename, &tmp_filename, deduplicate,
+         num_threads, threshold, verbose, &options](auto&& index, auto&& formatter) {
+            if (verbose) essentials::logger("*** START: loading the index");
+            essentials::load(index, index_filename.c_str());
+            if (verbose) essentials::logger("*** DONE: loading the index");
 
-        if (verbose) essentials::logger("performing queries from file '" + query_filename + "'...");
+            if (verbose)
+                essentials::logger("performing queries from file '" + query_filename + "'...");
 
-        if constexpr (std::is_same_v<std::decay_t<decltype(formatter)>, psa_compressed_formatter>) {
-            formatter.set_num_colors(index.num_colors());
-        }
-        if constexpr (!std::is_same_v<std::decay_t<decltype(formatter)>, std::monostate>) {
-            std::ofstream out(output_filename);
-
-            if (deduplicate) {
-                fetch_and_deduplicate_sets(query_filename, formatter, tmp_filename, index, options);
-                preprocessed_query_reader query_reader(tmp_filename, num_threads);
-                pseudoalign_orchestrator(index, query_reader, formatter, threshold, options);
-            } else {
-                fastq_query_reader query_reader(query_filename, num_threads, index);
-                pseudoalign_orchestrator(index, query_reader, formatter, threshold, options);
+            if constexpr (std::is_same_v<std::decay_t<decltype(formatter)>,
+                                         psa_compressed_formatter>) {
+                formatter.set_num_colors(index.num_colors());
             }
-        }
+            if constexpr (!std::is_same_v<std::decay_t<decltype(formatter)>, std::monostate>) {
+                std::ofstream out(output_filename);
 
-    }, index, formatter);
+                if (deduplicate) {
+                    fetch_and_deduplicate_sets(query_filename, formatter, tmp_filename, index,
+                                               options);
+                    preprocessed_query_reader query_reader(tmp_filename, num_threads);
+                    pseudoalign_orchestrator(index, query_reader, formatter, threshold, options);
+                } else {
+                    fastq_query_reader query_reader(query_filename, num_threads, index);
+                    pseudoalign_orchestrator(index, query_reader, formatter, threshold, options);
+                }
+            }
+        },
+        index, formatter);
 
     std::remove(tmp_filename.c_str());
 

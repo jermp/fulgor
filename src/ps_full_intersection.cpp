@@ -333,7 +333,7 @@ void meta_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
 
 template <typename ColorSets>
 void index<ColorSets>::fetch_color_set_ids(std::string const& sequence,
-                                                 std::vector<uint32_t>& color_set_ids) const {
+                                           std::vector<uint32_t>& color_set_ids) const {
     if (sequence.length() < m_k2u.k()) return;
     std::vector<uint64_t> unitig_ids;
 
@@ -370,12 +370,13 @@ void index<ColorSets>::fetch_color_set_ids(std::string const& sequence,
     /* deduplicate color set ids */
     std::sort(color_set_ids.begin(), color_set_ids.end());
     auto end_tmp = std::unique(color_set_ids.begin(), color_set_ids.end());
-    color_set_ids.erase(end_tmp,  color_set_ids.end());
+    color_set_ids.erase(end_tmp, color_set_ids.end());
 }
 
 template <typename ColorSets>
 void index<ColorSets>::pseudoalign_full_intersection(std::vector<uint32_t>& color_set_ids,
-                                                     std::vector<uint32_t>& colors, std::vector<uint32_t>& tmp) const {
+                                                     std::vector<uint32_t>& colors,
+                                                     std::vector<uint32_t>& tmp) const {
     std::vector<typename ColorSets::iterator_type> iterators;
     iterators.reserve(color_set_ids.size());
     for (auto color_set_id : color_set_ids) {

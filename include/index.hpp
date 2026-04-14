@@ -37,12 +37,13 @@ struct index {
     uint64_t u2c(uint64_t unitig_id) const { return m_u2c_rank1_index.rank1(m_u2c, unitig_id); }
 
     void fetch_color_set_ids(std::string const& sequence,
-                                   std::vector<uint32_t>& color_set_ids) const;
-    void pseudoalign_full_intersection(std::vector<uint32_t>& color_set_ids,            //
-                                       std::vector<uint32_t>& results, std::vector<uint32_t>& tmp) const;  //
-    void pseudoalign_threshold_union(std::string const& sequence,     //
-                                     std::vector<uint32_t>& results,  //
-                                     const double threshold) const;   //
+                             std::vector<uint32_t>& color_set_ids) const;
+    void pseudoalign_full_intersection(std::vector<uint32_t>& color_set_ids,  //
+                                       std::vector<uint32_t>& results,
+                                       std::vector<uint32_t>& tmp) const;  //
+    void pseudoalign_threshold_union(std::string const& sequence,          //
+                                     std::vector<uint32_t>& results,       //
+                                     const double threshold) const;        //
 
     void kmer_conservation(std::string const& sequence,                                           //
                            std::vector<kmer_conservation_triple>& kmer_conservation_info) const;  //
@@ -56,6 +57,7 @@ struct index {
     void dump(std::string const& basename) const;
 
     uint64_t k() const { return m_k2u.k(); }
+    uint64_t num_kmers() const { return m_k2u.size(); }
     uint64_t num_colors() const { return m_color_sets.num_colors(); }
     uint64_t num_unitigs() const { return m_k2u.num_contigs(); }
     uint64_t num_color_sets() const { return m_color_sets.num_color_sets(); }

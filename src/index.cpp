@@ -62,6 +62,7 @@ void index<ColorSets>::dump(std::string const& basename) const {
     std::ofstream metadata_file(basename + ".metadata.txt");
     if (!metadata_file.is_open()) throw std::runtime_error("cannot open output file");
     metadata_file << "k=" << k() << '\n';
+    metadata_file << "num_kmers=" << num_kmers() << '\n';
     metadata_file << "num_colors=" << num_colors() << '\n';
     metadata_file << "num_unitigs=" << num_unitigs() << '\n';
     metadata_file << "num_color_sets=" << num_color_sets() << '\n';

@@ -259,14 +259,14 @@ struct index<ColorSets>::builder {
 
                 if (++num_checked_unitigs % 1000 == 0) {
                     std::cout << "\rChecked " << num_checked_unitigs << "/"
-                              << idx.m_k2u.num_contigs() << " unitigs" << std::flush;
+                              << idx.m_k2u.num_strings() << " unitigs" << std::flush;
                 }
             },
             m_build_config.num_threads  //
         );
 
         std::cout << "\rChecked " << num_checked_unitigs << "/"
-                              << idx.m_k2u.num_contigs() << " unitigs" << std::endl;
+                              << idx.m_k2u.num_strings() << " unitigs" << std::endl;
 
         timer.stop();
         std::cout << "** checking correctness took " << timer.elapsed() << " seconds / "

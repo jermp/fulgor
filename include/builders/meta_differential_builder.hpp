@@ -411,13 +411,13 @@ struct index<ColorSets>::meta_differential_builder {
 
                 if (++num_checked_unitigs % 1000 == 0) {
                     std::cout << "\rChecked " << num_checked_unitigs << "/"
-                              << idx.m_k2u.num_contigs() << " unitigs " << std::flush;
+                              << idx.m_k2u.num_strings() << " unitigs " << std::flush;
                 }
             }
         };
 
         kmeans::thread_pool threads(m_build_config.num_threads);
-        const uint64_t num_unitigs =idx.m_k2u.num_contigs();
+        const uint64_t num_unitigs =idx.m_k2u.num_strings();
         const uint64_t load_per_thread = num_unitigs / (m_build_config.num_threads << 10);
         uint64_t start = 0, end = load_per_thread;
         while (end < num_unitigs) {
@@ -428,7 +428,7 @@ struct index<ColorSets>::meta_differential_builder {
         threads.enqueue([&, start, num_unitigs]{ exe(start, num_unitigs); }); // last one
         threads.wait();
 
-        std::cout << "\rChecked " << num_checked_unitigs << "/" << idx.m_k2u.num_contigs()
+        std::cout << "\rChecked " << num_checked_unitigs << "/" << idx.m_k2u.num_strings()
                   << " unitigs (" << std::endl;
 
         timer.stop();

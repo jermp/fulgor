@@ -77,17 +77,17 @@ int check(BaseIndex base, TargetIndex target, uint64_t num_threads, bool verbose
     }
     const uint64_t num_color_sets = base.num_color_sets();
 
-    if (target.get_k2u().num_contigs() != base.get_k2u().num_contigs()) {
+    if (target.get_k2u().num_strings() != base.get_k2u().num_strings()) {
         std::cout << "Number of contigs mismatch" << std::endl;
         return 1;
     }
-    const uint64_t num_unitigs = base.get_k2u().num_contigs();
+    const uint64_t num_unitigs = base.get_k2u().num_strings();
 
-    if (target.get_k2u().size() != base.get_k2u().size()) {
+    if (target.get_k2u().num_kmers() != base.get_k2u().num_kmers()) {
         std::cout << "Number of kmers mismatch" << std::endl;
         return 1;
     }
-    const uint64_t num_kmers = base.get_k2u().size();
+    const uint64_t num_kmers = base.get_k2u().num_kmers();
 
     std::vector<uint32_t> base_to_target(num_colors);
     {
@@ -131,31 +131,31 @@ int check(BaseIndex base, TargetIndex target, uint64_t num_threads, bool verbose
                 std::cout << "Kmers checked:       " << num_checked_kmers << "/" << num_kmers << std::endl;
             }
 
-            auto it = target.get_k2u().at_contig_id(unitig_id);
+            auto it = target.get_k2u().at_string_id(unitig_id);
             auto [_, kmer] = it.next();
-            const uint64_t base_contig_id = base.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-            const uint64_t target_contig_id = target.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
+            const uint64_t base_string_id = base.get_k2u().lookup(kmer).string_id;
+            const uint64_t target_string_id = target.get_k2u().lookup(kmer).string_id;
             ++num_checked_kmers;
 
             while (it.has_next()) {
                 ++num_checked_kmers;
                 auto [_, kmer] = it.next();
-                const uint64_t curr_target_contig_id = target.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-                const uint64_t curr_base_contig_id = base.get_k2u().lookup_advanced(kmer.c_str()).contig_id;
-                if (target_contig_id != curr_target_contig_id) { // should never happen
+                const uint64_t curr_target_string_id = target.get_k2u().lookup(kmer).string_id;
+                const uint64_t curr_base_string_id = base.get_k2u().lookup(kmer).string_id;
+                if (target_string_id != curr_target_string_id) { // should never happen
                     errors_found = true;
-                    std::cerr << "\033[1;31m" << "expected unitig " << target_contig_id << " but found " << curr_target_contig_id
+                    std::cerr << "\033[1;31m" << "expected unitig " << target_string_id << " but found " << curr_target_string_id
                               << "\033[0m" << std::endl;
                 }
-                if (base_contig_id != curr_base_contig_id) {
+                if (base_string_id != curr_base_string_id) {
                     errors_found = true;
-                    std::cerr << "\033[1;31m" << "expected unitig " << base_contig_id << " but found " << curr_base_contig_id
+                    std::cerr << "\033[1;31m" << "expected unitig " << base_string_id << " but found " << curr_base_string_id
                               << "\033[0m" << std::endl;
                 }
             }
 
-            uint64_t base_color_set_id = base.u2c(base_contig_id);
-            uint64_t target_color_set_id = target.u2c(target_contig_id);
+            uint64_t base_color_set_id = base.u2c(base_string_id);
+            uint64_t target_color_set_id = target.u2c(target_string_id);
 
             if (checked_color_sets[target_color_set_id]) continue;
             checked_color_sets[target_color_set_id] = true;

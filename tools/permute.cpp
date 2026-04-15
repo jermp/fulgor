@@ -21,9 +21,9 @@ int permute(int argc, char** argv) {
 
     auto index_filename = parser.get<std::string>("index_filename");
 
-    if (!sshash::util::ends_with(index_filename, "." + constants::fulgor_filename_extension)) {
+    if (!sshash::util::ends_with(index_filename, "." + constants::hfur_filename_extension)) {
         std::cerr << "Error: the file to partition must have extension \"."
-                  << constants::fulgor_filename_extension
+                  << constants::hfur_filename_extension
                   << "\". Have you first built a Fulgor index with the tool \"build\"?"
                   << std::endl;
         return 1;
@@ -32,7 +32,7 @@ int permute(int argc, char** argv) {
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();
 
-    index_type index;
+    hfur_index_t index;
     essentials::logger("step 1. loading index to be partitioned...");
     essentials::load(index, index_filename.c_str());
     essentials::logger("DONE");

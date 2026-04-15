@@ -162,7 +162,7 @@ private:
             essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> timer;
             timer.start();
             if (num_points == 0) {
-                std::cout << "Found empty partition" << endl;
+                std::cout << "Found empty partition" << std::endl;
                 clustering_data.num_clusters = 0;
                 clustering_data.clusters = {};
                 return 0;
@@ -206,7 +206,7 @@ struct index<ColorSets>::differential_builder {
 
         const uint32_t num_threads = m_build_config.num_threads;
 
-        index_type index;
+        hfur_index_t index;
         essentials::logger("step 1. loading index to be differentiated...");
         essentials::load(index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");

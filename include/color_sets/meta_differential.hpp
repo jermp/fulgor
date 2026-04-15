@@ -32,7 +32,7 @@ struct meta_differential {
             m_partition_sets_offsets.reserve(num_sets);
         }
 
-        void process_meta_color_partition_set(vector<uint32_t>& partition_set) {
+        void process_meta_color_partition_set(std::vector<uint32_t>& partition_set) {
             m_curr_partition_set = partition_set;
             uint64_t size = partition_set.size();
             uint32_t prev_val = partition_set[0];
@@ -58,7 +58,7 @@ struct meta_differential {
             m_prev_docs += d.num_colors();
         }
 
-        void process_metacolor_set(vector<uint32_t>& relative_colors) {
+        void process_metacolor_set(std::vector<uint32_t>& relative_colors) {
             assert(m_curr_partition_set.size() == relative_colors.size());
             m_partition_sets_partitions.push_back(false);
 

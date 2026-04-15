@@ -15,7 +15,7 @@ struct index<ColorSets>::meta_differential_builder {
     void build(index& idx) {
         if (idx.m_k2u.num_kmers() != 0) throw std::runtime_error("index already built");
 
-        meta_index_type meta_index;
+        mfur_index_t meta_index;
         essentials::logger("step 1. loading index to be partitioned");
         essentials::load(meta_index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");
@@ -85,7 +85,7 @@ struct index<ColorSets>::meta_differential_builder {
                                                                    num_partition_colors);
                 std::vector<std::thread> threads(thread_slices.size());
 
-                auto encode_color_sets = [&](uint64_t thread_id) {
+                auto encode_color_sets = [&thread_builders, &thread_slices, &permutation, &meta_partition, num_partition_colors](uint64_t thread_id) {
                     auto& color_sets_builder = thread_builders[thread_id];
                     auto& [begin, end] = thread_slices[thread_id];
                     color_sets_builder.reserve_num_bits(16 * essentials::GB * 8);
@@ -359,7 +359,7 @@ struct index<ColorSets>::meta_differential_builder {
 
             auto exe = [&](uint64_t thread_id) {
                 uint64_t l = slice_size * thread_id;
-                uint64_t r = min(slice_size * (thread_id + 1), idx.m_k2u.num_strings());
+                uint64_t r = std::min(slice_size * (thread_id + 1), idx.m_k2u.num_strings());
 
                 for (uint64_t unitig_id = l; unitig_id < r; ++unitig_id) {
                     auto it = idx.get_k2u().at_string_id(unitig_id);

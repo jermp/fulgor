@@ -4,8 +4,8 @@ void meta_color(build_configuration const& build_config, const bool force)  //
 {
     std::string output_filename = build_config.index_filename_to_partition.substr(
                                       0, build_config.index_filename_to_partition.length() -
-                                             constants::fulgor_filename_extension.length() - 1) +
-                                  "." + constants::meta_colored_fulgor_filename_extension;
+                                             constants::hfur_filename_extension.length() - 1) +
+                                  "." + constants::mfur_filename_extension;
 
     if (std::filesystem::exists(output_filename)) {
         std::cerr << "An index with the name '" << output_filename << "' alreay exists."
@@ -20,8 +20,8 @@ void meta_color(build_configuration const& build_config, const bool force)  //
 
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();
-    meta_index_type index;
-    typename meta_index_type::meta_builder builder(build_config);
+    mfur_index_t index;
+    typename mfur_index_t::meta_builder builder(build_config);
     builder.build(index);
     index.print_stats();
     timer.stop();
@@ -38,8 +38,8 @@ void diff_color(build_configuration const& build_config, const bool force)  //
 {
     std::string output_filename = build_config.index_filename_to_partition.substr(
                                       0, build_config.index_filename_to_partition.length() -
-                                             constants::fulgor_filename_extension.length() - 1) +
-                                  "." + constants::diff_colored_fulgor_filename_extension;
+                                             constants::hfur_filename_extension.length() - 1) +
+                                  "." + constants::dfur_filename_extension;
 
     if (std::filesystem::exists(output_filename)) {
         std::cerr << "An index with the name '" << output_filename << "' alreay exists."
@@ -54,8 +54,8 @@ void diff_color(build_configuration const& build_config, const bool force)  //
 
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();
-    differential_index_type index;
-    typename differential_index_type::differential_builder builder(build_config);
+    dfur_index_t index;
+    typename dfur_index_t::differential_builder builder(build_config);
     builder.build(index);
     index.print_stats();
     timer.stop();
@@ -72,8 +72,8 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
 {
     std::string output_filename = build_config.index_filename_to_partition.substr(
                                       0, build_config.index_filename_to_partition.length() -
-                                             constants::fulgor_filename_extension.length() - 1) +
-                                  "." + constants::meta_diff_colored_fulgor_filename_extension;
+                                             constants::hfur_filename_extension.length() - 1) +
+                                  "." + constants::mdfur_filename_extension;
 
     if (std::filesystem::exists(output_filename)) {
         std::cerr << "An index with the name '" << output_filename << "' alreay exists."
@@ -88,8 +88,8 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
 
     std::string meta_filename = build_config.index_filename_to_partition.substr(
                                       0, build_config.index_filename_to_partition.length() -
-                                             constants::fulgor_filename_extension.length() - 1) +
-                                  "." + constants::meta_colored_fulgor_filename_extension;
+                                             constants::hfur_filename_extension.length() - 1) +
+                                  "." + constants::mfur_filename_extension;
 
     /* first build a meta-colored Fulgor index */
     if (!std::filesystem::exists(meta_filename)) {
@@ -104,10 +104,10 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
     meta_diff_build_config.index_filename_to_partition =
         build_config.index_filename_to_partition.substr(
             0, build_config.index_filename_to_partition.length() -
-                   constants::fulgor_filename_extension.length() - 1) +
-        "." + constants::meta_colored_fulgor_filename_extension;
-    meta_differential_index_type index;
-    typename meta_differential_index_type::meta_differential_builder builder(
+                   constants::hfur_filename_extension.length() - 1) +
+        "." + constants::mfur_filename_extension;
+    mdfur_index_t index;
+    typename mdfur_index_t::meta_differential_builder builder(
         meta_diff_build_config);
     builder.build(index);
     index.print_stats();
@@ -152,7 +152,7 @@ int build(int argc, char** argv) {
     build_configuration build_config;
     build_config.file_base_name = parser.get<std::string>("file_base_name");
     std::string output_filename =
-        build_config.file_base_name + "." + constants::fulgor_filename_extension;
+        build_config.file_base_name + "." + constants::hfur_filename_extension;
     build_config.index_filename_to_partition = output_filename;
     bool force = parser.get<bool>("force");
     build_config.meta_colored = parser.get<bool>("meta");
@@ -205,8 +205,8 @@ int build(int argc, char** argv) {
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();
 
-    index_type index;
-    typename index_type::builder builder(build_config);
+    hfur_index_t index;
+    typename hfur_index_t::builder builder(build_config);
     builder.build(index);
     index.print_stats();
 
@@ -253,9 +253,9 @@ int color(int argc, char** argv) {
     build_configuration build_config;
     build_config.index_filename_to_partition = parser.get<std::string>("index_filename");
     if (!sshash::util::ends_with(build_config.index_filename_to_partition,
-                                 "." + constants::fulgor_filename_extension)) {
+                                 "." + constants::hfur_filename_extension)) {
         std::cerr << "Error: the file to partition must have extension \"."
-                  << constants::fulgor_filename_extension
+                  << constants::hfur_filename_extension
                   << "\". Have you first built a Fulgor index with the tool \"build\"?"
                   << std::endl;
         return 1;

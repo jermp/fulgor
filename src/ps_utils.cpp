@@ -414,35 +414,37 @@ private:
     std::mutex mut;
 };
 
-struct ps_options {
-    explicit ps_options(const pseudoalignment_algorithm algo, const bool verbose,
-                        const uint64_t num_threads)
-        : verbose(verbose)
-        , algo(algo)
-        , num_threads(num_threads)
-        , num_reads(0)
-        , num_mapped_reads(0) {}
+struct query_options {
+    explicit query_options(const bool verbose, const uint64_t num_threads)
+        : verbose(verbose), num_threads(num_threads), num_reads(0) {}
 
     void increment_processed_reads(const int val = 1) {
         uint64_t prev = num_reads.fetch_add(val);
-        if (verbose && prev >> batch_size != (prev + val) >> batch_size) {
-            io_mut.lock();
+        if (verbose && prev >> m_log2_batch_size != (prev + val) >> m_log2_batch_size) {
+            m_io_mut.lock();
             std::cout << "processed " << num_reads << " reads" << std::endl;
-            io_mut.unlock();
+            m_io_mut.unlock();
         }
     }
 
-    void increment_mapped_reads(const int val = 1) { num_mapped_reads += val; }
-
     const bool verbose;
-    const pseudoalignment_algorithm algo;
     const uint64_t num_threads;
-    std::mutex io_mut;
     std::atomic<uint64_t> num_reads;
-    std::atomic<uint64_t> num_mapped_reads;
 
 private:
-    const uint64_t batch_size = 20;
+    std::mutex m_io_mut;
+    const uint64_t m_log2_batch_size = 20;
+};
+
+struct ps_options : query_options {
+    explicit ps_options(const pseudoalignment_algorithm algo, const bool verbose,
+                        const uint64_t num_threads)
+        : query_options(verbose, num_threads), algo(algo), num_mapped_reads(0) {}
+
+    void increment_mapped_reads(const int val = 1) { num_mapped_reads += val; }
+
+    const pseudoalignment_algorithm algo;
+    std::atomic<uint64_t> num_mapped_reads;
 };
 
 }  // namespace fulgor

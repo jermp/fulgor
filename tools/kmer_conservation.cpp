@@ -7,11 +7,10 @@
 using namespace fulgor;
 
 template <typename FulgorIndex>
-int kmer_conservation(FulgorIndex const& index,
-                      fastx_parser::FastxParser<fastx_parser::ReadSeq>& rparser,
-                      std::atomic<uint64_t>& num_reads, std::atomic<uint64_t>& num_processed_reads,
-                      std::ofstream& out_file, std::mutex& iomut, std::mutex& ofile_mut,
-                      const bool verbose)  //
+void kmer_conservation(FulgorIndex const& index,
+                       fastx_parser::FastxParser<fastx_parser::ReadSeq>& rparser,
+                       std::ofstream& out_file, std::mutex& ofile_mut,
+                       query_options& options)  //
 {
     std::vector<kmer_conservation_triple> kmer_conservation_info;
     std::stringstream ss;
@@ -21,15 +20,10 @@ int kmer_conservation(FulgorIndex const& index,
     auto rg = rparser.getReadGroup();
     while (rparser.refill(rg)) {
         for (auto const& record : rg) {
-            if (record.seq.length() >= (uint64_t(1) << 32)) {
-                iomut.lock();
-                std::cout << "sequence is too long (>= 2^32): skipping" << std::endl;
-                iomut.unlock();
-            }
+            assert(record.seq.length() < (uint64_t(1) << 32));
             index.kmer_conservation(record.seq, kmer_conservation_info);
             buff_size += 1;
             if (!kmer_conservation_info.empty()) {
-                num_processed_reads += 1;
                 ss << record.name << '\t' << kmer_conservation_info.size();
                 for (auto kct : kmer_conservation_info) {
                     ss << "\t(" << kct.start_pos_in_query << ' ' << kct.num_kmers << ' '
@@ -39,13 +33,8 @@ int kmer_conservation(FulgorIndex const& index,
             } else {
                 ss << record.name << "\t0\n";
             }
-            num_reads += 1;
             kmer_conservation_info.clear();
-            if (verbose and num_reads > 0 and num_reads % 1000000 == 0) {
-                iomut.lock();
-                std::cout << "processed " << num_reads << " reads" << std::endl;
-                iomut.unlock();
-            }
+            options.increment_processed_reads();
             if (buff_size > buff_thresh) {
                 std::string outs = ss.str();
                 ss.str("");
@@ -66,18 +55,15 @@ int kmer_conservation(FulgorIndex const& index,
         ofile_mut.unlock();
         buff_size = 0;
     }
-
-    return 0;
 }
 
 template <typename FulgorIndex>
 int kmer_conservation(std::string const& index_filename, std::string const& query_filename,
-                      std::string const& output_filename, const uint64_t num_threads,
-                      const bool verbose) {
+                      std::string const& output_filename, query_options& options) {
     FulgorIndex index;
-    if (verbose) essentials::logger("loading index from disk...");
+    if (options.verbose) essentials::logger("loading index from disk...");
     essentials::load(index, index_filename.c_str());
-    if (verbose) essentials::logger("DONE");
+    if (options.verbose) essentials::logger("DONE");
 
     std::ifstream is(query_filename.c_str());
     if (!is.good()) {
@@ -85,13 +71,14 @@ int kmer_conservation(std::string const& index_filename, std::string const& quer
         return 1;
     }
 
-    if (verbose) essentials::logger("performing queries from file '" + query_filename + "'...");
+    if (options.verbose) {
+        essentials::logger("performing queries from file '" + query_filename + "'...");
+    }
+
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> t;
     t.start();
 
-    std::atomic<uint64_t> num_processed_reads{0};
-    std::atomic<uint64_t> num_reads{0};
-
+    const uint64_t num_threads = options.num_threads;
     auto query_filenames = std::vector<std::string>({query_filename});
     assert(num_threads >= 2);
     fastx_parser::FastxParser<fastx_parser::ReadSeq> rparser(query_filenames, num_threads,
@@ -100,7 +87,6 @@ int kmer_conservation(std::string const& index_filename, std::string const& quer
     rparser.start();
     std::vector<std::thread> workers;
     workers.reserve(num_threads);
-    std::mutex iomut;
     std::mutex ofile_mut;
 
     std::ofstream out_file;
@@ -111,10 +97,8 @@ int kmer_conservation(std::string const& index_filename, std::string const& quer
     }
 
     for (uint64_t i = 1; i != num_threads; ++i) {
-        workers.push_back(std::thread([&index, &rparser, &num_reads, &num_processed_reads,
-                                       &out_file, &iomut, &ofile_mut, verbose]() {
-            kmer_conservation(index, rparser, num_reads, num_processed_reads, out_file, iomut,
-                              ofile_mut, verbose);
+        workers.push_back(std::thread([&index, &rparser, &out_file, &ofile_mut, &options]() {
+            kmer_conservation(index, rparser, out_file, ofile_mut, options);
         }));
     }
 
@@ -122,14 +106,14 @@ int kmer_conservation(std::string const& index_filename, std::string const& quer
     rparser.stop();
 
     t.stop();
-    if (verbose) essentials::logger("DONE");
+    if (options.verbose) essentials::logger("DONE");
 
-    if (verbose) {
-        std::cout << "processed " << num_reads << " reads" << std::endl;
+    if (options.verbose) {
+        std::cout << "processed " << options.num_reads << " reads" << std::endl;
         std::cout << "elapsed = " << t.elapsed() << " millisec / ";
         std::cout << t.elapsed() / 1000 << " sec / ";
         std::cout << t.elapsed() / 1000 / 60 << " min / ";
-        std::cout << (t.elapsed() * 1000) / num_reads << " musec/read" << std::endl;
+        std::cout << (t.elapsed() * 1000) / options.num_reads << " musec/read" << std::endl;
     }
 
     return 0;
@@ -167,18 +151,20 @@ int kmer_conservation(int argc, char** argv) {
     bool verbose = parser.get<bool>("verbose");
     if (verbose) util::print_cmd(argc, argv);
 
-    if (sshash::util::ends_with(index_filename, constants::mdfur_filename_extension)) {
+    query_options options(verbose, num_threads);
+
+    if (is_meta_diff(index_filename)) {
         return kmer_conservation<mdfur_index_t>(index_filename, query_filename, output_filename,
-                                                num_threads, verbose);
-    } else if (sshash::util::ends_with(index_filename, constants::mfur_filename_extension)) {
+                                                options);
+    } else if (is_meta(index_filename)) {
         return kmer_conservation<mfur_index_t>(index_filename, query_filename, output_filename,
-                                               num_threads, verbose);
-    } else if (sshash::util::ends_with(index_filename, constants::dfur_filename_extension)) {
+                                               options);
+    } else if (is_diff(index_filename)) {
         return kmer_conservation<dfur_index_t>(index_filename, query_filename, output_filename,
-                                               num_threads, verbose);
-    } else if (sshash::util::ends_with(index_filename, constants::hfur_filename_extension)) {
+                                               options);
+    } else if (is_hybrid(index_filename)) {
         return kmer_conservation<hfur_index_t>(index_filename, query_filename, output_filename,
-                                               num_threads, verbose);
+                                               options);
     }
 
     std::cerr << "Wrong index filename supplied." << std::endl;

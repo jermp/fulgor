@@ -10,8 +10,8 @@
 using namespace fulgor;
 
 template <typename FulgorIndex, typename Formatter, typename QueryReader>
-int pseudoalign_worker(FulgorIndex const& index, QueryReader& query_reader, Formatter& formatter,
-                       const double threshold, ps_options& options)  //
+void pseudoalign_worker(FulgorIndex const& index, QueryReader& query_reader, Formatter& formatter,
+                        const double threshold, ps_options& options)  //
 {
     auto output_buffer = formatter.buffer();
     std::vector<uint32_t> tmp, colors;  // result of pseudoalignment
@@ -39,28 +39,27 @@ int pseudoalign_worker(FulgorIndex const& index, QueryReader& query_reader, Form
                 options.increment_processed_reads(query.ids.size());
                 for (auto qid : query.ids) {
                     output_buffer.write(qid, colors);
-                    if (!colors.empty()) { options.increment_mapped_reads(); }
+                    if (!colors.empty()) options.increment_mapped_reads();
                 }
             } else {
                 options.increment_processed_reads();
                 output_buffer.write(query.id, colors);
-                if (!colors.empty()) { options.increment_mapped_reads(); }
+                if (!colors.empty()) options.increment_mapped_reads();
             }
 
             colors.clear();
             qg.next();
         }
     }
-    return 0;
 }
 
 template <typename FulgorIndex, typename Formatter, typename QueryReader>
-int pseudoalign_orchestrator(FulgorIndex& index, QueryReader& query_reader, Formatter& formatter,
-                             const double threshold, ps_options& options) {
+void pseudoalign_orchestrator(FulgorIndex& index, QueryReader& query_reader, Formatter& formatter,
+                              const double threshold, ps_options& options) {
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> t;
     t.start();
 
-    uint64_t num_threads = options.num_threads;
+    const uint64_t num_threads = options.num_threads;
     assert(num_threads >= 2);
 
     if (options.verbose) essentials::logger("*** START: pseudoalignment");
@@ -87,8 +86,6 @@ int pseudoalign_orchestrator(FulgorIndex& index, QueryReader& query_reader, Form
                   << " (" << (options.num_mapped_reads * 100.0) / options.num_reads << "%)"
                   << std::endl;
     }
-
-    return 0;
 }
 
 template <typename FulgorIndex, typename Formatter>

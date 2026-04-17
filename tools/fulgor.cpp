@@ -19,6 +19,7 @@
 #include "permute.cpp"
 #include "pseudoalign.cpp"
 #include "kmer_conservation.cpp"
+#include "kmer_matches.cpp"
 
 int help(char* arg0) {
     std::cout << "== Fulgor: a colored de Bruijn graph index"
@@ -42,6 +43,8 @@ int help(char* arg0) {
     std::cout << "Queries:\n"
               << "  pseudoalign        perform pseudoalignment to an index\n"
               << "  kmer-conservation  print color set info for each positive kmer in query\n"
+              << "  kmer-matches       print positive kmers per query and number of kmer matches "
+                 "per color\n"
               << std::endl;
 
     std::cout
@@ -76,6 +79,8 @@ int main(int argc, char** argv) {
         return pseudoalign(argc - 1, argv + 1);
     } else if (tool == "kmer-conservation") {
         return kmer_conservation(argc - 1, argv + 1);
+    } else if (tool == "kmer-matches") {
+        return kmer_matches(argc - 1, argv + 1);
     } else if (tool == "check") {
         return check(argc - 1, argv + 1);
     } else if (tool == "verify") {

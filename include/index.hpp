@@ -48,6 +48,10 @@ struct index {
     void kmer_conservation(std::string const& sequence,                                           //
                            std::vector<kmer_conservation_triple>& kmer_conservation_info) const;  //
 
+    void kmer_matches(std::string const& sequence,                            //
+                      bits::bit_vector::builder& positive_kmers_in_sequence,  //
+                      std::vector<count_type>& counts) const;                 //
+
     std::string_view filename(uint64_t color) const {
         assert(color < num_colors());
         return m_filenames[color];

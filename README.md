@@ -27,6 +27,7 @@ Please, cite these papers if you use Fulgor.
 * [Indexing an example Salmonella Enterica pangenome](#indexing-an-example-salmonella-enterica-pangenome)
 * [Pseudoalignment output format](#pseudoalignment-output-format)
 * [Kmer conservation output format](#kmer-conservation-output-format)
+* [Kmer matches output format](#kmer-matches-output-format)
 * [Dump output format](#dump-output-format)
 
 Dependencies
@@ -89,28 +90,29 @@ Tools and usage
 There is one executable called `fulgor` after the compilation, which can be used to run a tool.
 Run `./fulgor help` to see a list of available tools.
 
-    == Fulgor: a colored de Bruijn graph index ========================================
-    
-    Usage: ./fulgor <tool> ...
-    
-    Construction:
-      build              build an index
-      color              build a meta- or a diff- or a meta-diff- index
-      permute            permute the reference names of an index
-    
-    Queries:
-      pseudoalign        perform pseudoalignment to an index
-      kmer-conservation  print color set info for each positive kmer in query
-    
-    Debug:
-      check              perform an in-depth check to verify that an index was built correctly.
-      verify             verify that index works correctly with current library version
-      stats              print index statistics
-      print-filenames    print all reference filenames
-      dump               write unitigs and color sets of an index in text format
-    
-    Other:
-      help               print this helper and exit gracefully
+	== Fulgor: a colored de Bruijn graph index ===============================================
+
+	Usage: ./fulgor <tool> ...
+
+	Construction:
+	  build              build an index
+	  color              build a meta- or a diff- or a meta-diff- index
+	  permute            permute the reference names of an index
+
+	Queries:
+	  pseudoalign        perform pseudoalignment to an index
+	  kmer-conservation  print color set info for each positive kmer in query
+	  kmer-matches       print positive kmers per query and number of kmer matches per color
+
+	Debug:
+	  check              perform an in-depth check to verify that an index was built correctly
+	  verify             verify that index works correctly with current library version
+	  stats              print index statistics
+	  print-filenames    print all reference filenames
+	  dump               write unitigs and color sets of an index in text format
+
+	Other:
+	  help               print this helper and exit gracefully
 
 For large-scale indexing, it could be necessary to increase the number of file descriptors that can be opened simultaneously:
 
@@ -258,6 +260,37 @@ where the variable `it` is the iterator and `it.size()` is the size of the color
 
 For example, in the second query, the triple `(12 6 3)` indicates that the 6 kmers starting at position 12 in the query all have color set id 3.
 
+
+Kmer matches output format
+--------------------------
+
+The tool `kmer-matches` writes the result to an output file, in plain text format, specified with the option `-o [output-filename]`.
+
+This file begins with the line
+
+	num_colors=[N]
+
+where `[N]` is the number of colors in the index and then has one line for each processed read, formatted as follows:
+
+	[read-name][TAB][num-kmers-in-read][TAB][matching-bitvector][matches-per-color]
+
+where
+
+- `[num-kmers-in-read]` is an integer,
+- `[matching-bitvector]` is a TAB-separated list of `0/1` digits, of length `[num-kmers-in-read]`: digit `i` is `1` is the `i`-th kmer of the read is present in the index, and `0` otherwise,
+- `[matches-per-color]` is a TAB-separated list of integers, of length [N]: the `i`-th integer is `x` if `x` kmers of the read are found in color `i`.
+
+(`[TAB]` is the character `\t`.)
+
+#### Example
+
+	num_colors=10
+	(...)
+	SRR801268.6	23	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	23	23	23	23	23	23	23	23	23	23
+	SRR801268.7	23	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	23	12	12	23	12	12	12	23	23	12
+	SRR801268.8	23	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	23	0	0	23	0	0	0	0	0	0
+	SRR801268.9	23	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	14	0	0	14	0	0	0	14	14	0
+	(...)
 
 Dump output format
 ------------------

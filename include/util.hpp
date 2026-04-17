@@ -77,6 +77,8 @@ struct kmer_conservation_triple {
     uint32_t color_set_id;
 };
 
+typedef uint32_t count_type;
+
 namespace util {
 
 void print_cmd(int argc, char** argv) {

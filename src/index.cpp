@@ -59,6 +59,7 @@ void index<ColorSets>::print_stats() const {
 template <typename ColorSets>
 void index<ColorSets>::dump(std::string const& basename) const {
     /* metadata file */
+    essentials::logger("writing '" + basename + ".metadata.txt'...");
     std::ofstream metadata_file(basename + ".metadata.txt");
     if (!metadata_file.is_open()) throw std::runtime_error("cannot open output file");
     metadata_file << "k=" << k() << '\n';
@@ -68,7 +69,15 @@ void index<ColorSets>::dump(std::string const& basename) const {
     metadata_file << "num_color_sets=" << num_color_sets() << '\n';
     metadata_file.close();
 
+    /* filenames file */
+    essentials::logger("writing '" + basename + ".filenames.txt'...");
+    std::ofstream filenames_file(basename + ".filenames.txt");
+    if (!filenames_file.is_open()) throw std::runtime_error("cannot open output file");
+    for (uint64_t i = 0; i != num_colors(); ++i) filenames_file << filename(i) << '\n';
+    filenames_file.close();
+
     /* unitigs file */
+    essentials::logger("writing '" + basename + ".unitigs.fa'...");
     std::ofstream unitigs_file(basename + ".unitigs.fa");
     if (!unitigs_file.is_open()) throw std::runtime_error("cannot open output file");
     const uint64_t u = num_unitigs();
@@ -88,6 +97,7 @@ void index<ColorSets>::dump(std::string const& basename) const {
     unitigs_file.close();
 
     /* color_sets file */
+    essentials::logger("writing '" + basename + ".color_sets.txt'...");
     std::ofstream color_sets_file(basename + ".color_sets.txt");
     if (!color_sets_file.is_open()) throw std::runtime_error("cannot open output file");
     auto const& color_sets = get_color_sets();
@@ -104,6 +114,8 @@ void index<ColorSets>::dump(std::string const& basename) const {
         color_sets_file << '\n';
     }
     color_sets_file.close();
+
+    essentials::logger("DONE");
 }
 
 }  // namespace fulgor

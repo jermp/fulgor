@@ -296,9 +296,10 @@ Dump output format
 ------------------
 
 The tool `dump` writes in plain textual format the content of an index.
-In particular, it outputs three files:
+In particular, it outputs four files:
 
 - `[basename].metadata.txt`
+- `[basename].filenames.txt`
 - `[basename].unitigs.fa`
 - `[basename].color_sets.txt`
 
@@ -315,6 +316,26 @@ Example:
 	num_color_sets=972178
 
 **Important note**: The values of `num_unitigs` and `num_color_sets` could (slightly) change if the index is re-built because GGCAT does not compute *maximal* unitigs.
+
+The file `[basename].filenames.txt` lists all filenames **in order of color id**.
+The file has one line per filename.
+
+Example:
+
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7051AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7053AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7059AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7089AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7092AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7122AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7144AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7173AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7174AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7190AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7196AA.fasta
+	(...)
+
+This means that color 0 corresponds to the file `.../SAL_AA7051AA.fasta`, color 1 to the file `../SAL_AA7053AA.fasta`, etc.
 
 The file `[basename].unitigs.fa` contains the unitig sequences written in FASTA format.
 Each sequence has a header containing the id of the unitig (an increasing integer id) and the id of the corresponding color set.

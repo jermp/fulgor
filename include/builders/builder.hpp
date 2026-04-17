@@ -218,9 +218,9 @@ struct index<ColorSets>::builder {
         }
     }
 
-    void check(index& idx) {
+    void check(index const& idx) {
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-        essentials::logger("step 5. check correctness...");
+        essentials::logger("checking correctness...");
         timer.start();
         std::atomic<uint64_t> num_checked_unitigs(0);
 
@@ -273,7 +273,7 @@ struct index<ColorSets>::builder {
         timer.stop();
         std::cout << "** checking correctness took " << timer.elapsed() << " seconds / "
                   << timer.elapsed() / 60 << " minutes" << std::endl;
-        essentials::logger("CHECKS DONE!");
+        essentials::logger("CHECK DONE!");
     }
 
 private:

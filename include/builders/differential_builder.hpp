@@ -3,6 +3,7 @@
 #include "include/index.hpp"
 
 namespace fulgor {
+
 struct differential_permuter {
     differential_permuter(build_configuration const& build_config)
         : m_build_config(build_config), m_num_partitions(0) {}
@@ -406,8 +407,8 @@ struct index<ColorSets>::differential_builder {
         }
     }
 
-    void check(index& idx) {
-        essentials::logger("step 7. check correctness...");
+    void check(index const& idx) {
+        essentials::logger("checking correctness...");
         const uint64_t num_color_sets = idx.num_color_sets();
 
         for (uint64_t color_set_id = 0; color_set_id < num_color_sets; color_set_id++) {
@@ -479,4 +480,5 @@ private:
     hfur_index_t index;
     std::vector<std::pair<uint32_t, uint32_t>> permutation;
 };
+
 }  // namespace fulgor

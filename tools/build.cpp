@@ -32,10 +32,10 @@ void meta_color(build_configuration const& build_config, const bool force)  //
 
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
-    essentials::logger("STORING DONE");
+    essentials::logger("DONE");
 
-    if (build_config.verbose) { index.print_stats(); }
-    if (build_config.check) { builder.check(index); }
+    if (build_config.verbose) index.print_stats();
+    if (build_config.check) builder.check(index);
 }
 
 void diff_color(build_configuration const& build_config, const bool force)  //
@@ -70,7 +70,7 @@ void diff_color(build_configuration const& build_config, const bool force)  //
 
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
-    essentials::logger("STORING DONE");
+    essentials::logger("DONE");
 
     if (build_config.verbose) { index.print_stats(); }
     if (build_config.check) { builder.check(index); }
@@ -127,7 +127,7 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
 
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
-    essentials::logger("STORING DONE");
+    essentials::logger("DONE");
 
     if (build_config.verbose) { index.print_stats(); }
     if (build_config.check) { builder.check(index); }
@@ -228,7 +228,7 @@ int build(int argc, char** argv) {
 
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
-    essentials::logger("STORING DONE");
+    essentials::logger("DONE");
 
     if (build_config.verbose) { index.print_stats(); }
     if (build_config.check) { builder.check(index); }

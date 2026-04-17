@@ -47,7 +47,7 @@ struct index<ColorSets>::builder {
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
 
         {
-            essentials::logger("step 1. build colored compacted dBG");
+            essentials::logger("step 1. building colored compacted dBG from GGCAT...");
             timer.start();
             m_ccdbg.build(m_build_config);
             m_build_config.num_colors = m_ccdbg.num_colors();
@@ -62,14 +62,13 @@ struct index<ColorSets>::builder {
                                                 ".sshash.fa";
 
         {
-            essentials::logger("step 2. build m_u2c and m_color_sets");
+            essentials::logger("step 2. building unitig-to-color map and encoding color sets...");
             timer.start();
 
             uint64_t num_unitigs = 0;
             uint64_t num_distinct_color_sets = 0;
 
             typename ColorSets::builder main_builder(m_build_config.num_colors);
-            // main_builder.reserve_num_bits(16 * essentials::GB * 8);
 
             const uint64_t num_threads = m_build_config.num_threads;
             std::vector<typename ColorSets::builder> thread_builders(num_threads,
@@ -164,7 +163,7 @@ struct index<ColorSets>::builder {
             main_builder.build(idx.m_color_sets);
 
             timer.stop();
-            std::cout << "** building color sets took " << timer.elapsed() << " seconds / "
+            std::cout << "** encoding color sets took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
 
@@ -180,13 +179,13 @@ struct index<ColorSets>::builder {
                       << std::endl;
 
             timer.stop();
-            std::cout << "** building m_u2c " << timer.elapsed() << " seconds / "
+            std::cout << "** building unitig-to-color map took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
 
         {
-            essentials::logger("step 3. build m_k2u");
+            essentials::logger("step 3. building SSHash...");
             timer.start();
 
             sshash::build_configuration sshash_config;
@@ -203,13 +202,13 @@ struct index<ColorSets>::builder {
             } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
 
             timer.stop();
-            std::cout << "** building m_k2u took " << timer.elapsed() << " seconds / "
+            std::cout << "** building SSHash took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
 
         {
-            essentials::logger("step 4. write filenames");
+            essentials::logger("step 4. writing filenames...");
             timer.start();
             idx.m_filenames.build(m_ccdbg.filenames());
             timer.stop();

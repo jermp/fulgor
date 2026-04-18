@@ -58,7 +58,8 @@ struct index {
     }
 
     void print_stats() const;
-    void dump(std::string const& basename) const;
+    void dump(build_configuration const& build_config) const;
+    void load(build_configuration const& build_config);
 
     uint64_t k() const { return m_k2u.k(); }
     uint64_t num_kmers() const { return m_k2u.size(); }

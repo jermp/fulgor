@@ -55,6 +55,7 @@ int help(char* arg0) {
         << "  stats              print index statistics\n"
         << "  print-filenames    print all reference filenames\n"
         << "  dump               write unitigs and color sets of an index in text format\n"
+        << "  load               build an index from dump output\n"
         << std::endl;
 
     std::cout << "Other:\n"
@@ -96,6 +97,8 @@ int main(int argc, char** argv) {
         return permute(argc - 1, argv + 1);
     } else if (tool == "dump") {
         return dump(argc - 1, argv + 1);
+    } else if (tool == "load") {
+        return load(argc - 1, argv + 1);
     } else if (tool == "color") {
         return color(argc - 1, argv + 1);
     }

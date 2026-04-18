@@ -230,8 +230,8 @@ int build(int argc, char** argv) {
     essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");
 
-    if (build_config.verbose) { index.print_stats(); }
-    if (build_config.check) { builder.check(index); }
+    if (build_config.verbose) index.print_stats();
+    if (build_config.check) builder.check(index);
 
     if (build_config.meta_colored and build_config.diff_colored) {
         meta_diff_color(build_config, force);

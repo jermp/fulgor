@@ -52,12 +52,12 @@ void print_filenames(std::string const& index_filename) {
 }
 
 template <typename FulgorIndex>
-void dump(std::string const& index_filename, std::string const& basename) {
+void dump(std::string const& index_filename, build_configuration const& build_config) {
     FulgorIndex index;
     essentials::logger("loading index from disk...");
     essentials::load(index, index_filename.c_str());
     essentials::logger("DONE");
-    index.dump(basename);
+    index.dump(build_config);
 }
 
 template <typename BaseIndex, typename TargetIndex>
@@ -297,9 +297,9 @@ int dump(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("index_filename", "The Fulgor index filename.", "-i", true);
     parser.add("output_basename",
-               "Output basename. If the supplied basename is F, the output will consist in three "
-               "files: F.unitigs.fa, F.color_sets.txt, and F.metadata.txt. (If this is not "
-               "supplied, the basename of the index is used instead.)",
+               "Output basename. If the supplied basename is F, the output will consist in four "
+               "files: F.unitigs.fa, F.color_sets.txt, F.filenames.txt, and F.metadata.txt. (If "
+               "this is not supplied, the basename of the index is used instead.)",
                "-o", false);
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
@@ -311,34 +311,98 @@ int dump(int argc, char** argv) {
         assert(output_basename.length() != 0);
     }
 
+    build_configuration build_config;
+
     if (is_meta_diff(index_filename)) {
         std::string basename{
             index_filename.data(),
             index_filename.length() - constants::mdfur_filename_extension.length() - 1};
-        dump<mdfur_index_t>(index_filename,
-                            output_basename.length() == 0 ? basename : output_basename);
+        build_config.file_base_name = output_basename.length() == 0 ? basename : output_basename;
+        dump<mdfur_index_t>(index_filename, build_config);
     } else if (is_meta(index_filename)) {
         std::string basename{
             index_filename.data(),
             index_filename.length() - constants::mfur_filename_extension.length() - 1};
-        dump<mfur_index_t>(index_filename,
-                           output_basename.length() == 0 ? basename : output_basename);
+        build_config.file_base_name = output_basename.length() == 0 ? basename : output_basename;
+        dump<mfur_index_t>(index_filename, build_config);
     } else if (is_diff(index_filename)) {
         std::string basename{
             index_filename.data(),
             index_filename.length() - constants::dfur_filename_extension.length() - 1};
-        dump<dfur_index_t>(index_filename,
-                           output_basename.length() == 0 ? basename : output_basename);
+        build_config.file_base_name = output_basename.length() == 0 ? basename : output_basename;
+        dump<dfur_index_t>(index_filename, build_config);
     } else if (is_hybrid(index_filename)) {
         std::string basename{
             index_filename.data(),
             index_filename.length() - constants::hfur_filename_extension.length() - 1};
-        dump<hfur_index_t>(index_filename,
-                           output_basename.length() == 0 ? basename : output_basename);
+        build_config.file_base_name = output_basename.length() == 0 ? basename : output_basename;
+        dump<hfur_index_t>(index_filename, build_config);
     } else {
         std::cerr << "Wrong filename supplied." << std::endl;
         return 1;
     }
+    return 0;
+}
+
+int load(int argc, char** argv) {
+    cmd_line_parser::parser parser(argc, argv);
+    parser.add(
+        "input_basename",
+        "Input basename. If the supplied basename is F, the program attempts to read four files: "
+        "F.unitigs.fa, F.color_sets.txt, F.filenames.txt, and F.metadata.txt. (These files are the "
+        "output of the `dump` tool.)",
+        "-i", true);
+    parser.add("output_basename",
+               "Output basename. If not provided, the input basename will be used.", "-o", false);
+    parser.add("m", "Minimizer length (must be < k).", "-m", true);
+    parser.add(
+        "tmp_dirname",
+        "Temporary directory used for construction in external memory. Default is directory '" +
+            constants::default_tmp_dirname + "'.",
+        "-d", false);
+    parser.add("RAM",
+               "RAM limit in GiB. Default value is " +
+                   std::to_string(constants::default_ram_limit_in_GiB) + ".",
+               "-g", false);
+    parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
+    parser.add("verbose", "Verbose output during construction.", "--verbose", false, true);
+    if (!parser.parse()) return 1;
+    util::print_cmd(argc, argv);
+
+    build_configuration build_config;
+
+    auto m = parser.get<uint64_t>("m");
+    build_config.m = m;
+    if (parser.get<uint64_t>("RAM")) {
+        build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
+    }
+    if (parser.parsed("tmp_dirname")) {
+        build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");
+        essentials::create_directory(build_config.tmp_dirname);
+    }
+    if (parser.parsed("num_threads")) {
+        build_config.num_threads = parser.get<uint64_t>("num_threads");
+    }
+    build_config.verbose = parser.get<bool>("verbose");
+
+    std::string input_basename = parser.get<std::string>("input_basename");
+    assert(input_basename.length() != 0);
+    build_config.file_base_name = input_basename;
+
+    hfur_index_t index;
+    index.load(build_config);
+
+    essentials::logger("saving index to disk...");
+
+    std::string output_filename =
+        build_config.file_base_name + "." + constants::hfur_filename_extension;
+    if (parser.parsed("output_basename")) {
+        output_filename =
+            parser.get<std::string>("output_basename") + "." + constants::hfur_filename_extension;
+    }
+    essentials::save(index, output_filename.c_str());
+    essentials::logger("DONE");
+
     return 0;
 }
 

@@ -57,10 +57,11 @@ void index<ColorSets>::print_stats() const {
 }
 
 template <typename ColorSets>
-void index<ColorSets>::dump(std::string const& basename) const {
+void index<ColorSets>::dump(build_configuration const& build_config) const  //
+{
     /* metadata file */
-    essentials::logger("writing '" + basename + ".metadata.txt'...");
-    std::ofstream metadata_file(basename + ".metadata.txt");
+    essentials::logger("writing '" + build_config.file_base_name + ".metadata.txt'...");
+    std::ofstream metadata_file(build_config.file_base_name + ".metadata.txt");
     if (!metadata_file.is_open()) throw std::runtime_error("cannot open output file");
     metadata_file << "k=" << k() << '\n';
     metadata_file << "num_kmers=" << num_kmers() << '\n';
@@ -70,15 +71,15 @@ void index<ColorSets>::dump(std::string const& basename) const {
     metadata_file.close();
 
     /* filenames file */
-    essentials::logger("writing '" + basename + ".filenames.txt'...");
-    std::ofstream filenames_file(basename + ".filenames.txt");
+    essentials::logger("writing '" + build_config.file_base_name + ".filenames.txt'...");
+    std::ofstream filenames_file(build_config.file_base_name + ".filenames.txt");
     if (!filenames_file.is_open()) throw std::runtime_error("cannot open output file");
     for (uint64_t i = 0; i != num_colors(); ++i) filenames_file << filename(i) << '\n';
     filenames_file.close();
 
     /* unitigs file */
-    essentials::logger("writing '" + basename + ".unitigs.fa'...");
-    std::ofstream unitigs_file(basename + ".unitigs.fa");
+    essentials::logger("writing '" + build_config.file_base_name + ".unitigs.fa'...");
+    std::ofstream unitigs_file(build_config.file_base_name + ".unitigs.fa");
     if (!unitigs_file.is_open()) throw std::runtime_error("cannot open output file");
     const uint64_t u = num_unitigs();
     const uint64_t kmer_length = k();
@@ -97,8 +98,8 @@ void index<ColorSets>::dump(std::string const& basename) const {
     unitigs_file.close();
 
     /* color_sets file */
-    essentials::logger("writing '" + basename + ".color_sets.txt'...");
-    std::ofstream color_sets_file(basename + ".color_sets.txt");
+    essentials::logger("writing '" + build_config.file_base_name + ".color_sets.txt'...");
+    std::ofstream color_sets_file(build_config.file_base_name + ".color_sets.txt");
     if (!color_sets_file.is_open()) throw std::runtime_error("cannot open output file");
     auto const& color_sets = get_color_sets();
     const uint64_t n = num_color_sets();
@@ -116,6 +117,188 @@ void index<ColorSets>::dump(std::string const& basename) const {
     color_sets_file.close();
 
     essentials::logger("DONE");
+}
+
+template <typename ColorSets>
+void index<ColorSets>::load(build_configuration const& build_config)  //
+{
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+
+    uint64_t k = 0;
+    uint64_t num_kmers = 0;
+    uint64_t num_colors = 0;
+    uint64_t num_unitigs = 0;
+    uint64_t num_color_sets = 0;
+
+    {
+        essentials::logger("step 1. reading metadata...");
+
+        std::string metadata_fn = build_config.file_base_name + ".metadata.txt";
+        std::ifstream in(metadata_fn.c_str());
+        if (!in.is_open()) throw std::runtime_error("cannot open metadata file");
+
+        std::string line;
+        while (std::getline(in, line)) {
+            size_t delimiter_pos = line.find('=');
+            assert(delimiter_pos != std::string::npos);
+            std::string_view key(line.data(), delimiter_pos);
+            char const* value_ptr = line.c_str() + delimiter_pos + 1;
+            if (key == "k") {
+                k = static_cast<uint32_t>(std::strtoul(value_ptr, nullptr, 10));
+            } else if (key == "num_kmers") {
+                num_kmers = std::strtoull(value_ptr, nullptr, 10);
+            } else if (key == "num_colors") {
+                num_colors = static_cast<uint32_t>(std::strtoul(value_ptr, nullptr, 10));
+            } else if (key == "num_unitigs") {
+                num_unitigs = std::strtoull(value_ptr, nullptr, 10);
+            } else if (key == "num_color_sets") {
+                num_color_sets = std::strtoull(value_ptr, nullptr, 10);
+            }
+        }
+
+        in.close();
+
+        if (build_config.verbose) {
+            std::cout << "k=" << k << ", num_kmers=" << num_kmers << ", num_colors=" << num_colors
+                      << ", num_unitigs=" << num_unitigs << ", num_color_sets=" << num_color_sets
+                      << std::endl;
+        }
+
+        assert(num_unitigs > 0);
+        assert(num_unitigs < (uint64_t(1) << 32));
+
+        essentials::logger("DONE");
+    }
+
+    {
+        essentials::logger("step 2. building unitig-to-color map...");
+        timer.start();
+
+        bits::bit_vector::builder u2c_builder;
+        u2c_builder.resize(num_unitigs, 0);
+
+        std::string unitigs_fn = build_config.file_base_name + ".unitigs.fa";
+        std::ifstream in(unitigs_fn.c_str());
+        if (!in.is_open()) throw std::runtime_error("cannot open unitigs file");
+
+        uint64_t prev = uint64_t(-1);
+        uint64_t count = 0;
+        const std::string target = "color_set_id=";
+        std::string line;
+        for (uint64_t i = 0; i != num_unitigs; ++i) {
+            std::getline(in, line);  // read header
+            size_t pos = line.find(target);
+            assert(pos != std::string::npos);
+            char const* start_ptr = line.c_str() + pos + target.length();
+            uint64_t color_set_id = std::strtoull(start_ptr, nullptr, 10);
+            if (color_set_id != prev) {
+                count += 1;
+                if (i > 0) u2c_builder.set(i - 1, 1);
+            }
+            prev = color_set_id;
+            in.ignore(std::numeric_limits<std::streamsize>::max(), '\n');  // skip unitig sequence
+        }
+        assert(count == num_color_sets);
+        (void)count;
+        in.close();
+
+        u2c_builder.set(num_unitigs - 1, 1);
+        u2c_builder.build(m_u2c);
+        m_u2c_rank1_index.build(m_u2c);
+        assert(m_u2c.num_bits() == num_unitigs);
+        assert(m_u2c_rank1_index.num_ones() == num_color_sets);
+
+        std::cout << "m_u2c.num_bits() " << m_u2c.num_bits() << std::endl;
+        std::cout << "m_u2c_rank1_index.num_ones() " << m_u2c_rank1_index.num_ones() << std::endl;
+
+        timer.stop();
+        std::cout << "** building unitig-to-color map took " << timer.elapsed() << " seconds / "
+                  << timer.elapsed() / 60 << " minutes" << std::endl;
+        timer.reset();
+    }
+
+    {
+        essentials::logger("step 3. encoding color sets...");
+        timer.start();
+
+        typename ColorSets::builder color_sets_builder(num_colors);
+        const uint64_t num_bits = essentials::GiB * 8 * 8;
+        color_sets_builder.reserve_num_bits(num_bits);
+
+        std::string color_sets_fn = build_config.file_base_name + ".color_sets.txt";
+        std::ifstream in(color_sets_fn);
+        if (!in.is_open()) throw std::runtime_error("cannot open color sets file");
+
+        std::string line;
+        std::vector<uint32_t> v;
+        for (uint64_t i = 0; i != num_color_sets; ++i) {
+            std::getline(in, line);
+            size_t size_pos = line.find("size=");
+            assert(size_pos != std::string::npos);
+            char const* p = line.c_str() + size_pos + 5;
+            char* endptr;
+            uint64_t color_set_size = std::strtoul(p, &endptr, 10);
+            assert(color_set_size > 0);
+            p = endptr;
+            v.clear();
+            v.reserve(color_set_size);
+            for (uint64_t i = 0; i != color_set_size; ++i) {
+                v.push_back(static_cast<uint32_t>(std::strtoul(p, &endptr, 10)));
+                p = endptr;
+            }
+            color_sets_builder.encode_color_set(v.data(), v.size());
+        }
+
+        in.close();
+        color_sets_builder.build(m_color_sets);
+
+        timer.stop();
+        std::cout << "** encoding color sets took " << timer.elapsed() << " seconds / "
+                  << timer.elapsed() / 60 << " minutes" << std::endl;
+        timer.reset();
+    }
+
+    {
+        essentials::logger("step 3. building SSHash...");
+        timer.start();
+        std::string unitigs_fn = build_config.file_base_name + ".unitigs.fa";
+        sshash::build_configuration sshash_config;
+        sshash_config.k = k;
+        sshash_config.m = build_config.m;
+        sshash_config.canonical = true;
+        sshash_config.verbose = build_config.verbose;
+        sshash_config.tmp_dirname = build_config.tmp_dirname;
+        sshash_config.num_threads = util::largest_power_of_2(build_config.num_threads);
+        sshash_config.print();
+        m_k2u.build(unitigs_fn, sshash_config);
+        timer.stop();
+        std::cout << "** building SSHash took " << timer.elapsed() << " seconds / "
+                  << timer.elapsed() / 60 << " minutes" << std::endl;
+        timer.reset();
+    }
+
+    {
+        essentials::logger("step 4. reading filenames...");
+        timer.start();
+        std::string filenames_fn = build_config.file_base_name + ".filenames.txt";
+        std::ifstream in(filenames_fn.c_str());
+        if (!in.is_open()) throw std::runtime_error("cannot open filenames file");
+        std::vector<std::string> filenames;
+        filenames.reserve(num_colors);
+        std::string filename;
+        for (uint64_t i = 0; i != num_colors; ++i) {
+            in >> filename;
+            filenames.push_back(filename);
+        }
+        in.close();
+        m_filenames.build(filenames);
+        timer.stop();
+        std::cout << "** building filenames took " << timer.elapsed() << " seconds / "
+                  << timer.elapsed() / 60 << " minutes" << std::endl;
+        timer.reset();
+    }
+
+    if (build_config.verbose) print_stats();
 }
 
 }  // namespace fulgor

@@ -300,8 +300,8 @@ In particular, it outputs four files:
 
 - `[basename].metadata.txt`
 - `[basename].filenames.txt`
-- `[basename].unitigs.fa`
 - `[basename].color_sets.txt`
+- `[basename].unitigs.fa`
 
 where `[basename]` is a chosen output name.
 
@@ -315,7 +315,7 @@ Example:
 	num_unitigs=1884865
 	num_color_sets=972178
 
-**Important note**: The values of `num_unitigs` and `num_color_sets` could (slightly) change if the index is re-built because GGCAT does not compute *maximal* unitigs.
+**Note**: The values of `num_unitigs` and `num_color_sets` could (slightly) change if the index is re-built because GGCAT does not compute *maximal* unitigs.
 
 The file `[basename].filenames.txt` lists all filenames **in order of color id**.
 The file has one line per filename.
@@ -337,42 +337,51 @@ Example:
 
 This means that color 0 corresponds to the file `.../SAL_AA7051AA.fasta`, color 1 to the file `../SAL_AA7053AA.fasta`, etc.
 
-The file `[basename].unitigs.fa` contains the unitig sequences written in FASTA format.
-Each sequence has a header containing the id of the unitig (an increasing integer id) and the id of the corresponding color set.
+The file `[basename].color_sets.txt` lists the color sets, one per line. **There must be no duplicate color sets**. The order of the color sets in the file is used to (implicitly) assign consecutive ids to the color sets.
+
+Each color set is written as `size=[n] [color-set]`, where `[n]` is its size, and `[color-set]` a space-separated list of `[n]` increasing integers.
 
 Example:
 
+	size=3 424 3145 3578
+	size=49 163 440 454 635 667 684 998 1703 1730 1735 1760 1812 1814 1815 1817 1819 1834 1842 1874 1881 2011 2036 2047 2185 2245 2301 2321 2356 2669 2687 2788 2897 2960 2961 2965 3057 3163 3461 3519 3805 3806 3960 3967 3976 4105 4119 4159 4183 4385
+	size=3 1384 1693 3645
 	(...)
-	> unitig_id=13 color_set_id=0
+
+Lastly, the file `[basename].unitigs.fa` contains the unitig sequences written in FASTA format.
+Each sequence has a header containing the id of the corresponding color set, called `color_set_id`.
+
+**Important**: Unitigs are sorted by `color_set_id`, i.e., That is, all unitigs having the same value of `color_set_id` appear consecutively.
+
+Example:
+
+	> color_set_id=0
+	GGATAACTGGAAGCTGGTAAGACGTAAACCAGAACCGGAA
+	> color_set_id=0
+	CGTTGAAGGTCAGTTGCCAGTTCGCGTAATCCCTGGTGGTTGATGGCGCTCATGCTCTGGC
+	> color_set_id=0
 	TGGTTCTGGCGTGCTCCAGCTCATCCAGCATTGCCAGCACA
-	> unitig_id=14 color_set_id=0
+	> color_set_id=0
 	CGATAAGGAATGGCTTGAAAAGCCAACAGAACAACGTCATCTCTCAGATCTGCTTCCGTTA
-	> unitig_id=15 color_set_id=0
+	> color_set_id=0
 	GGAGCGGATTTTCTCCGTGAAATTCCCCAGCATTTGTCAGGAGTGTAAACATTCCTCCGAG
-	> unitig_id=16 color_set_id=0
+	> color_set_id=0
 	ATTTGCTTTACCTGCCGCAGCTTAACAAGCGCCAGATACAGACGCTGGCCACCATGACGGC
-	> unitig_id=17 color_set_id=0
+	> color_set_id=0
 	GGTCTTACCTGTGCGGCGGGAAAACTCATCAACGGTGATGGGGTCTGGGATCTTAAACAAT
-	> unitig_id=18 color_set_id=1
+	> color_set_id=1
 	CGATAAGGAATGGCTTGAAAAGCCAACAGAGCAACGTCATCTCTCAGATCTGCTTCCGTTA
-	> unitig_id=19 color_set_id=1
+	> color_set_id=1
 	ATTGTTTAAGATCCCAGACCCCATCACCGTCGATGA
-	> unitig_id=20 color_set_id=2
+	> color_set_id=2
 	CTTGCTATGAGTTGCGGTTTTTTGATCCTGCCCCAGCGGTTCAGCAAGCGTCCTGACATACTGGCAACATCCTTTTCCTTCATGAACTCCAGCATTAACTCGTTGTGCTCTCTTTGGTATGAGTGAGCCATCTCCATCAG
-	> unitig_id=21 color_set_id=2
+	> color_set_id=2
 	CACTTTCTAAAAGGTAAAGACGCTATGAATCATCAATTGGCTAATCTCGATTTCCGGGACATGGTGGTTGTTTCTGGTGATCGCGTGATCACAACCTCCCGCAAGGTAGCAGCTTACTTCGACAAGCAGCATCACCACATCATTCAGAAAATCGAAAAGCTAGACTGTTCGGATGAATTTCTAACCAGCAACTTTTCGCGGGTTACCTATGAACACAAGGGTAATCAGTATGTTGAATATGAAATTTCCAAAGACGGTGCGATGTACATCATCATGTCGTTTACCGGCAAAAAAGCTGCCGCCATCAAAGAGGCGTTTATCAAAGCATTTAATTGGATGCGTGACAG
+	> color_set_id=2
+	ATCGAAAGGCTTGAGCAGCAGGCGCAAATATCGATCCCCGGACTGCCAAAGTGACCATTCCAAAGCCCATCTA
+	> color_set_id=3
+	TATCGTGGTGGCCACAAACAGCGCCCTCACTCGCTCTAAGGCGGGTCTGTCA
 	(...)
 
-In this example the unitigs 13, 14, 15, 16, and 17 have the same color set (whose id is 0),
-the unitigs 18 and 19 have the same color set (of id is 1), and the unitigs 20 and 21 have the name color set (of id 2).
-
-Lastly, the file `[basename].color_sets.txt` lists the color sets, one per line.
-Each color set is written as `color_set_id=[X] size=[Y] [color-set]`, where `[X]` is the id of the set, `[Y]` its size, and `[color-set]` a space-separated list of `[Y]` increasing integers.
-
-Example:
-
-	color_set_id=0 size=3 424 3145 3578
-	color_set_id=1 size=49 163 440 454 635 667 684 998 1703 1730 1735 1760 1812 1814 1815 1817 1819 1834 1842 1874 1881 2011 2036 2047 2185 2245 2301 2321 2356 2669 2687 2788 2897 2960 2961 2965 3057 3163 3461 3519 3805 3806 3960 3967 3976 4105 4119 4159 4183 4385
-	color_set_id=2 size=3 1384 1693 3645
-	(...)
-
+In this example the first 7 unitigs (0..6) all have the same color set 0 (`color_set_id=0`),
+the unitigs 7 and 8 have color set 1, and the unitigs 9, 10, and 11 have color set 2, etc.

@@ -86,7 +86,7 @@ void index<ColorSets>::dump(build_configuration const& build_config) const  //
     for (uint64_t unitig_id = 0; unitig_id != u; ++unitig_id) {
         auto it = m_k2u.at_contig_id(unitig_id);
         const uint64_t color_set_id = u2c(unitig_id);
-        unitigs_file << "> unitig_id=" << unitig_id << " color_set_id=" << color_set_id << '\n';
+        unitigs_file << "> color_set_id=" << color_set_id << '\n';
         auto [_, kmer] = it.next();
         unitigs_file << kmer;
         while (it.has_next()) {
@@ -106,7 +106,7 @@ void index<ColorSets>::dump(build_configuration const& build_config) const  //
     for (uint64_t color_set_id = 0; color_set_id != n; ++color_set_id) {
         auto it = color_sets.color_set(color_set_id);
         const uint32_t size = it.size();
-        color_sets_file << "color_set_id=" << color_set_id << " size=" << size << ' ';
+        color_sets_file << "size=" << size << ' ';
         for (uint32_t j = 0; j != size; ++j) {
             color_sets_file << it.value();
             it.next();
@@ -184,13 +184,14 @@ void index<ColorSets>::load(build_configuration const& build_config)  //
         uint64_t prev = uint64_t(-1);
         uint64_t count = 0;
         const std::string target = "color_set_id=";
+        const uint64_t target_length = target.length();
         std::string line;
         for (uint64_t i = 0; i != num_unitigs; ++i) {
             std::getline(in, line);  // read header
             size_t pos = line.find(target);
             assert(pos != std::string::npos);
-            char const* start_ptr = line.c_str() + pos + target.length();
-            uint64_t color_set_id = std::strtoull(start_ptr, nullptr, 10);
+            char const* p = line.c_str() + pos + target_length;
+            uint64_t color_set_id = std::strtoull(p, nullptr, 10);
             if (color_set_id != prev) {
                 count += 1;
                 if (i > 0) u2c_builder.set(i - 1, 1);
@@ -231,12 +232,14 @@ void index<ColorSets>::load(build_configuration const& build_config)  //
 
         std::string line;
         std::vector<uint32_t> v;
+        const std::string target = "size=";
+        const uint64_t target_length = target.length();
         for (uint64_t i = 0; i != num_color_sets; ++i) {
             std::getline(in, line);
-            size_t size_pos = line.find("size=");
+            size_t size_pos = line.find(target);
             assert(size_pos != std::string::npos);
-            char const* p = line.c_str() + size_pos + 5;
-            char* endptr;
+            char const* p = line.c_str() + size_pos + target_length;
+            char* endptr = nullptr;
             uint64_t color_set_size = std::strtoul(p, &endptr, 10);
             assert(color_set_size > 0);
             p = endptr;

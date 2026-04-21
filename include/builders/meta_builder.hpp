@@ -376,11 +376,11 @@ struct index<ColorSets>::meta_builder {
         }
     }
 
-    void check(index& idx) {
+    void check(index const& idx) {
         const uint64_t num_color_sets = idx.num_color_sets();
         const uint64_t num_colors = idx.num_colors();
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-        essentials::logger("step 7. check correctness...");
+        essentials::logger("checking correctness...");
         timer.start();
 
         std::atomic<uint64_t> num_checked_color_sets(0);
@@ -391,7 +391,8 @@ struct index<ColorSets>::meta_builder {
         }
         uint64_t load_per_thread = load / m_build_config.num_threads + 1;
 
-        auto exe = [this, &idx, &num_checked_color_sets, num_colors, num_color_sets](uint64_t start, uint64_t end) {
+        auto exe = [this, &idx, &num_checked_color_sets, num_colors, num_color_sets](uint64_t start,
+                                                                                     uint64_t end) {
             assert(end > start);
             std::vector<uint32_t> permuted_set;
             permuted_set.reserve(num_colors);
@@ -428,8 +429,8 @@ struct index<ColorSets>::meta_builder {
                 }
 
                 if (++num_checked_color_sets % 1000 == 0) {
-                    std::cout << "\rChecked " << num_checked_color_sets << "/"
-                              << num_color_sets << " color sets" << std::flush;
+                    std::cout << "\rChecked " << num_checked_color_sets << "/" << num_color_sets
+                              << " color sets" << std::flush;
                 }
             }
         };
@@ -449,13 +450,13 @@ struct index<ColorSets>::meta_builder {
             if (t.joinable()) t.join();
         }
 
-        std::cout << "\rChecked " << num_checked_color_sets << "/"
-                          << num_color_sets << " color sets" << std::endl;
+        std::cout << "\rChecked " << num_checked_color_sets << "/" << num_color_sets
+                  << " color sets" << std::endl;
 
         timer.stop();
         std::cout << "** checking correctness took " << timer.elapsed() << " seconds / "
                   << timer.elapsed() / 60 << " minutes" << std::endl;
-        essentials::logger("CHECKS DONE!");
+        essentials::logger("DONE!");
     }
 
 private:

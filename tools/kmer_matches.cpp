@@ -2,17 +2,19 @@
 #include <fstream>
 #include <sstream>
 
-#include "src/kmer_conservation.cpp"
+#include "src/kmer_matches.cpp"
 
 using namespace fulgor;
 
 template <typename FulgorIndex>
-void kmer_conservation(FulgorIndex const& index,
-                       fastx_parser::FastxParser<fastx_parser::ReadSeq>& rparser,
-                       std::ofstream& out_file, std::mutex& ofile_mut,
-                       query_options& options)  //
+void kmer_matches(FulgorIndex const& index,
+                  fastx_parser::FastxParser<fastx_parser::ReadSeq>& rparser,
+                  std::ofstream& out_file, std::mutex& ofile_mut,
+                  query_options& options)  //
 {
-    std::vector<kmer_conservation_triple> kmer_conservation_info;
+    bits::bit_vector::builder positive_kmers_in_sequence;
+    std::vector<count_type> counts;
+    counts.resize(index.num_colors());
     std::stringstream ss;
     uint64_t buff_size = 0;
     constexpr uint64_t buff_thresh = 50;
@@ -20,20 +22,17 @@ void kmer_conservation(FulgorIndex const& index,
     auto rg = rparser.getReadGroup();
     while (rparser.refill(rg)) {
         for (auto const& record : rg) {
-            assert(record.seq.length() < (uint64_t(1) << 32));
-            index.kmer_conservation(record.seq, kmer_conservation_info);
+            index.kmer_matches(record.seq, positive_kmers_in_sequence, counts);
             buff_size += 1;
-            if (!kmer_conservation_info.empty()) {
-                ss << record.name << '\t' << kmer_conservation_info.size();
-                for (auto kct : kmer_conservation_info) {
-                    ss << "\t(" << kct.start_pos_in_query << ' ' << kct.num_kmers << ' '
-                       << kct.color_set_id << ')';
-                }
-                ss << '\n';
-            } else {
-                ss << record.name << "\t0\n";
+
+            ss << record.name << '\t' << positive_kmers_in_sequence.num_bits();
+            for (uint64_t i = 0; i != positive_kmers_in_sequence.num_bits(); ++i) {
+                ss << '\t' << int(positive_kmers_in_sequence.get(i));
             }
-            kmer_conservation_info.clear();
+
+            for (auto x : counts) ss << "\t" << x;
+            ss << '\n';
+
             options.increment_processed_reads();
             if (buff_size > buff_thresh) {
                 std::string outs = ss.str();
@@ -58,8 +57,8 @@ void kmer_conservation(FulgorIndex const& index,
 }
 
 template <typename FulgorIndex>
-int kmer_conservation(std::string const& index_filename, std::string const& query_filename,
-                      std::string const& output_filename, query_options& options) {
+int kmer_matches(std::string const& index_filename, std::string const& query_filename,
+                 std::string const& output_filename, query_options& options) {
     FulgorIndex index;
     if (options.verbose) essentials::logger("loading index from disk...");
     essentials::load(index, index_filename.c_str());
@@ -96,9 +95,11 @@ int kmer_conservation(std::string const& index_filename, std::string const& quer
         return 1;
     }
 
+    out_file << "num_colors=" << index.num_colors() << '\n';
+
     for (uint64_t i = 1; i != num_threads; ++i) {
         workers.push_back(std::thread([&index, &rparser, &out_file, &ofile_mut, &options]() {
-            kmer_conservation(index, rparser, out_file, ofile_mut, options);
+            kmer_matches(index, rparser, out_file, ofile_mut, options);
         }));
     }
 
@@ -119,7 +120,7 @@ int kmer_conservation(std::string const& index_filename, std::string const& quer
     return 0;
 }
 
-int kmer_conservation(int argc, char** argv) {
+int kmer_matches(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
 
     parser.add("index_filename", "The Fulgor index filename.", "-i", true);
@@ -154,17 +155,14 @@ int kmer_conservation(int argc, char** argv) {
     query_options options(verbose, num_threads);
 
     if (is_meta_diff(index_filename)) {
-        return kmer_conservation<mdfur_index_t>(index_filename, query_filename, output_filename,
-                                                options);
+        return kmer_matches<mdfur_index_t>(index_filename, query_filename, output_filename,
+                                           options);
     } else if (is_meta(index_filename)) {
-        return kmer_conservation<mfur_index_t>(index_filename, query_filename, output_filename,
-                                               options);
+        return kmer_matches<mfur_index_t>(index_filename, query_filename, output_filename, options);
     } else if (is_diff(index_filename)) {
-        return kmer_conservation<dfur_index_t>(index_filename, query_filename, output_filename,
-                                               options);
+        return kmer_matches<dfur_index_t>(index_filename, query_filename, output_filename, options);
     } else if (is_hybrid(index_filename)) {
-        return kmer_conservation<hfur_index_t>(index_filename, query_filename, output_filename,
-                                               options);
+        return kmer_matches<hfur_index_t>(index_filename, query_filename, output_filename, options);
     }
 
     std::cerr << "Wrong index filename supplied." << std::endl;

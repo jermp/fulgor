@@ -1,6 +1,6 @@
 [![Build](https://github.com/jermp/fulgor/actions/workflows/build.yml/badge.svg)](https://github.com/jermp/fulgor/actions/workflows/build.yml)
 [![CodeQL](https://github.com/jermp/fulgor/actions/workflows/codeql.yml/badge.svg)](https://github.com/jermp/fulgor/actions/workflows/codeql.yml)
-[![install with bioconda](https://img.shields.io/badge/Install%20with-bioconda-brightgreen.svg?style=flat&logo=anaconda&logoColor=lightgray&labelColor=rgb(40,47,56)&color=rgb(68,190,80))](http://bioconda.github.io/recipes/fulgor/README.html)
+[![install with bioconda](https://img.shields.io/conda/dn/bioconda/fulgor.svg?style=flag&logo=anaconda&logoColor=lightgray&labelColor=rgb(40,47,56)&color=rgb(68,190,80)&label=Install%20with%20bioconda)](http://bioconda.github.io/recipes/fulgor/README.html)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="img/fulgor_on_dark.png">
@@ -27,6 +27,8 @@ Please, cite these papers if you use Fulgor.
 * [Indexing an example Salmonella Enterica pangenome](#indexing-an-example-salmonella-enterica-pangenome)
 * [Pseudoalignment output format](#pseudoalignment-output-format)
 * [Kmer conservation output format](#kmer-conservation-output-format)
+* [Kmer matches output format](#kmer-matches-output-format)
+* [Dump output format](#dump-output-format)
 
 Dependencies
 ------------
@@ -88,28 +90,29 @@ Tools and usage
 There is one executable called `fulgor` after the compilation, which can be used to run a tool.
 Run `./fulgor help` to see a list of available tools.
 
-    == Fulgor: a colored de Bruijn graph index ========================================
-    
-    Usage: ./fulgor <tool> ...
-    
-    Construction:
-      build              build an index
-      color              build a meta- or a diff- or a meta-diff- index
-      permute            permute the reference names of an index
-    
-    Queries:
-      pseudoalign        perform pseudoalignment to an index
-      kmer-conservation  print color set info for each positive kmer in query
-    
-    Debug:
-      check              perform an in-depth check to verify that an index was built correctly.
-      verify             verify that index works correctly with current library version
-      stats              print index statistics
-      print-filenames    print all reference filenames
-      dump               write unitigs and color sets of an index in text format
-    
-    Other:
-      help               print this helper and exit gracefully
+	== Fulgor: a colored de Bruijn graph index ===============================================
+
+	Usage: ./fulgor <tool> ...
+
+	Construction:
+	  build              build an index
+	  color              build a meta- or a diff- or a meta-diff- index
+	  permute            permute the reference names of an index
+
+	Queries:
+	  pseudoalign        perform pseudoalignment to an index
+	  kmer-conservation  print color set info for each positive kmer in query
+	  kmer-matches       print positive kmers per query and number of kmer matches per color
+
+	Debug:
+	  check              perform an in-depth check to verify that an index was built correctly
+	  verify             verify that index works correctly with current library version
+	  stats              print index statistics
+	  print-filenames    print all reference filenames
+	  dump               write unitigs and color sets of an index in text format
+
+	Other:
+	  help               print this helper and exit gracefully
 
 For large-scale indexing, it could be necessary to increase the number of file descriptors that can be opened simultaneously:
 
@@ -200,19 +203,21 @@ The tool `pseudoalign` writes the result to an output file, in plain text format
 
 This file has one line for each mapped read, formatted as follows:
 
-	[read-name][TAB][list-lenght][TAB][list]
+	[read-id][TAB][list-lenght][TAB][list]
 
 where `[list]` is a TAB-separated list of increasing integers, of length `[list-length]`, representing the list of reference identifiers to which the read is mapped. (`[TAB]` is the character `\t`.)
 
 #### Example
 
-	NODE_11_length_149361_cov_9.71634_ID_21 1       0
-	NODE_3406_length_341_cov_20.0437_ID_681	1       0
-	NODE_4745_length_118_cov_12.7931_ID_949	3       0       3       7
-	NODE_102_length_2047_cov_18.1471_ID_203 1       0
-	NODE_477_length_1163_cov_22.0531_ID_953 2       0       8
-	NODE_9_length_173161_cov_9.33695_ID_17  1       0
-	NODE_22_length_45757_cov_12.1361_ID_43  1       0
+	1	1	0
+	2	1	0
+	3	3	0	3	7
+	4	1	0
+	5	2	0	8
+	6	1	0
+	7	1	0
+
+**Note**: Read ids might not be consecutive in the output file if multiple threads are used to perform the queries.
 
 #### Important note
 
@@ -254,3 +259,129 @@ where the variable `it` is the iterator and `it.size()` is the size of the color
 	SRR801268.988	1	(0 8 3)
 
 For example, in the second query, the triple `(12 6 3)` indicates that the 6 kmers starting at position 12 in the query all have color set id 3.
+
+
+Kmer matches output format
+--------------------------
+
+The tool `kmer-matches` writes the result to an output file, in plain text format, specified with the option `-o [output-filename]`.
+
+This file begins with the line
+
+	num_colors=[N]
+
+where `[N]` is the number of colors in the index and then has one line for each processed read, formatted as follows:
+
+	[read-name][TAB][num-kmers-in-read][TAB][matching-bitvector][matches-per-color]
+
+where
+
+- `[num-kmers-in-read]` is an integer,
+- `[matching-bitvector]` is a TAB-separated list of `0/1` digits, of length `[num-kmers-in-read]`: digit `i` is `1` is the `i`-th kmer of the read is present in the index, and `0` otherwise,
+- `[matches-per-color]` is a TAB-separated list of integers, of length [N]: the `i`-th integer is `x` if `x` kmers of the read are found in color `i`.
+
+(`[TAB]` is the character `\t`.)
+
+#### Example
+
+	num_colors=10
+	(...)
+	SRR801268.6	23	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	23	23	23	23	23	23	23	23	23	23
+	SRR801268.7	23	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	23	12	12	23	12	12	12	23	23	12
+	SRR801268.8	23	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	23	0	0	23	0	0	0	0	0	0
+	SRR801268.9	23	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	1	14	0	0	14	0	0	0	14	14	0
+	(...)
+
+Dump output format
+------------------
+
+The tool `dump` writes in plain textual format the content of an index.
+In particular, it outputs four files:
+
+- `[basename].metadata.txt`
+- `[basename].filenames.txt`
+- `[basename].color_sets.txt`
+- `[basename].unitigs.fa`
+
+where `[basename]` is a chosen output name.
+
+The file `[basename].metadata.txt` contains the following basic statistics (one per line and in the following order): the value of k, the number of distinct kmers, the number of colors, the number of unitigs, and the number of color sets, using a simple `key=value` format.
+
+Example:
+
+	k=31
+	num_kmers=43788757
+	num_colors=4546
+	num_unitigs=1884865
+	num_color_sets=972178
+
+**Note**: The values of `num_unitigs` and `num_color_sets` could (slightly) change if the index is re-built because GGCAT does not compute *maximal* unitigs.
+
+The file `[basename].filenames.txt` lists all filenames **in order of color id**.
+The file has one line per filename.
+
+Example:
+
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7051AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7053AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7059AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7089AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7092AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7122AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7144AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7173AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7174AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7190AA.fasta
+	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7196AA.fasta
+	(...)
+
+This means that color 0 corresponds to the file `.../SAL_AA7051AA.fasta`, color 1 to the file `../SAL_AA7053AA.fasta`, etc.
+
+The file `[basename].color_sets.txt` lists the color sets, one per line. **There must be no duplicate color sets**. The order of the color sets in the file is used to (implicitly) assign consecutive ids to the color sets.
+
+Each color set is written as `size=[n] [color-set]`, where `[n]` is its size, and `[color-set]` a space-separated list of `[n]` increasing integers.
+
+Example:
+
+	size=3 424 3145 3578
+	size=49 163 440 454 635 667 684 998 1703 1730 1735 1760 1812 1814 1815 1817 1819 1834 1842 1874 1881 2011 2036 2047 2185 2245 2301 2321 2356 2669 2687 2788 2897 2960 2961 2965 3057 3163 3461 3519 3805 3806 3960 3967 3976 4105 4119 4159 4183 4385
+	size=3 1384 1693 3645
+	(...)
+
+Lastly, the file `[basename].unitigs.fa` contains the unitig sequences written in FASTA format.
+Each sequence has a header containing the id of the corresponding color set, called `color_set_id`.
+
+**Important**: Unitigs are sorted by `color_set_id`, i.e., That is, all unitigs having the same value of `color_set_id` appear consecutively.
+
+Example:
+
+	> color_set_id=0
+	GGATAACTGGAAGCTGGTAAGACGTAAACCAGAACCGGAA
+	> color_set_id=0
+	CGTTGAAGGTCAGTTGCCAGTTCGCGTAATCCCTGGTGGTTGATGGCGCTCATGCTCTGGC
+	> color_set_id=0
+	TGGTTCTGGCGTGCTCCAGCTCATCCAGCATTGCCAGCACA
+	> color_set_id=0
+	CGATAAGGAATGGCTTGAAAAGCCAACAGAACAACGTCATCTCTCAGATCTGCTTCCGTTA
+	> color_set_id=0
+	GGAGCGGATTTTCTCCGTGAAATTCCCCAGCATTTGTCAGGAGTGTAAACATTCCTCCGAG
+	> color_set_id=0
+	ATTTGCTTTACCTGCCGCAGCTTAACAAGCGCCAGATACAGACGCTGGCCACCATGACGGC
+	> color_set_id=0
+	GGTCTTACCTGTGCGGCGGGAAAACTCATCAACGGTGATGGGGTCTGGGATCTTAAACAAT
+	> color_set_id=1
+	CGATAAGGAATGGCTTGAAAAGCCAACAGAGCAACGTCATCTCTCAGATCTGCTTCCGTTA
+	> color_set_id=1
+	ATTGTTTAAGATCCCAGACCCCATCACCGTCGATGA
+	> color_set_id=2
+	CTTGCTATGAGTTGCGGTTTTTTGATCCTGCCCCAGCGGTTCAGCAAGCGTCCTGACATACTGGCAACATCCTTTTCCTTCATGAACTCCAGCATTAACTCGTTGTGCTCTCTTTGGTATGAGTGAGCCATCTCCATCAG
+	> color_set_id=2
+	CACTTTCTAAAAGGTAAAGACGCTATGAATCATCAATTGGCTAATCTCGATTTCCGGGACATGGTGGTTGTTTCTGGTGATCGCGTGATCACAACCTCCCGCAAGGTAGCAGCTTACTTCGACAAGCAGCATCACCACATCATTCAGAAAATCGAAAAGCTAGACTGTTCGGATGAATTTCTAACCAGCAACTTTTCGCGGGTTACCTATGAACACAAGGGTAATCAGTATGTTGAATATGAAATTTCCAAAGACGGTGCGATGTACATCATCATGTCGTTTACCGGCAAAAAAGCTGCCGCCATCAAAGAGGCGTTTATCAAAGCATTTAATTGGATGCGTGACAG
+	> color_set_id=2
+	ATCGAAAGGCTTGAGCAGCAGGCGCAAATATCGATCCCCGGACTGCCAAAGTGACCATTCCAAAGCCCATCTA
+	> color_set_id=3
+	TATCGTGGTGGCCACAAACAGCGCCCTCACTCGCTCTAAGGCGGGTCTGTCA
+	(...)
+
+In this example the first 7 unitigs (0..6) all have the same color set 0 (`color_set_id=0`),
+the unitigs 7 and 8 have color set 1, and the unitigs 9, 10, and 11 have color set 2, etc.

@@ -3,6 +3,7 @@
 #include "include/index.hpp"
 
 namespace fulgor {
+
 struct differential_permuter {
     differential_permuter(build_configuration const& build_config)
         : m_build_config(build_config), m_num_partitions(0) {}
@@ -408,15 +409,16 @@ struct index<ColorSets>::differential_builder {
         }
     }
 
-    void check(index& idx) {
-        essentials::logger("step 7. check correctness...");
+    void check(index const& idx) {
+        essentials::logger("checking correctness...");
         const uint64_t num_color_sets = idx.num_color_sets();
 
         for (uint64_t color_set_id = 0; color_set_id < num_color_sets; color_set_id++) {
             auto exp_it = index.color_set(permutation[color_set_id].second);
             auto res_it = idx.color_set(color_set_id);
             if (res_it.size() != exp_it.size()) {
-                std::cout << "\033[1;31m" << "Error while checking color " << color_set_id
+                std::cout << "\033[1;31m"
+                          << "Error while checking color " << color_set_id
                           << ", different sizes: expected " << exp_it.size() << " but got "
                           << res_it.size() << ")\033[0m" << std::endl;
                 continue;
@@ -426,7 +428,8 @@ struct index<ColorSets>::differential_builder {
                 auto exp = *exp_it;
                 auto got = *res_it;
                 if (exp != got) {
-                    std::cout << "\033[1;31m" << "Error while checking color " << color_set_id
+                    std::cout << "\033[1;31m"
+                              << "Error while checking color " << color_set_id
                               << ", mismatch at position " << j << ": expected " << exp
                               << " but got " << got << ")\033[0m" << std::endl;
                 }
@@ -442,7 +445,8 @@ struct index<ColorSets>::differential_builder {
                 auto [_, uint_kmer] = it.next();
                 uint64_t new_string_id = dict.lookup(uint_kmer).string_id;
                 if (new_string_id != unitig_id) {
-                    std::cout << "\033[1;31m" << "expected " << unitig_id << " but found " << new_string_id
+                    std::cout << "\033[1;31m"
+                              << "expected " << unitig_id << " but found " << new_string_id
                               << ")\033[0m" << std::endl;
                     continue;
                 }
@@ -454,7 +458,8 @@ struct index<ColorSets>::differential_builder {
                 auto exp_it = index.color_set(old_color_set_id);
                 auto res_it = idx.color_set(new_color_set_id);
                 if (res_it.size() != exp_it.size()) {
-                    std::cout << "\033[1;31m" << "Error while checking color " << new_color_set_id
+                    std::cout << "\033[1;31m"
+                              << "Error while checking color " << new_color_set_id
                               << ", different sizes: expected " << exp_it.size() << " but got "
                               << res_it.size() << ")\033[0m" << std::endl;
                     continue;
@@ -463,7 +468,8 @@ struct index<ColorSets>::differential_builder {
                     auto exp = *exp_it;
                     auto got = *res_it;
                     if (exp != got) {
-                        std::cout << "\033[1;31m" << "Error while checking color " << new_color_set_id
+                        std::cout << "\033[1;31m"
+                                  << "Error while checking color " << new_color_set_id
                                   << ", mismatch at position " << j << ": expected " << exp
                                   << " but got " << got << ")\033[0m" << std::endl;
                     }
@@ -477,4 +483,5 @@ private:
     hfur_index_t index;
     std::vector<std::pair<uint32_t, uint32_t>> permutation;
 };
+
 }  // namespace fulgor

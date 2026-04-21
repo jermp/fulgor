@@ -30,7 +30,7 @@ static const std::string mdfur_filename_extension("mdfur");
 
 namespace current_version_number {
 constexpr uint8_t major = 4;
-constexpr uint8_t minor = 1;
+constexpr uint8_t minor = 2;
 constexpr uint8_t patch = 0;
 }  // namespace current_version_number
 

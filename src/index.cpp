@@ -273,7 +273,7 @@ void index<ColorSets>::load(build_configuration const& build_config)  //
         sshash_config.canonical = true;
         sshash_config.verbose = build_config.verbose;
         sshash_config.tmp_dirname = build_config.tmp_dirname;
-        sshash_config.num_threads = util::largest_power_of_2(build_config.num_threads);
+        sshash_config.num_threads = build_config.num_threads;
         sshash_config.print();
         m_k2u.build(unitigs_fn, sshash_config);
         timer.stop();

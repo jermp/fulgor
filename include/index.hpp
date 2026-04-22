@@ -62,7 +62,7 @@ struct index {
     void load(build_configuration const& build_config);
 
     uint64_t k() const { return m_k2u.k(); }
-    uint64_t num_kmers() const { return m_k2u.size(); }
+    uint64_t num_kmers() const { return m_k2u.num_kmers(); }
     uint64_t num_colors() const { return m_color_sets.num_colors(); }
     uint64_t num_unitigs() const { return m_k2u.num_strings(); }
     uint64_t num_color_sets() const { return m_color_sets.num_color_sets(); }

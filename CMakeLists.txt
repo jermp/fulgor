@@ -52,7 +52,7 @@ add_custom_target(
 set(GGCAT_CPP_BINDINGS ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cpp_bindings.a)
 set(GGCAT_CXX_INTEROP ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cxx_interop.a)
 set(GGCAT_API ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_api.a)
-
+set(CITYHASH_SOURCES ${CMAKE_SOURCE_DIR}/external/sshash/external/cityhash/cityhash.cpp)
 
 ### Fulgor ###
 
@@ -65,6 +65,7 @@ target_link_libraries(fulgor
   ${GGCAT_CPP_BINDINGS}
   ${GGCAT_CXX_INTEROP}
   ${CMAKE_DL_LIBS}
+  ${CITYHASH_SOURCES}
 )
 
 if (UNIX)

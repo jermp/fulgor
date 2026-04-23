@@ -281,7 +281,7 @@ int pseudoalign(int argc, char** argv) {
     auto ps_alg = pseudoalignment_algorithm::FULL_INTERSECTION;
     if (threshold != constants::invalid_threshold) {
         if (deduplicate) {
-            cerr << "Deduplication not available for threshold < 1.0. Remove --deduplicate flag."
+            std::cerr << "Deduplication not available for threshold < 1.0. Remove --deduplicate flag."
                  << std::endl;
             return 1;
         }

@@ -3,7 +3,7 @@
 
 #include "external/sshash/external/gz/zip_stream.hpp"
 #include "external/sshash/external/gz/zip_stream.cpp"
-#include "external/sshash/src/build.cpp"
+#include "external/sshash/src/builder/build.cpp"
 #include "external/sshash/src/dictionary.cpp"
 #include "external/sshash/src/info.cpp"
 #include "external/sshash/external/pthash/external/cmd_line_parser/include/parser.hpp"

@@ -210,8 +210,7 @@ struct index<ColorSets>::meta_builder {
                     if (it == hashes[partition_id].cend()) {  // new partial color
                         partial_color_set_id = hashes[partition_id].size();
                         hashes[partition_id].insert({hash, partial_color_set_id});
-                        color_sets_builder.encode_color_set(partition_id, partial_color_set.data(),
-                                                            partial_color_set.size());
+                        color_sets_builder.encode_color_set(partition_id, partial_color_set);
                     } else {
                         partial_color_set_id = (*it).second;
                     }

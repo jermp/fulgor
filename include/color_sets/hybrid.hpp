@@ -2,12 +2,36 @@
 
 namespace fulgor {
 
+struct hybrid_header {
+    uint32_t num_colors;
+    uint32_t sparse_set_threshold_size;
+    uint32_t very_dense_set_threshold_size;
+    uint32_t _padding; // 8-byte alignment
+
+    uint64_t elias_fano_bytes;
+
+    uint64_t bit_vector_num_bits;
+    uint64_t bit_vector_elements_count;
+};
+
 struct hybrid {
     static const index_t type = index_t::HYBRID;
 
     struct builder {
         builder() : m_num_color_sets(0) {}
         builder(uint64_t num_colors) { init(num_colors); }
+
+        // builder(build_configuration& build_config)
+        //     : m_num_colors(0)
+        //     , m_sparse_set_threshold_size(0)
+        //     , m_very_dense_set_threshold_size(0)
+        //     , m_num_color_sets(0)
+        //     , m_num_total_integers(0)
+        //     , m_build_config(build_config) {}
+        // builder(build_configuration& build_config, const uint64_t num_colors)
+        //     : m_build_config(build_config) {
+        //     init(num_colors);
+        // }
 
         void init(uint64_t num_colors) {
             m_num_colors = num_colors;
@@ -30,27 +54,31 @@ struct hybrid {
 
             m_num_color_sets = 0;
             m_num_total_integers = 0;
+            m_curr_color_set_id = 0;
         }
 
-        void reserve_num_bits(uint64_t num_bits) { m_bvb.reserve(num_bits); }
+        void reserve_num_bits(uint64_t num_bits) { m_color_sets_builder.reserve(num_bits); }
 
-        void encode_color_set(uint32_t const* color_set, const uint64_t size)  //
+        void encode_color_set(std::vector<uint32_t>&& color_set, const uint64_t color_set_id = 0)  //
         {
-            bits::util::write_delta(m_bvb, size); /* encode size */
+            uint64_t size = color_set.size();
+            bits::bit_vector::builder bvb;
+            bits::util::write_delta(bvb, size); /* encode size */
+
             if (size < m_sparse_set_threshold_size) {
                 uint32_t prev_val = color_set[0];
-                bits::util::write_delta(m_bvb, prev_val);
+                bits::util::write_delta(bvb, prev_val);
                 for (uint64_t i = 1; i != size; ++i) {
                     uint32_t val = color_set[i];
                     assert(val >= prev_val + 1);
-                    bits::util::write_delta(m_bvb, val - (prev_val + 1));
+                    bits::util::write_delta(bvb, val - (prev_val + 1));
                     prev_val = val;
                 }
             } else if (size < m_very_dense_set_threshold_size) {
-                bits::bit_vector::builder bvb;
-                bvb.resize(m_num_colors);
-                for (uint64_t i = 0; i != size; ++i) bvb.set(color_set[i]);
-                m_bvb.append(bvb);
+                bits::bit_vector::builder tmp_bvb;
+                tmp_bvb.resize(m_num_colors);
+                for (uint64_t i = 0; i != size; ++i) tmp_bvb.set(color_set[i]);
+                bvb.append(tmp_bvb);
             } else {
                 bool first = true;
                 uint32_t val = 0;
@@ -60,11 +88,11 @@ struct hybrid {
                     uint32_t x = color_set[i];
                     while (val < x) {
                         if (first) {
-                            bits::util::write_delta(m_bvb, val);
+                            bits::util::write_delta(bvb, val);
                             first = false;
                         } else {
                             assert(val >= prev_val + 1);
-                            bits::util::write_delta(m_bvb, val - (prev_val + 1));
+                            bits::util::write_delta(bvb, val - (prev_val + 1));
                         }
                         prev_val = val;
                         ++val;
@@ -75,7 +103,7 @@ struct hybrid {
                 }
                 while (val < m_num_colors) {
                     assert(val >= prev_val + 1);
-                    bits::util::write_delta(m_bvb, val - (prev_val + 1));
+                    bits::util::write_delta(bvb, val - (prev_val + 1));
                     prev_val = val;
                     ++val;
                     ++written;
@@ -86,17 +114,35 @@ struct hybrid {
                 assert(written == m_num_colors - size);
                 (void)written;  // silence "unused" warning
             }
-            m_offsets.push_back(m_bvb.num_bits());
             m_num_total_integers += size;
-            m_num_color_sets += 1;
-            if (m_num_color_sets % 500000 == 0) {
+
+            {
+                std::lock_guard lock(*m_mutex);
+                m_num_color_sets += 1;
+                if (color_set_id == m_curr_color_set_id) {
+                    m_color_sets_builder.append(bvb);
+                    m_offsets.push_back(m_color_sets_builder.num_bits());
+                    ++m_curr_color_set_id;
+                    while (!m_csb_queue.empty() && m_curr_color_set_id == m_csb_queue.top().first) {
+                        auto& [_, csb] = m_csb_queue.top();
+                        m_color_sets_builder.append(csb);
+                        m_csb_queue.pop();
+                        m_offsets.push_back(m_color_sets_builder.num_bits());
+                        ++m_curr_color_set_id;
+                    }
+                } else {
+                    m_csb_queue.emplace(color_set_id, std::move(bvb));
+                }
+            }
+
+            if (m_build_config.verbose && m_num_color_sets % 500000 == 0) {
                 std::cout << "  processed " << m_num_color_sets << " color sets" << std::endl;
             }
         }
 
         void append(hybrid::builder& hb) {
             if (hb.m_num_color_sets == 0) return;
-            m_bvb.append(hb.m_bvb);
+            m_color_sets_builder.append(hb.m_color_sets_builder);
             assert(m_offsets.size() > 0);
             uint64_t delta = m_offsets.back();
             m_offsets.reserve(m_offsets.size() + hb.m_offsets.size());
@@ -118,7 +164,7 @@ struct hybrid {
             assert(m_num_color_sets == m_offsets.size() - 1);
 
             h.m_offsets.encode(m_offsets.begin(), m_offsets.size(), m_offsets.back());
-            m_bvb.build(h.m_color_sets);
+            m_color_sets_builder.build(h.m_color_sets);
 
             std::cout << "  total bits for ints = " << 8 * h.m_color_sets.num_bytes() << std::endl;
             std::cout << "  total bits per offsets = " << 8 * h.m_offsets.num_bytes() << std::endl;
@@ -133,19 +179,42 @@ struct hybrid {
 
         void clear() {
             m_offsets.clear();
-            m_bvb.clear();
+            m_color_sets_builder.clear();
             init(m_num_colors);
         }
 
+        void dump(const std::string& output_filename) {
+        }
+
     private:
+        static std::string chunk_filename(const std::string& base_tmp_filename, const uint64_t chunk_id) {
+            return base_tmp_filename + "_" + std::to_string(chunk_id) + ".bin";
+        }
+
+        struct CompareFirst {
+            template <typename T>
+            bool operator()(const std::pair<uint64_t, T>& a, const std::pair<uint64_t, T>& b) const {
+                return a.first > b.first;
+            }
+        };
+
         uint32_t m_num_colors;
         uint32_t m_sparse_set_threshold_size;
         uint32_t m_very_dense_set_threshold_size;
         uint64_t m_num_color_sets;
         uint64_t m_num_total_integers;
 
-        bits::bit_vector::builder m_bvb;
+        bits::bit_vector::builder m_color_sets_builder;
+        std::priority_queue<
+            std::pair<uint64_t, bits::bit_vector::builder>,
+            std::vector<std::pair<uint64_t, bits::bit_vector::builder>>,
+            CompareFirst
+        > m_csb_queue;
+        std::unique_ptr<std::mutex> m_mutex = std::make_unique<std::mutex>();
+        uint64_t m_curr_color_set_id;
         std::vector<uint64_t> m_offsets;
+
+        build_configuration m_build_config;
     };
 
     struct forward_iterator {
@@ -348,8 +417,8 @@ private:
     uint32_t m_sparse_set_threshold_size;
     uint32_t m_very_dense_set_threshold_size;
 
-    bits::elias_fano<false, false> m_offsets;
     bits::bit_vector m_color_sets;
+    bits::elias_fano<false, false> m_offsets;
 };
 
 }  // namespace fulgor

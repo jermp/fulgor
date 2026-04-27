@@ -251,7 +251,7 @@ void index<ColorSets>::load(build_configuration const& build_config)  //
                 v.push_back(static_cast<uint32_t>(std::strtoul(p, &endptr, 10)));
                 p = endptr;
             }
-            color_sets_builder.encode_color_set(v.data(), v.size());
+            color_sets_builder.encode_color_set(std::move(v));
         }
 
         in.close();

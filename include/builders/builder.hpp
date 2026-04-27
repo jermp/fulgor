@@ -1,39 +1,10 @@
 #pragma once
 
+#include "external/kmeans/include/kmeans.hpp"
 #include "include/index.hpp"
 #include "include/GGCAT.hpp"
 
 namespace fulgor {
-
-struct buffer {
-    buffer(uint64_t capacity) : m_capacity(capacity), m_size(0), m_num_sets(0) {
-        m_buffer.resize(capacity);
-    }
-
-    bool insert(uint32_t const* data, uint32_t size) {
-        if (m_size + size + 1 > m_capacity) return false;
-        memcpy(m_buffer.data() + m_size, &size, sizeof(uint32_t));
-        memcpy(m_buffer.data() + m_size + 1, data, sizeof(uint32_t) * size);
-        m_size += size + 1;
-        m_num_sets++;
-        return true;
-    }
-
-    uint32_t size() const { return m_size; }
-    uint64_t capacity() const { return m_capacity; }
-    uint32_t num_sets() const { return m_num_sets; }
-    uint32_t operator[](uint32_t i) const { return m_buffer[i]; }
-    uint32_t const* data() const { return m_buffer.data(); }
-
-    void clear() {
-        m_size = 0;
-        m_num_sets = 0;
-    }
-
-private:
-    uint64_t m_capacity, m_size, m_num_sets;
-    std::vector<uint32_t> m_buffer;
-};
 
 template <typename ColorSets>
 struct index<ColorSets>::builder {
@@ -68,36 +39,11 @@ struct index<ColorSets>::builder {
             uint64_t num_unitigs = 0;
             uint64_t num_distinct_color_sets = 0;
 
-            typename ColorSets::builder main_builder(m_build_config.num_colors);
+            typename ColorSets::builder builder(m_build_config.num_colors);
 
             const uint64_t num_threads = m_build_config.num_threads;
-            std::vector<typename ColorSets::builder> thread_builders(num_threads,
-                                                                     m_build_config.num_colors);
-
-            constexpr uint64_t MAX_BUFFER_SIZE = 1 << 28;
-            uint64_t buffer_size = std::min(m_build_config.num_colors * 10000, MAX_BUFFER_SIZE);
-            std::vector<std::thread> threads(num_threads);
-            std::vector<buffer> thread_buffers(num_threads, buffer_size);
-
-            /* reserve for each build as much space as for the uncompressed buffers */
-            for (auto& b : thread_builders) b.reserve_num_bits(buffer_size * 32 / 8);
-
-            assert(thread_buffers[0].capacity() > m_build_config.num_colors);
-            uint32_t curr_thread = 0;
-            std::atomic<uint32_t> appending_thread = 0;
-
-            auto encode_color_sets_and_append = [&](uint64_t thread_id) {
-                buffer const& b = thread_buffers[thread_id];
-                thread_builders[thread_id].clear();
-                for (uint32_t i = 0, pos = 0; i < b.num_sets(); i++) {
-                    uint32_t size = b[pos++];
-                    thread_builders[thread_id].encode_color_set(b.data() + pos, size);
-                    pos += size;
-                }
-                while (appending_thread != thread_id) {}
-                main_builder.append(thread_builders[thread_id]);
-                appending_thread = (appending_thread + 1) % num_threads;
-            };
+            kmeans::thread_pool threads(num_threads);
+            std::atomic<uint64_t> total_builders_bytes = 0;
 
             bits::bit_vector::builder u2c_builder;
 
@@ -108,25 +54,19 @@ struct index<ColorSets>::builder {
             m_ccdbg.loop_through_unitigs([&](ggcat::Slice<char> const unitig,
                                              ggcat::Slice<uint32_t> const color_set,
                                              bool same_color_set) {
-                assert(curr_thread >= 0);
-                assert(curr_thread < num_threads);
                 try {
                     if (!same_color_set) {
-                        num_distinct_color_sets += 1;
                         if (num_unitigs > 0) u2c_builder.set(num_unitigs - 1, 1);
 
-                        /* fill buffers */
-                        if (!thread_buffers[curr_thread].insert(color_set.data, color_set.size)) {
-                            threads[curr_thread] =
-                                std::thread(encode_color_sets_and_append, curr_thread);
-                            const uint32_t next_thread = (curr_thread + 1) % num_threads;
-                            if (threads[next_thread].joinable()) threads[next_thread].join();
-
-                            curr_thread = next_thread;
-
-                            thread_buffers[curr_thread].clear();
-                            thread_buffers[curr_thread].insert(color_set.data, color_set.size);
-                        }
+                        std::vector<uint32_t> cs(color_set.data, color_set.data + color_set.size);
+                        threads.enqueue([&builder, cs = std::move(cs), num_distinct_color_sets]() mutable {
+                            // for (auto c : cs) {
+                            //     std::cout << c << " ";
+                            // }
+                            // std::cout << std::endl;
+                            builder.encode_color_set(std::move(cs), num_distinct_color_sets);
+                        });
+                        num_distinct_color_sets += 1;
                     }
                     u2c_builder.push_back(0);
 
@@ -146,11 +86,7 @@ struct index<ColorSets>::builder {
                     exit(1);
                 }
             });
-
-            threads[curr_thread] = std::thread(encode_color_sets_and_append, curr_thread);
-            for (auto& t : threads) {
-                if (t.joinable()) t.join();
-            }
+            threads.wait();
 
             out.close();
 
@@ -160,7 +96,7 @@ struct index<ColorSets>::builder {
             std::cout << "num_unitigs " << num_unitigs << std::endl;
             std::cout << "num_distinct_color_sets " << num_distinct_color_sets << std::endl;
 
-            main_builder.build(idx.m_color_sets);
+            builder.build(idx.m_color_sets);
 
             timer.stop();
             std::cout << "** encoding color sets took " << timer.elapsed() << " seconds / "
@@ -231,22 +167,22 @@ struct index<ColorSets>::builder {
             {
                 auto lookup_result = idx.m_k2u.lookup(unitig.data);
                 const uint64_t unitig_id = lookup_result.string_id;
-                const uint64_t color_id = idx.u2c(unitig_id);
+                const uint64_t color_set_id = idx.u2c(unitig_id);
                 for (uint64_t i = 1; i != unitig.size - idx.m_k2u.k() + 1; ++i) {
                     uint64_t got = idx.m_k2u.lookup(unitig.data + i).string_id;
                     if (got != unitig_id) {
                         std::cout << "\033[1;31m"
                                   << "got unitig_id " << got << " but expected " << unitig_id
-                                  << ")\033[0m" << std::endl;
+                                  << "\033[0m" << std::endl;
                         return;
                     }
                 }
-                auto fwd_it = idx.m_color_sets.color_set(color_id);
+                auto fwd_it = idx.m_color_sets.color_set(color_set_id);
                 const uint64_t size = fwd_it.size();
                 if (size != color_set.size) {
-                    std::cout << "\033[1;31m"
+                    std::cout << "\033[1;31m [" << color_set_id << "] "
                               << "got color_set size " << size << " but expected " << color_set.size
-                              << ")\033[0m" << std::endl;
+                              << "\033[0m" << std::endl;
                     return;
                 }
                 for (uint64_t i = 0; i != size; ++i, ++fwd_it) {
@@ -254,7 +190,7 @@ struct index<ColorSets>::builder {
                     if (ref != color_set.data[i]) {
                         std::cout << "\033[1;31m"
                                   << "got ref " << ref << " but expected " << color_set.data[i]
-                                  << ")\033[0m" << std::endl;
+                                  << "\033[0m" << std::endl;
                         return;
                     }
                 }

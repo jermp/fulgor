@@ -39,7 +39,7 @@ struct index<ColorSets>::builder {
             uint64_t num_unitigs = 0;
             uint64_t num_distinct_color_sets = 0;
 
-            typename ColorSets::builder builder(m_build_config.num_colors);
+            typename ColorSets::builder builder(m_build_config.num_colors, m_build_config);
 
             const uint64_t num_threads = m_build_config.num_threads;
             kmeans::thread_pool threads(num_threads);

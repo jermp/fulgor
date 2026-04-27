@@ -18,20 +18,15 @@ struct hybrid {
     static const index_t type = index_t::HYBRID;
 
     struct builder {
-        builder() : m_num_color_sets(0) {}
-        builder(uint64_t num_colors) { init(num_colors); }
+        // builder() : m_num_color_sets(0) { init(0); }
+        // builder(uint64_t num_colors) { init(num_colors); }
 
-        // builder(build_configuration& build_config)
-        //     : m_num_colors(0)
-        //     , m_sparse_set_threshold_size(0)
-        //     , m_very_dense_set_threshold_size(0)
-        //     , m_num_color_sets(0)
-        //     , m_num_total_integers(0)
-        //     , m_build_config(build_config) {}
-        // builder(build_configuration& build_config, const uint64_t num_colors)
-        //     : m_build_config(build_config) {
-        //     init(num_colors);
-        // }
+        explicit builder(const uint32_t num_colors = 0,
+                 build_configuration build_config = build_configuration())
+            : m_build_config(std::move(build_config))
+        {
+            init(num_colors);
+        }
 
         void init(uint64_t num_colors) {
             m_num_colors = num_colors;

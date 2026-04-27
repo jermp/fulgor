@@ -16,7 +16,10 @@ struct meta_differential {
     };
 
     struct builder {
-        builder() : m_prev_docs(0) {
+        explicit builder(build_configuration build_config = build_configuration())
+            : m_prev_docs(0)
+            , m_build_config(std::move(build_config))
+        {
             m_partition_sets_offsets.push_back(0);
             m_relative_colors_offsets.push_back(0);
         }
@@ -107,6 +110,8 @@ struct meta_differential {
         uint64_t m_num_partition_sets;
 
         std::vector<partition_endpoint> m_partition_endpoints;
+
+        build_configuration m_build_config;
     };
 
     struct forward_iterator {

@@ -46,7 +46,7 @@ include_directories(external/sketch/include/blaze)
 
 add_custom_target(
   ggcat_cpp_api
-  COMMAND make
+  COMMAND ${CMAKE_COMMAND} -E env CARGO_ENCODED_RUSTFLAGS="-Awarnings" make
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api
 )
 set(GGCAT_CPP_BINDINGS ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cpp_bindings.a)

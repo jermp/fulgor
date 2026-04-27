@@ -253,7 +253,7 @@ struct index<ColorSets>::differential_builder {
             thread_slices.push_back(s);
 
             std::vector<typename ColorSets::builder> thread_builders(thread_slices.size(),
-                                                                     num_colors);
+                                                                     typename ColorSets::builder(num_colors));
             std::vector<std::thread> threads(thread_slices.size());
 
             auto encode_color_sets = [&](uint64_t thread_id) {

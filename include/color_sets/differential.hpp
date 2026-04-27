@@ -6,9 +6,12 @@ struct differential {
     static const index_t type = index_t::DIFF;
 
     struct builder {
-        builder() : m_num_total_integers(0), m_num_sets(0) {}
-        builder(uint32_t num_colors)
-            : m_num_total_integers(0), m_num_sets(0), m_num_colors(num_colors) {}
+        explicit builder(const uint32_t num_colors = 0,
+                 build_configuration build_config = build_configuration())
+            : m_num_total_integers(0)
+            , m_num_sets(0)
+            , m_num_colors(num_colors)
+            , m_build_config(std::move(build_config)) {}
 
         void init_color_sets_builder(uint64_t num_colors) {
             m_num_colors = num_colors;
@@ -165,6 +168,8 @@ struct differential {
         std::vector<uint64_t> m_representative_offsets, m_color_set_offsets;
 
         std::vector<uint32_t> m_curr_representative;
+
+        build_configuration m_build_config;
     };
 
     struct forward_iterator {

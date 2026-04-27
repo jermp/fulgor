@@ -81,7 +81,7 @@ struct index<ColorSets>::meta_differential_builder {
                 thread_slices.push_back(s);
 
                 std::vector<differential::builder> thread_builders(thread_slices.size(),
-                                                                   num_partition_colors);
+                                                                   differential::builder(num_partition_colors));
                 std::vector<std::thread> threads(thread_slices.size());
 
                 auto encode_color_sets = [&thread_builders, &thread_slices, &permutation,

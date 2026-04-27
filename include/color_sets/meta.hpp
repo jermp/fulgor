@@ -17,7 +17,12 @@ struct meta {
     };
 
     struct builder {
-        builder() : m_offset(0) { m_meta_color_sets_offsets.push_back(0); }
+        explicit builder(build_configuration build_config = build_configuration())
+            : m_offset(0)
+            , m_build_config(std::move(build_config))
+        {
+            m_meta_color_sets_offsets.push_back(0);
+        }
 
         void init_meta_color_sets_builder(
             uint64_t num_integers_in_metacolor_sets, uint64_t num_color_sets,
@@ -87,6 +92,8 @@ struct meta {
         std::vector<uint64_t> m_meta_color_sets_offsets;
 
         std::vector<partition_endpoint> m_partition_endpoints;
+
+        build_configuration m_build_config;
     };
 
     struct forward_iterator {

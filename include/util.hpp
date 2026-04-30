@@ -54,7 +54,7 @@ struct build_configuration {
     uint32_t k;            // kmer length
     uint32_t m;            // minimizer length
     uint32_t num_threads;  // for building and checking correctness
-    uint32_t ram_limit_in_GiB;
+    uint64_t ram_limit_in_GiB;
     uint64_t num_colors;
 
     std::string tmp_dirname;

@@ -43,13 +43,16 @@ struct index<ColorSets>::builder {
 
             const uint64_t num_threads = m_build_config.num_threads;
             kmeans::thread_pool threads(num_threads);
-            std::atomic<uint64_t> total_builders_bytes = 0;
 
             bits::bit_vector::builder u2c_builder;
 
             /* write unitigs to fasta file for SSHash */
             std::ofstream out(input_filename_for_sshash.c_str());
             if (!out.is_open()) throw std::runtime_error("cannot open output file");
+            std::mutex m_queue_mtx;
+            std::condition_variable m_cv;
+            std::atomic<uint64_t> enqueued_jobs_bytes = 0;
+            const auto max_bytes = static_cast<uint64_t>(0.001 * (m_build_config.ram_limit_in_GiB << 30));
 
             m_ccdbg.loop_through_unitigs([&](ggcat::Slice<char> const unitig,
                                              ggcat::Slice<uint32_t> const color_set,
@@ -59,12 +62,23 @@ struct index<ColorSets>::builder {
                         if (num_unitigs > 0) u2c_builder.set(num_unitigs - 1, 1);
 
                         std::vector<uint32_t> cs(color_set.data, color_set.data + color_set.size);
-                        threads.enqueue([&builder, cs = std::move(cs), num_distinct_color_sets]() mutable {
-                            // for (auto c : cs) {
-                            //     std::cout << c << " ";
-                            // }
-                            // std::cout << std::endl;
+                        uint64_t vec_bytes = essentials::vec_bytes(cs);
+
+                        {
+                            std::unique_lock lock(m_queue_mtx);
+                            m_cv.wait(lock, [&] {
+                                return enqueued_jobs_bytes.load() + vec_bytes < max_bytes;
+                            });
+                            enqueued_jobs_bytes += vec_bytes;
+                        }
+
+                        threads.enqueue([vec_bytes, &enqueued_jobs_bytes, &builder, cs = std::move(cs), num_distinct_color_sets, &m_queue_mtx, &m_cv]() mutable {
                             builder.encode_color_set(std::move(cs), num_distinct_color_sets);
+                            {
+                                std::lock_guard lock(m_queue_mtx);
+                                enqueued_jobs_bytes -= vec_bytes;
+                            }
+                            m_cv.notify_all();
                         });
                         num_distinct_color_sets += 1;
                     }
@@ -87,6 +101,7 @@ struct index<ColorSets>::builder {
                 }
             });
             threads.wait();
+            builder.flush();
 
             out.close();
 

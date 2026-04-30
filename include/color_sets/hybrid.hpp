@@ -1,4 +1,5 @@
 #pragma once
+#include <shared_mutex>
 
 namespace fulgor {
 
@@ -18,9 +19,6 @@ struct hybrid {
     static const index_t type = index_t::HYBRID;
 
     struct builder {
-        // builder() : m_num_color_sets(0) { init(0); }
-        // builder(uint64_t num_colors) { init(num_colors); }
-
         explicit builder(const uint32_t num_colors = 0,
                  build_configuration build_config = build_configuration())
             : m_build_config(std::move(build_config))
@@ -49,37 +47,56 @@ struct hybrid {
 
             m_num_color_sets = 0;
             m_num_total_integers = 0;
+
             m_curr_color_set_id = 0;
+            m_queue_size = 0;
+            m_num_flushed_bits = 0;
+
+            // FIXME: this works for single builder pipelines but not for meta/metadiff
+            // TODO: add randomized filename extension "_xxxxxx"
+            const std::string filename = m_build_config.tmp_dirname + "/color_sets.bin";
+            std::remove(filename.c_str());
+            std::ofstream file(filename.c_str());
+            constexpr uint64_t zero = 0;
+            file.write(reinterpret_cast<const char*>(&zero), sizeof(zero));
+            file.write(reinterpret_cast<const char*>(&zero), sizeof(zero));
         }
 
         void reserve_num_bits(uint64_t num_bits) { m_color_sets_builder.reserve(num_bits); }
 
         void encode_color_set(std::vector<uint32_t>&& color_set, const uint64_t color_set_id = 0)  //
         {
-            uint64_t size = color_set.size();
-            bits::bit_vector::builder bvb;
-            bits::util::write_delta(bvb, size); /* encode size */
+            if (size() >= m_build_config.ram_limit_in_GiB << 30) {
+                std::unique_lock lock(*m_flush_mutex);
+                if (size() >= m_build_config.ram_limit_in_GiB << 30) {
+                    flush();
+                }
+            }
 
-            if (size < m_sparse_set_threshold_size) {
+            const uint64_t cs_size = color_set.size();
+            bits::bit_vector::builder bvb;
+            bits::util::write_delta(bvb, cs_size);
+
+            if (cs_size < m_sparse_set_threshold_size) {
                 uint32_t prev_val = color_set[0];
                 bits::util::write_delta(bvb, prev_val);
-                for (uint64_t i = 1; i != size; ++i) {
+                for (uint64_t i = 1; i != cs_size; ++i) {
                     uint32_t val = color_set[i];
                     assert(val >= prev_val + 1);
                     bits::util::write_delta(bvb, val - (prev_val + 1));
                     prev_val = val;
                 }
-            } else if (size < m_very_dense_set_threshold_size) {
+            } else if (cs_size < m_very_dense_set_threshold_size) {
                 bits::bit_vector::builder tmp_bvb;
                 tmp_bvb.resize(m_num_colors);
-                for (uint64_t i = 0; i != size; ++i) tmp_bvb.set(color_set[i]);
+                for (uint64_t i = 0; i != cs_size; ++i) tmp_bvb.set(color_set[i]);
                 bvb.append(tmp_bvb);
             } else {
                 bool first = true;
                 uint32_t val = 0;
                 uint32_t prev_val = -1;
                 uint32_t written = 0;
-                for (uint64_t i = 0; i != size; ++i) {
+                for (uint64_t i = 0; i != cs_size; ++i) {
                     uint32_t x = color_set[i];
                     while (val < x) {
                         if (first) {
@@ -105,27 +122,32 @@ struct hybrid {
                 }
                 assert(val == m_num_colors);
                 /* complementary_set_size = m_num_colors - size */
-                assert(m_num_colors - size <= m_num_colors);
-                assert(written == m_num_colors - size);
+                assert(m_num_colors - cs_size <= m_num_colors);
+                assert(written == m_num_colors - cs_size);
                 (void)written;  // silence "unused" warning
             }
-            m_num_total_integers += size;
 
             {
-                std::lock_guard lock(*m_mutex);
+                std::shared_lock flush_lock(*m_flush_mutex);
+                std::lock_guard queue_lock(*m_queue_mutex);
+                m_num_total_integers += cs_size;
                 m_num_color_sets += 1;
                 if (color_set_id == m_curr_color_set_id) {
                     m_color_sets_builder.append(bvb);
-                    m_offsets.push_back(m_color_sets_builder.num_bits());
+                    m_offsets.push_back(m_num_flushed_bits + m_color_sets_builder.num_bits());
                     ++m_curr_color_set_id;
                     while (!m_csb_queue.empty() && m_curr_color_set_id == m_csb_queue.top().first) {
                         auto& [_, csb] = m_csb_queue.top();
+                        m_queue_size -= 8 + essentials::vec_bytes(csb.data()) + 16; // first + bvb struct
+
                         m_color_sets_builder.append(csb);
                         m_csb_queue.pop();
-                        m_offsets.push_back(m_color_sets_builder.num_bits());
+                        m_offsets.push_back(m_num_flushed_bits + m_color_sets_builder.num_bits());
                         ++m_curr_color_set_id;
                     }
+                    assert((m_csb_queue.empty() && m_queue_size == 0) || (!m_csb_queue.empty() && m_queue_size > 0));
                 } else {
+                    m_queue_size += 8 + essentials::vec_bytes(bvb.data()) + 16; // first + bvb struct
                     m_csb_queue.emplace(color_set_id, std::move(bvb));
                 }
             }
@@ -133,6 +155,11 @@ struct hybrid {
             if (m_build_config.verbose && m_num_color_sets % 500000 == 0) {
                 std::cout << "  processed " << m_num_color_sets << " color sets" << std::endl;
             }
+        }
+
+        uint64_t size() const {
+            return essentials::vec_bytes(m_color_sets_builder.data()) +
+                essentials::vec_bytes(m_offsets) + m_queue_size;
         }
 
         void append(hybrid::builder& hb) {
@@ -159,7 +186,8 @@ struct hybrid {
             assert(m_num_color_sets == m_offsets.size() - 1);
 
             h.m_offsets.encode(m_offsets.begin(), m_offsets.size(), m_offsets.back());
-            m_color_sets_builder.build(h.m_color_sets);
+            // m_color_sets_builder.build(h.m_color_sets);
+            essentials::load(h.m_color_sets, (m_build_config.tmp_dirname + "/color_sets.bin").c_str());
 
             std::cout << "  total bits for ints = " << 8 * h.m_color_sets.num_bytes() << std::endl;
             std::cout << "  total bits per offsets = " << 8 * h.m_offsets.num_bytes() << std::endl;
@@ -178,14 +206,39 @@ struct hybrid {
             init(m_num_colors);
         }
 
-        void dump(const std::string& output_filename) {
+        void flush() {
+            const std::string filename = m_build_config.tmp_dirname + "/color_sets.bin";
+            std::fstream file(filename, std::ios::in | std::ios::out | std::ios::binary);
+            if (!file.is_open()) return;
+
+            std::cout << "flushing " << size() << " bytes" << std::endl;
+
+            uint64_t num_bits, num_words64;
+            file.read(reinterpret_cast<char*>(&num_bits), sizeof(uint64_t));
+
+            const uint64_t pos = num_bits >> 6 ;
+            const uint64_t final_num_bits = (pos << 6) + m_color_sets_builder.num_bits();
+            const uint64_t final_num_words = (final_num_bits + 63) >> 6;
+            m_num_flushed_bits = final_num_bits & ~63;
+            assert(final_num_bits == m_offsets.back());
+
+            file.seekp(sizeof(uint64_t)*2  + (pos * sizeof(uint64_t)));
+            file.write(reinterpret_cast<char*>(
+                m_color_sets_builder.data().data()),
+                m_color_sets_builder.data().size() * sizeof(uint64_t)
+            );
+
+            file.seekp(0);
+            file.write(reinterpret_cast<const char*>(&final_num_bits), sizeof(uint64_t));
+            file.write(reinterpret_cast<const char*>(&final_num_words), sizeof(uint64_t));
+
+            uint64_t last_word = m_color_sets_builder.data().back();
+            m_color_sets_builder.clear();
+            m_color_sets_builder.reserve(m_build_config.ram_limit_in_GiB << 33); //bits
+            m_color_sets_builder.append_bits(last_word, final_num_bits & 63);
         }
 
     private:
-        static std::string chunk_filename(const std::string& base_tmp_filename, const uint64_t chunk_id) {
-            return base_tmp_filename + "_" + std::to_string(chunk_id) + ".bin";
-        }
-
         struct CompareFirst {
             template <typename T>
             bool operator()(const std::pair<uint64_t, T>& a, const std::pair<uint64_t, T>& b) const {
@@ -199,15 +252,18 @@ struct hybrid {
         uint64_t m_num_color_sets;
         uint64_t m_num_total_integers;
 
+        uint64_t m_curr_color_set_id;
+        std::unique_ptr<std::mutex> m_queue_mutex = std::make_unique<std::mutex>();
+        std::unique_ptr<std::shared_mutex> m_flush_mutex = std::make_unique<std::shared_mutex>();
         bits::bit_vector::builder m_color_sets_builder;
+        std::vector<uint64_t> m_offsets;
+        uint64_t m_num_flushed_bits;
         std::priority_queue<
             std::pair<uint64_t, bits::bit_vector::builder>,
             std::vector<std::pair<uint64_t, bits::bit_vector::builder>>,
             CompareFirst
         > m_csb_queue;
-        std::unique_ptr<std::mutex> m_mutex = std::make_unique<std::mutex>();
-        uint64_t m_curr_color_set_id;
-        std::vector<uint64_t> m_offsets;
+        uint64_t m_queue_size;
 
         build_configuration m_build_config;
     };
@@ -417,3 +473,8 @@ private:
 };
 
 }  // namespace fulgor
+
+// 13959930901 218123921
+//  5639917171  88123706
+//  6561605869 102525092
+

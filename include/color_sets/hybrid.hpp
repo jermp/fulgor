@@ -50,7 +50,7 @@ struct hybrid {
 
             m_curr_color_set_id = 0;
             m_queue_size = 0;
-            m_num_flushed_bits = 0;
+            m_base_offset = 0;
 
             // FIXME: this works for single builder pipelines but not for meta/metadiff
             // TODO: add randomized filename extension "_xxxxxx"
@@ -76,55 +76,12 @@ struct hybrid {
             const uint64_t cs_size = color_set.size();
             bits::bit_vector::builder bvb;
             bits::util::write_delta(bvb, cs_size);
-
             if (cs_size < m_sparse_set_threshold_size) {
-                uint32_t prev_val = color_set[0];
-                bits::util::write_delta(bvb, prev_val);
-                for (uint64_t i = 1; i != cs_size; ++i) {
-                    uint32_t val = color_set[i];
-                    assert(val >= prev_val + 1);
-                    bits::util::write_delta(bvb, val - (prev_val + 1));
-                    prev_val = val;
-                }
+                encode_sparse(color_set, bvb);
             } else if (cs_size < m_very_dense_set_threshold_size) {
-                bits::bit_vector::builder tmp_bvb;
-                tmp_bvb.resize(m_num_colors);
-                for (uint64_t i = 0; i != cs_size; ++i) tmp_bvb.set(color_set[i]);
-                bvb.append(tmp_bvb);
+                encode_dense(color_set, bvb);
             } else {
-                bool first = true;
-                uint32_t val = 0;
-                uint32_t prev_val = -1;
-                uint32_t written = 0;
-                for (uint64_t i = 0; i != cs_size; ++i) {
-                    uint32_t x = color_set[i];
-                    while (val < x) {
-                        if (first) {
-                            bits::util::write_delta(bvb, val);
-                            first = false;
-                        } else {
-                            assert(val >= prev_val + 1);
-                            bits::util::write_delta(bvb, val - (prev_val + 1));
-                        }
-                        prev_val = val;
-                        ++val;
-                        ++written;
-                    }
-                    assert(val == x);
-                    val++;  // skip x
-                }
-                while (val < m_num_colors) {
-                    assert(val >= prev_val + 1);
-                    bits::util::write_delta(bvb, val - (prev_val + 1));
-                    prev_val = val;
-                    ++val;
-                    ++written;
-                }
-                assert(val == m_num_colors);
-                /* complementary_set_size = m_num_colors - size */
-                assert(m_num_colors - cs_size <= m_num_colors);
-                assert(written == m_num_colors - cs_size);
-                (void)written;  // silence "unused" warning
+                encode_very_dense(color_set, bvb);
             }
 
             {
@@ -134,7 +91,7 @@ struct hybrid {
                 m_num_color_sets += 1;
                 if (color_set_id == m_curr_color_set_id) {
                     m_color_sets_builder.append(bvb);
-                    m_offsets.push_back(m_num_flushed_bits + m_color_sets_builder.num_bits());
+                    m_offsets.push_back(m_base_offset + m_color_sets_builder.num_bits());
                     ++m_curr_color_set_id;
                     while (!m_csb_queue.empty() && m_curr_color_set_id == m_csb_queue.top().first) {
                         auto& [_, csb] = m_csb_queue.top();
@@ -142,7 +99,7 @@ struct hybrid {
 
                         m_color_sets_builder.append(csb);
                         m_csb_queue.pop();
-                        m_offsets.push_back(m_num_flushed_bits + m_color_sets_builder.num_bits());
+                        m_offsets.push_back(m_base_offset + m_color_sets_builder.num_bits());
                         ++m_curr_color_set_id;
                     }
                     assert((m_csb_queue.empty() && m_queue_size == 0) || (!m_csb_queue.empty() && m_queue_size > 0));
@@ -211,15 +168,13 @@ struct hybrid {
             std::fstream file(filename, std::ios::in | std::ios::out | std::ios::binary);
             if (!file.is_open()) return;
 
-            std::cout << "flushing " << size() << " bytes" << std::endl;
-
-            uint64_t num_bits, num_words64;
+            uint64_t num_bits;
             file.read(reinterpret_cast<char*>(&num_bits), sizeof(uint64_t));
 
             const uint64_t pos = num_bits >> 6 ;
             const uint64_t final_num_bits = (pos << 6) + m_color_sets_builder.num_bits();
             const uint64_t final_num_words = (final_num_bits + 63) >> 6;
-            m_num_flushed_bits = final_num_bits & ~63;
+            m_base_offset = final_num_bits & ~63;
             assert(final_num_bits == m_offsets.back());
 
             file.seekp(sizeof(uint64_t)*2  + (pos * sizeof(uint64_t)));
@@ -246,6 +201,63 @@ struct hybrid {
             }
         };
 
+        void encode_sparse(const std::vector<uint32_t>& color_set, bits::bit_vector::builder& bvb) const {
+            const uint64_t size = color_set.size();
+            uint32_t prev_val = color_set[0];
+            bits::util::write_delta(bvb, prev_val);
+            for (uint64_t i = 1; i != size; ++i) {
+                const uint32_t val = color_set[i];
+                assert(val >= prev_val + 1);
+                bits::util::write_delta(bvb, val - (prev_val + 1));
+                prev_val = val;
+            }
+        }
+
+        void encode_dense(const std::vector<uint32_t>& color_set, bits::bit_vector::builder& bvb) const {
+            const uint64_t size = color_set.size();
+            bits::bit_vector::builder tmp_bvb;
+            tmp_bvb.resize(m_num_colors);
+            for (uint64_t i = 0; i != size; ++i) tmp_bvb.set(color_set[i]);
+            bvb.append(tmp_bvb);
+        }
+
+        void encode_very_dense(const std::vector<uint32_t>& color_set, bits::bit_vector::builder& bvb) const {
+            const uint64_t size = color_set.size();
+            bool first = true;
+            uint32_t val = 0;
+            uint32_t prev_val = -1;
+            uint32_t written = 0;
+            for (uint64_t i = 0; i != size; ++i) {
+                uint32_t x = color_set[i];
+                while (val < x) {
+                    if (first) {
+                        bits::util::write_delta(bvb, val);
+                        first = false;
+                    } else {
+                        assert(val >= prev_val + 1);
+                        bits::util::write_delta(bvb, val - (prev_val + 1));
+                    }
+                    prev_val = val;
+                    ++val;
+                    ++written;
+                }
+                assert(val == x);
+                val++;  // skip x
+            }
+            while (val < m_num_colors) {
+                assert(val >= prev_val + 1);
+                bits::util::write_delta(bvb, val - (prev_val + 1));
+                prev_val = val;
+                ++val;
+                ++written;
+            }
+            assert(val == m_num_colors);
+            /* complementary_set_size = m_num_colors - size */
+            assert(m_num_colors - size <= m_num_colors);
+            assert(written == m_num_colors - size);
+            (void)written;  // silence "unused" warning
+        }
+
         uint32_t m_num_colors;
         uint32_t m_sparse_set_threshold_size;
         uint32_t m_very_dense_set_threshold_size;
@@ -257,7 +269,7 @@ struct hybrid {
         std::unique_ptr<std::shared_mutex> m_flush_mutex = std::make_unique<std::shared_mutex>();
         bits::bit_vector::builder m_color_sets_builder;
         std::vector<uint64_t> m_offsets;
-        uint64_t m_num_flushed_bits;
+        uint64_t m_base_offset;
         std::priority_queue<
             std::pair<uint64_t, bits::bit_vector::builder>,
             std::vector<std::pair<uint64_t, bits::bit_vector::builder>>,

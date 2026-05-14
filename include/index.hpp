@@ -102,10 +102,10 @@ private:
     }
 
     essentials::version_number m_vnum;
-    sshash_type m_k2u;
+    ColorSets m_color_sets;
     bits::bit_vector m_u2c;
     bits::rank9 m_u2c_rank1_index;
-    ColorSets m_color_sets;
+    sshash_type m_k2u;
     filenames m_filenames;
 };
 

@@ -2,6 +2,7 @@
 
 #include "include/index.hpp"
 #include "include/build_util.hpp"
+#include <span>
 
 #include <shared_mutex>
 
@@ -158,9 +159,11 @@ struct index<ColorSets>::meta_builder {
             std::atomic_uint64_t num_integers_in_metacolor_sets = 0;
             uint64_t num_partial_color_sets = 0;
 
-            typename ColorSets::builder color_sets_builder;
+            typename ColorSets::builder color_sets_builder(
+                num_colors, num_partitions, m_build_config.tmp_dirname, m_build_config.ram_limit_in_GiB,
+                m_build_config.verbose
+                );
 
-            color_sets_builder.init_color_sets_builder(num_colors, num_partitions);
             for (uint64_t partition_id = 0; partition_id != num_partitions; ++partition_id) {
                 auto endpoints = p.partition_endpoints(partition_id);
                 uint64_t num_colors_in_partition = endpoints.end - endpoints.begin;
@@ -184,49 +187,42 @@ struct index<ColorSets>::meta_builder {
             }
             thread_slices[num_threads] = base_index.num_color_sets();
 
+            auto hash_and_encode = [&](uint64_t partition_id, std::span<uint32_t> partial_color_set) -> std::pair<uint32_t, uint32_t> {
+                std::lock_guard lock(partitions_mutex[partition_id]);
+                assert(!partial_color_set.empty());
+                uint32_t partial_color_set_id = 0;
+                auto curr_partition = p.partition_endpoints(partition_id);
+                auto hash =
+                    util::hash128(reinterpret_cast<char const*>(partial_color_set.data()),
+                                  partial_color_set.size() * sizeof(uint32_t));
+                auto it = hashes[partition_id].find(hash);
+
+                if (it == hashes[partition_id].cend()) {  // new partial color
+                    partial_color_set_id = hashes[partition_id].size();
+                    std::ranges::transform(partial_color_set, partial_color_set.begin(),
+                        [&](uint32_t n) { return n - curr_partition.begin; });
+                    hashes[partition_id].insert({hash, partial_color_set_id});
+                    color_sets_builder.encode_color_set(partition_id, partial_color_set, partial_color_set_id);
+                } else {
+                    partial_color_set_id = it->second;
+                }
+
+                /*  write meta color: (partition_id, partial_color_set_id)
+                    Note: at this stage, partial_color_set_id is relative
+                          to its partition (is not global yet).
+                */
+                return {partition_id, partial_color_set_id};
+            };
+
             auto exe = [&](uint64_t thread_id) {
                 std::string tmp_filename = metacolor_set_file_name(thread_id);
-                uint64_t partition_id = 0;
-                uint32_t meta_color_set_size = 0;
-                std::vector<uint32_t> partial_color_set;
-                std::vector<uint32_t> permuted_set;
                 std::ofstream metacolor_sets_ofstream(tmp_filename, std::ios::binary);
                 if (!metacolor_sets_ofstream.is_open()) {
                     throw std::runtime_error("error in opening file");
                 }
 
-                partial_color_set.reserve(max_partition_size);
+                std::vector<uint32_t> permuted_set;
                 permuted_set.reserve(num_colors);
-
-                auto hash_and_compress = [&]() {
-                    std::lock_guard<std::shared_mutex> lock(partitions_mutex[partition_id]);
-                    assert(!partial_color_set.empty());
-                    uint32_t partial_color_set_id = 0;
-                    auto hash =
-                        util::hash128(reinterpret_cast<char const*>(partial_color_set.data()),
-                                      partial_color_set.size() * sizeof(uint32_t));
-                    auto it = hashes[partition_id].find(hash);
-
-                    if (it == hashes[partition_id].cend()) {  // new partial color
-                        partial_color_set_id = hashes[partition_id].size();
-                        hashes[partition_id].insert({hash, partial_color_set_id});
-                        color_sets_builder.encode_color_set(partition_id, partial_color_set);
-                    } else {
-                        partial_color_set_id = (*it).second;
-                    }
-
-                    /*  write meta color: (partition_id, partial_color_set_id)
-                        Note: at this stage, partial_color_set_id is relative
-                              to its partition (is not global yet).
-                    */
-                    metacolor_sets_ofstream.write(reinterpret_cast<char const*>(&partition_id),
-                                                  sizeof(uint32_t));
-                    metacolor_sets_ofstream.write(
-                        reinterpret_cast<char const*>(&partial_color_set_id), sizeof(uint32_t));
-
-                    partial_color_set.clear();
-                    meta_color_set_size += 1;
-                };
 
                 for (uint64_t color_set_id = thread_slices[thread_id];
                      color_set_id != thread_slices[thread_id + 1]; ++color_set_id) {
@@ -241,26 +237,39 @@ struct index<ColorSets>::meta_builder {
                     std::sort(permuted_set.begin(), permuted_set.end());
 
                     /* partition set */
-                    meta_color_set_size = 0;
-                    partition_id = 0;
+                    uint32_t meta_color_set_size = 0;
+                    uint32_t partition_id = 0;
                     partition_endpoint curr_partition = p.partition_endpoints(0);
-                    assert(partial_color_set.empty());
 
                     /* reserve space to hold the size of the meta color set */
                     metacolor_sets_ofstream.write(
                         reinterpret_cast<char const*>(&meta_color_set_size), sizeof(uint32_t));
 
-                    for (uint64_t i = 0; i != set_size; ++i) {
-                        uint32_t ref_id = permuted_set[i];
-                        while (ref_id >= curr_partition.end) {
-                            if (!partial_color_set.empty()) hash_and_compress();
+                    std::span data(permuted_set);
+                    uint32_t partial_start = 0;
+                    for (uint64_t i = 0; i != data.size(); ++i) {
+                        uint32_t color = data[i];
+                        while (color >= curr_partition.end) {
+                            auto partition_view = data.subspan(partial_start, i - partial_start);
+                            if (!partition_view.empty()) {
+                                auto metacolor = hash_and_encode(partition_id, partition_view);
+                                meta_color_set_size += 1;
+                                metacolor_sets_ofstream.write(reinterpret_cast<char const*>(&metacolor), sizeof(metacolor));
+                            }
+
                             partition_id += 1;
                             curr_partition = p.partition_endpoints(partition_id);
+                            partial_start = i;
                         }
-                        assert(ref_id >= curr_partition.begin);
-                        partial_color_set.push_back(ref_id - curr_partition.begin);
+                        assert(color >= curr_partition.begin);
                     }
-                    if (!partial_color_set.empty()) hash_and_compress();
+                    auto final_view = data.subspan(partial_start);
+                    if (!final_view.empty()) {
+                        auto metacolor = hash_and_encode(partition_id, final_view);
+                        meta_color_set_size += 1;
+                        metacolor_sets_ofstream.write(reinterpret_cast<char const*>(&metacolor), sizeof(metacolor));
+
+                    }
 
                     num_integers_in_metacolor_sets += meta_color_set_size;
 
@@ -344,6 +353,7 @@ struct index<ColorSets>::meta_builder {
 
             metacolor_set_in.close();
             std::remove(metacolor_set_file_name(thread_id).c_str());
+            color_sets_builder.flush();
             color_sets_builder.build(idx.m_color_sets);
 
             timer.stop();

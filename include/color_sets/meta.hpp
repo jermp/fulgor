@@ -4,7 +4,7 @@ namespace fulgor {
 
 template <typename ColorSets>
 struct meta {
-    static const index_t type = index_t::META;
+    static constexpr index_t type = META;
 
     struct partition_endpoint {
         template <typename Visitor>
@@ -17,11 +17,16 @@ struct meta {
     };
 
     struct builder {
-        explicit builder(build_configuration build_config = build_configuration())
+        explicit builder(const uint64_t num_colors, const uint64_t num_partitions,
+                         const std::string& tmp_dirname,  const uint64_t max_RAM_bytes = 8,
+                         const bool verbose = false)
             : m_offset(0)
-            , m_build_config(std::move(build_config))
+            , m_tmp_dirname(tmp_dirname)
+            , m_max_RAM_bytes(max_RAM_bytes)
+            , m_verbose(verbose)
         {
             m_meta_color_sets_offsets.push_back(0);
+            init_color_sets_builder(num_colors, num_partitions);
         }
 
         void init_meta_color_sets_builder(
@@ -47,7 +52,9 @@ struct meta {
 
         void init_partition(uint64_t partition_id, uint64_t num_colors_in_partition) {
             assert(partition_id < m_color_sets_builders.size());
-            m_color_sets_builders[partition_id].init(num_colors_in_partition);
+            std::string partition_filename = m_tmp_dirname + "/partial_sets_" +
+                std::to_string(partition_id) + ".bin";
+            m_color_sets_builders[partition_id].init(num_colors_in_partition, partition_filename);
         }
 
         void reserve_num_bits(uint64_t partition_id, uint64_t num_bits) {
@@ -55,9 +62,9 @@ struct meta {
             m_color_sets_builders[partition_id].reserve_num_bits(num_bits);
         }
 
-        void encode_color_set(uint64_t partition_id, std::vector<uint32_t>& color_set) {
+        void encode_color_set(uint64_t partition_id, std::span<uint32_t> color_set, uint32_t partial_color_set_id) {
             assert(partition_id < m_color_sets_builders.size());
-            m_color_sets_builders[partition_id].encode_color_set(std::move(color_set));
+            m_color_sets_builders[partition_id].encode_color_set(color_set, partial_color_set_id);
         }
 
         void encode_metacolor_set(uint32_t const* metacolor_set, const uint64_t size) {
@@ -68,6 +75,12 @@ struct meta {
             }
             m_offset += size + 1;
             m_meta_color_sets_offsets.push_back(m_offset);
+        }
+
+        void flush() {
+            for (auto& builder : m_color_sets_builders) {
+                builder.flush();
+            }
         }
 
         void build(meta& m) {
@@ -93,7 +106,9 @@ struct meta {
 
         std::vector<partition_endpoint> m_partition_endpoints;
 
-        build_configuration m_build_config;
+        std::string m_tmp_dirname;
+        uint64_t m_max_RAM_bytes;
+        bool m_verbose;
     };
 
     struct forward_iterator {
@@ -287,10 +302,10 @@ private:
     }
 
     uint32_t m_num_colors;
-    bits::compact_vector m_meta_color_sets;
-    bits::elias_fano<false, false> m_meta_color_sets_offsets;
     std::vector<ColorSets> m_partial_color_sets;
     std::vector<partition_endpoint> m_partition_endpoints;
+    bits::compact_vector m_meta_color_sets;
+    bits::elias_fano<false, false> m_meta_color_sets_offsets;
 };
 
 }  // namespace fulgor

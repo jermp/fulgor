@@ -250,5 +250,12 @@ inline void vec_to_tsv(std::vector<uint32_t> const& vec, std::string& s) {
     s.pop_back();
 }
 
+struct compare_first {
+    template <typename T>
+    bool operator()(const std::pair<uint64_t, T>& a, const std::pair<uint64_t, T>& b) const {
+        return a.first > b.first;
+    }
+};
+
 }  // namespace util
 }  // namespace fulgor

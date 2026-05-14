@@ -224,7 +224,7 @@ void index<ColorSets>::load(build_configuration const& build_config)  //
         essentials::logger("step 3. encoding color sets...");
         timer.start();
 
-        typename ColorSets::builder color_sets_builder(num_colors);
+        typename ColorSets::builder color_sets_builder(num_colors, build_config.tmp_dirname + "/color_sets.bin");
         const uint64_t num_bits = essentials::GiB * 8 * 8;
         color_sets_builder.reserve_num_bits(num_bits);
 
@@ -251,7 +251,7 @@ void index<ColorSets>::load(build_configuration const& build_config)  //
                 v.push_back(static_cast<uint32_t>(std::strtoul(p, &endptr, 10)));
                 p = endptr;
             }
-            color_sets_builder.encode_color_set(std::move(v));
+            color_sets_builder.encode_color_set(v, i);
         }
 
         in.close();

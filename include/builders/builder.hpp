@@ -4,6 +4,8 @@
 #include "include/index.hpp"
 #include "include/GGCAT.hpp"
 
+#include <span>
+
 namespace fulgor {
 
 template <typename ColorSets>
@@ -39,7 +41,8 @@ struct index<ColorSets>::builder {
             uint64_t num_unitigs = 0;
             uint64_t num_distinct_color_sets = 0;
 
-            typename ColorSets::builder builder(m_build_config.num_colors, m_build_config);
+            typename ColorSets::builder builder(m_build_config.num_colors, m_build_config.tmp_dirname + "/color_sets.bin",
+                m_build_config.ram_limit_in_GiB << 30, m_build_config.verbose);
 
             const uint64_t num_threads = m_build_config.num_threads;
             kmeans::thread_pool threads(num_threads);
@@ -61,7 +64,7 @@ struct index<ColorSets>::builder {
                     if (!same_color_set) {
                         if (num_unitigs > 0) u2c_builder.set(num_unitigs - 1, 1);
 
-                        std::vector<uint32_t> cs(color_set.data, color_set.data + color_set.size);
+                        std::vector cs(color_set.data, color_set.data + color_set.size);
                         uint64_t vec_bytes = essentials::vec_bytes(cs);
 
                         {
@@ -73,7 +76,7 @@ struct index<ColorSets>::builder {
                         }
 
                         threads.enqueue([vec_bytes, &enqueued_jobs_bytes, &builder, cs = std::move(cs), num_distinct_color_sets, &m_queue_mtx, &m_cv]() mutable {
-                            builder.encode_color_set(std::move(cs), num_distinct_color_sets);
+                            builder.encode_color_set(cs, num_distinct_color_sets);
                             {
                                 std::lock_guard lock(m_queue_mtx);
                                 enqueued_jobs_bytes -= vec_bytes;

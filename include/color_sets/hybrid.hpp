@@ -269,7 +269,10 @@ struct hybrid {
         }
     };
 
+    struct iterator_sentinel {};
+
     struct forward_iterator {
+        using sentinel_type = iterator_sentinel;
         forward_iterator() {}
 
         forward_iterator(hybrid const* ptr, uint64_t begin)
@@ -368,6 +371,10 @@ struct hybrid {
         }
 
         void operator++() { next(); }
+
+        bool operator==(iterator_sentinel) const {
+            return m_comp_val == m_num_colors;
+        }
 
         /* update the state of the iterator to the element
            which is greater-than or equal-to lower_bound */
@@ -474,8 +481,3 @@ private:
 };
 
 }  // namespace fulgor
-
-// 13959930901 218123921
-//  5639917171  88123706
-//  6561605869 102525092
-

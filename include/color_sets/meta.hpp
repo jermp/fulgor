@@ -111,7 +111,11 @@ struct meta {
         bool m_verbose;
     };
 
+    struct iterator_sentinel {};
+
     struct forward_iterator {
+        using sentinel_type = iterator_sentinel;
+
         forward_iterator(meta<ColorSets> const* ptr, uint64_t begin)
             : m_ptr(ptr)
             , m_begin(begin)
@@ -154,6 +158,10 @@ struct meta {
             }
         }
         void operator++() { next(); }
+
+        bool operator==(iterator_sentinel) const {
+            return m_curr_val == num_colors();
+        }
 
         /* update the state of the iterator to the element
            which is greater-than or equal-to lower_bound */

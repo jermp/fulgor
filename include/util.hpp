@@ -1,11 +1,6 @@
 #pragma once
 
-#include <cassert>
-#include <cmath>
-#include <fstream>
 #include <vector>
-#include <sstream>
-#include <chrono>
 #include <algorithm>  // for std::set_intersection
 
 #include "external/smhasher/src/City.h"
@@ -255,6 +250,16 @@ struct compare_first {
     bool operator()(const std::pair<uint64_t, T>& a, const std::pair<uint64_t, T>& b) const {
         return a.first > b.first;
     }
+};
+
+template <typename It, typename Sentinel = It::sentinel_type>
+struct range_view {
+    explicit range_view(It it) : _it(it) {}
+
+    It _it;
+    It begin() const { return _it; }
+    Sentinel end() const { return {}; }
+    auto size() const { return _it.size(); }
 };
 
 }  // namespace util

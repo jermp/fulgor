@@ -61,10 +61,7 @@ struct hybrid {
         void encode_color_set(std::span<const uint32_t> color_set, const uint64_t color_set_id)  //
         {
             if (size() >= m_max_RAM_bytes) {
-                std::unique_lock lock(*m_flush_mutex);
-                if (size() >= m_max_RAM_bytes) {
-                    flush();
-                }
+                flush();
             }
 
             const uint64_t cs_size = color_set.size();
@@ -132,23 +129,25 @@ struct hybrid {
             h.m_sparse_set_threshold_size = m_sparse_set_threshold_size;
             h.m_very_dense_set_threshold_size = m_very_dense_set_threshold_size;
 
-            std::cout << "processed " << m_num_color_sets << " color sets" << std::endl;
-            std::cout << "m_num_total_integers " << m_num_total_integers << std::endl;
             assert(m_num_color_sets == m_offsets.size() - 1);
 
             h.m_offsets.encode(m_offsets.begin(), m_offsets.size(), m_offsets.back());
             // m_color_sets_builder.build(h.m_color_sets);
             essentials::load(h.m_color_sets, m_output_filename.c_str());
 
-            std::cout << "  total bits for ints = " << 8 * h.m_color_sets.num_bytes() << std::endl;
-            std::cout << "  total bits per offsets = " << 8 * h.m_offsets.num_bytes() << std::endl;
-            std::cout << "  total bits = "
-                      << 8 * (h.m_color_sets.num_bytes() + h.m_offsets.num_bytes()) << std::endl;
-            std::cout << "  offsets: " << (8.0 * h.m_offsets.num_bytes()) / m_num_total_integers
-                      << " bits/int" << std::endl;
-            std::cout << "  color sets: "
-                      << (8.0 * h.m_color_sets.num_bytes()) / m_num_total_integers << " bits/int"
-                      << std::endl;
+            if (m_verbose) {
+                std::cout << "processed " << m_num_color_sets << " color sets" << std::endl;
+                std::cout << "m_num_total_integers " << m_num_total_integers << std::endl;
+                std::cout << "  total bits for ints = " << 8 * h.m_color_sets.num_bytes() << std::endl;
+                std::cout << "  total bits per offsets = " << 8 * h.m_offsets.num_bytes() << std::endl;
+                std::cout << "  total bits = "
+                          << 8 * (h.m_color_sets.num_bytes() + h.m_offsets.num_bytes()) << std::endl;
+                std::cout << "  offsets: " << (8.0 * h.m_offsets.num_bytes()) / m_num_total_integers
+                          << " bits/int" << std::endl;
+                std::cout << "  color sets: "
+                          << (8.0 * h.m_color_sets.num_bytes()) / m_num_total_integers << " bits/int"
+                          << std::endl;
+            }
         }
 
         void clear() {
@@ -159,6 +158,11 @@ struct hybrid {
 
         void flush() {
             if (m_color_sets_builder.data().empty()) return;
+            if (m_is_flushing->exchange(true)) {
+                return;
+            }
+            const std::unique_lock lock(*m_flush_mutex);
+
             std::fstream file(m_output_filename, std::ios::in | std::ios::out | std::ios::binary);
             if (!file.is_open()) return;
 
@@ -181,10 +185,19 @@ struct hybrid {
             file.write(reinterpret_cast<const char*>(&final_num_bits), sizeof(uint64_t));
             file.write(reinterpret_cast<const char*>(&final_num_words), sizeof(uint64_t));
 
-            uint64_t last_word = m_color_sets_builder.data().back();
+            const uint64_t last_word = m_color_sets_builder.data().back();
             m_color_sets_builder.clear();
             m_color_sets_builder.reserve(m_max_RAM_bytes << 3); //bits
-            m_color_sets_builder.append_bits(last_word, final_num_bits & 63);
+            const uint64_t remaining_bits = final_num_bits & 63;
+            if (remaining_bits > 0) {
+                m_color_sets_builder.append_bits(last_word, remaining_bits);
+            }
+
+            *m_is_flushing = false;
+        }
+
+        std::string output_filename() {
+            return m_output_filename;
         }
 
     private:
@@ -197,6 +210,7 @@ struct hybrid {
         uint64_t m_curr_color_set_id;
         std::unique_ptr<std::mutex> m_queue_mutex = std::make_unique<std::mutex>();
         std::unique_ptr<std::shared_mutex> m_flush_mutex = std::make_unique<std::shared_mutex>();
+        std::unique_ptr<std::atomic<bool>> m_is_flushing = std::make_unique<std::atomic<bool>>(false);
         bits::bit_vector::builder m_color_sets_builder;
         std::vector<uint64_t> m_offsets;
         uint64_t m_base_offset;
@@ -373,7 +387,7 @@ struct hybrid {
         void operator++() { next(); }
 
         bool operator==(iterator_sentinel) const {
-            return m_comp_val == m_num_colors;
+            return m_curr_val == m_num_colors;
         }
 
         /* update the state of the iterator to the element

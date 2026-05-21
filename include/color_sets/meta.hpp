@@ -36,7 +36,7 @@ struct meta {
         {
             m_meta_color_sets_builder.resize(num_integers_in_metacolor_sets,
                                              std::ceil(std::log2(num_color_sets)));
-            m_partition_endpoints.reserve(num_color_sets_in_partitions.size());
+            m_partition_endpoints.reserve(num_color_sets_in_partitions.size() + 1);
             assert(partition_sizes.front() == 0);
             m_partition_endpoints.push_back({partition_sizes[0], 0});
             for (uint32_t i = 0, val = 0; i != num_color_sets_in_partitions.size(); ++i) {
@@ -55,6 +55,8 @@ struct meta {
             std::string partition_filename = m_tmp_dirname + "/partial_sets_" +
                 std::to_string(partition_id) + ".bin";
             m_color_sets_builders[partition_id].init(num_colors_in_partition, partition_filename);
+            m_color_sets_builders[partition_id].set_verbose(m_verbose);
+            m_color_sets_builders[partition_id].set_max_RAM_bytes(m_max_RAM_bytes);
         }
 
         void reserve_num_bits(uint64_t partition_id, uint64_t num_bits) {
@@ -62,9 +64,12 @@ struct meta {
             m_color_sets_builders[partition_id].reserve_num_bits(num_bits);
         }
 
-        void encode_color_set(uint64_t partition_id, std::span<uint32_t> color_set, uint32_t partial_color_set_id) {
+        void encode_partial_color_set(uint64_t partition_id, std::span<uint32_t> color_set, uint32_t partial_color_set_id) {
             assert(partition_id < m_color_sets_builders.size());
             m_color_sets_builders[partition_id].encode_color_set(color_set, partial_color_set_id);
+            if (num_bytes() > m_max_RAM_bytes) {
+                flush();
+            }
         }
 
         void encode_metacolor_set(uint32_t const* metacolor_set, const uint64_t size) {
@@ -78,9 +83,20 @@ struct meta {
         }
 
         void flush() {
+            if (m_is_flushing.exchange(true)) { return; }
+
             for (auto& builder : m_color_sets_builders) {
                 builder.flush();
             }
+            m_is_flushing = false;
+        }
+
+        uint64_t num_bytes() const {
+            uint64_t size = 0;
+            for (const auto& builder : m_color_sets_builders) {
+                size += builder.size();
+            }
+            return size;
         }
 
         void build(meta& m) {
@@ -96,6 +112,12 @@ struct meta {
             m.m_partition_endpoints.swap(m_partition_endpoints);
         }
 
+        ~builder() {
+            for (auto& builder : m_color_sets_builders) {
+                std::remove(builder.output_filename().c_str());
+            }
+        }
+
     private:
         bits::compact_vector::builder m_meta_color_sets_builder;
         std::vector<typename ColorSets::builder> m_color_sets_builders;
@@ -103,8 +125,9 @@ struct meta {
         uint64_t m_num_colors;
         uint64_t m_offset;
         std::vector<uint64_t> m_meta_color_sets_offsets;
-
         std::vector<partition_endpoint> m_partition_endpoints;
+
+        std::atomic<bool> m_is_flushing;
 
         std::string m_tmp_dirname;
         uint64_t m_max_RAM_bytes;

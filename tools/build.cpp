@@ -142,12 +142,12 @@ int build(int argc, char** argv) {
     parser.add("m", "Minimizer length (must be < k).", "-m", true);
     parser.add(
         "tmp_dirname",
-        "Temporary directory used for construction in external memory. Default is directory '" +
-            constants::default_tmp_dirname + "'.",
+        "Temporary directory used for construction in external memory (default is directory '" +
+            constants::default_tmp_dirname + "').",
         "-d", false);
     parser.add("RAM",
-               "RAM limit in GiB. Default value is " +
-                   std::to_string(constants::default_ram_limit_in_GiB) + ".",
+               "RAM limit in GiB (default is " +
+                   std::to_string(constants::default_ram_limit_in_GiB) + ").",
                "-g", false);
     parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
     parser.add("verbose", "Verbose output during construction.", "--verbose", false, true);
@@ -249,10 +249,14 @@ int color(int argc, char** argv) {
     parser.add("index_filename", "The Fulgor index filename to partition.", "-i", true);
     parser.add(
         "tmp_dirname",
-        "Temporary directory used for construction in external memory. Default is directory '" +
-            constants::default_tmp_dirname + "'.",
+        "Temporary directory used for construction in external memory (default is directory '" +
+            constants::default_tmp_dirname + "').",
         "-d", false);
     parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
+    parser.add("RAM",
+           "RAM limit in GiB (default is " +
+               std::to_string(constants::default_ram_limit_in_GiB) + ").",
+           "-g", false);
     parser.add("verbose", "Verbose output during construction.", "--verbose", false, true);
     parser.add("check", "Check correctness after index construction (it might take some time).",
                "--check", false, true);
@@ -287,6 +291,9 @@ int color(int argc, char** argv) {
     build_config.diff_colored = parser.get<bool>("diff");
     build_config.verbose = parser.get<bool>("verbose");
     bool force = parser.get<bool>("force");
+    if (parser.get<uint64_t>("RAM")) {
+        build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
+    }
 
     if (build_config.meta_colored and build_config.diff_colored) {
         meta_diff_color(build_config, force);

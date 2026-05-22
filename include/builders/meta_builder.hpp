@@ -104,7 +104,7 @@ struct permuter {
         }
     }
 
-    partition_endpoint partition_endpoints(uint64_t partition_id) const {
+    partition_endpoint partition_endpoints(const uint64_t partition_id) const {
         assert(partition_id + 1 < m_partition_size.size());
         return {m_partition_size[partition_id], m_partition_size[partition_id + 1]};
     }
@@ -167,17 +167,15 @@ struct index<ColorSets>::meta_builder {
                 );
 
             for (uint64_t partition_id = 0; partition_id != num_partitions; ++partition_id) {
-                auto endpoints = p.partition_endpoints(partition_id);
-                uint64_t num_colors_in_partition = endpoints.end - endpoints.begin;
+                auto [begin, end] = p.partition_endpoints(partition_id);
+                uint64_t num_colors_in_partition = end - begin;
                 color_sets_builder.init_partition(partition_id, num_colors_in_partition);
                 color_sets_builder.reserve_num_bits(partition_id, 8 * essentials::GB * 8);
             }
 
-            std::vector<std::unordered_map<__uint128_t,            // key
-                                           uint32_t,               // value
-                                           util::hasher_uint128_t  // key's hasher
-                                           >>
-                hashes;  // (hash, id)
+            using hash_id_map = std::unordered_map<__uint128_t, uint32_t, util::hasher_uint128_t>;
+
+            std::vector<hash_id_map> hashes;  // (hash, id)
             hashes.resize(num_partitions);
 
             std::vector<std::thread> _threads(num_threads);
@@ -189,24 +187,34 @@ struct index<ColorSets>::meta_builder {
             }
             thread_slices[num_threads] = base_index.num_color_sets();
 
-            auto id_and_encode = [&](uint64_t partition_id, std::span<uint32_t> partial_color_set) -> std::pair<uint32_t, uint32_t> {
-                std::lock_guard lock(partitions_mutex[partition_id]);
+            auto id_and_encode = [&p, &partitions_mutex, &hashes, &color_sets_builder]
+                (uint64_t partition_id, std::span<uint32_t> partial_color_set) -> std::pair<uint32_t, uint32_t>
+            {
                 assert(!partial_color_set.empty());
                 uint32_t partial_color_set_id = 0;
                 auto curr_partition = p.partition_endpoints(partition_id);
                 auto hash =
                     util::hash128(reinterpret_cast<char const*>(partial_color_set.data()),
                                   partial_color_set.size() * sizeof(uint32_t));
-                auto it = hashes[partition_id].find(hash);
 
-                if (it == hashes[partition_id].cend()) {  // new partial color
-                    partial_color_set_id = hashes[partition_id].size();
+                bool requires_encoding = false;
+                {
+                    std::lock_guard lock(partitions_mutex[partition_id]);
+                    const auto it = hashes[partition_id].find(hash);
+
+                    if (it == hashes[partition_id].cend()) {  // new partial color
+                        partial_color_set_id = hashes[partition_id].size();
+                        hashes[partition_id].insert({hash, partial_color_set_id});
+                        requires_encoding = true;
+                    } else {
+                        partial_color_set_id = it->second;
+                    }
+                }
+
+                if (requires_encoding) {  // new partial color
                     std::ranges::transform(partial_color_set, partial_color_set.begin(),
                         [curr_partition](const uint32_t n) { return n - curr_partition.begin; });
-                    hashes[partition_id].insert({hash, partial_color_set_id});
                     color_sets_builder.encode_partial_color_set(partition_id, partial_color_set, partial_color_set_id);
-                } else {
-                    partial_color_set_id = it->second;
                 }
 
                 /*  Note: at this stage, partial_color_set_id is relative
@@ -231,7 +239,7 @@ struct index<ColorSets>::meta_builder {
                 std::vector<uint32_t> permuted_set;
                 permuted_set.reserve(num_colors);
 
-                auto color_set = util::range_view(base_index.color_set(color_set_id));
+                const auto color_set = util::range_view(base_index.color_set(color_set_id));
                 for (const auto& color : color_set) {
                     permuted_set.push_back(permutation[color]);
                 }
@@ -245,7 +253,7 @@ struct index<ColorSets>::meta_builder {
                 metacolor_set.reserve(num_partitions*2);
 
                 /* reserve space to hold the size of the meta color set */
-                std::span data(permuted_set);
+                const std::span data(permuted_set);
                 uint32_t partial_start = 0;
                 for (uint64_t i = 0; i < data.size(); ++i) {
                     const uint32_t color = data[i];
@@ -253,7 +261,6 @@ struct index<ColorSets>::meta_builder {
                         auto partition_view = data.subspan(partial_start, i - partial_start);
                         if (!partition_view.empty()) {
                             auto metacolor = id_and_encode(partition_id, partition_view);
-                            // metacolor_sets_ofstream.write(reinterpret_cast<char const*>(&metacolor), sizeof(metacolor));
                             metacolor_set.push_back(metacolor.first);
                             metacolor_set.push_back(metacolor.second);
                         }
@@ -264,10 +271,9 @@ struct index<ColorSets>::meta_builder {
                     }
                     assert(color >= curr_partition.begin);
                 }
-                auto final_view = data.subspan(partial_start);
+                const auto final_view = data.subspan(partial_start);
                 if (!final_view.empty()) {
                     auto metacolor = id_and_encode(partition_id, final_view);
-                    // metacolor_sets_ofstream.write(reinterpret_cast<char const*>(&metacolor), sizeof(metacolor));
                     metacolor_set.push_back(metacolor.first);
                     metacolor_set.push_back(metacolor.second);
                 }

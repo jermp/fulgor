@@ -334,20 +334,19 @@ int pseudoalign(int argc, char** argv) {
     }
 
     std::visit(
-        [&index_filename, &query_filename, &output_filename, &tmp_filename, deduplicate,
-         num_threads, threshold, verbose, &options](auto&& index, auto&& formatter) {
+        [&]<typename Index, typename Formatter>(Index&& index, Formatter&& formatter) {
             if (verbose) essentials::logger("*** START: loading the index");
-            essentials::load(index, index_filename.c_str());
-            if (verbose) essentials::logger("*** DONE: loading the index");
-
-            if (verbose)
+            essentials::mmap(index, index_filename.c_str());
+            if (verbose) {
+                essentials::logger("*** DONE: loading the index");
                 essentials::logger("performing queries from file '" + query_filename + "'...");
+            }
 
-            if constexpr (std::is_same_v<std::decay_t<decltype(formatter)>,
-                                         psa_compressed_formatter>) {
+            using BaseFormatter = std::remove_cvref_t<Formatter>;
+            if constexpr (std::same_as<BaseFormatter, psa_compressed_formatter>) {
                 formatter.set_num_colors(index.num_colors());
             }
-            if constexpr (!std::is_same_v<std::decay_t<decltype(formatter)>, std::monostate>) {
+            if constexpr (!std::same_as<BaseFormatter, std::monostate>) {
                 std::ofstream out(output_filename);
 
                 if (deduplicate) {

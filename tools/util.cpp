@@ -455,11 +455,11 @@ int check(int argc, char** argv) {
         [&base_filename, &target_filename, &with_errors, num_threads, verbose](auto&& base,
                                                                                auto&& target) {
             if (verbose) essentials::logger("*** START: loading the base index");
-            essentials::load(base, base_filename.c_str());
+            essentials::mmap(base, base_filename.c_str());
             if (verbose) essentials::logger("*** DONE: loading the base index");
 
             if (verbose) essentials::logger("*** START: loading the target index");
-            essentials::load(target, target_filename.c_str());
+            essentials::mmap(target, target_filename.c_str());
             if (verbose) essentials::logger("*** DONE: loading the target index");
 
             with_errors = check(base, target, num_threads, verbose);

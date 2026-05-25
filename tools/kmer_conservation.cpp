@@ -62,7 +62,7 @@ int kmer_conservation(std::string const& index_filename, std::string const& quer
                       std::string const& output_filename, query_options& options) {
     FulgorIndex index;
     if (options.verbose) essentials::logger("loading index from disk...");
-    essentials::load(index, index_filename.c_str());
+    essentials::mmap(index, index_filename.c_str());
     if (options.verbose) essentials::logger("DONE");
 
     std::ifstream is(query_filename.c_str());

@@ -16,11 +16,11 @@ namespace constants {
 
 constexpr double invalid_threshold = -1.0;
 constexpr uint64_t default_ram_limit_in_GiB = 8;
-static const std::string default_tmp_dirname(".");
-static const std::string hfur_filename_extension("fur");
-static const std::string mfur_filename_extension("mfur");
-static const std::string dfur_filename_extension("dfur");
-static const std::string mdfur_filename_extension("mdfur");
+static constexpr std::string default_tmp_dirname(".");
+static constexpr std::string hfur_filename_extension("fur");
+static constexpr std::string mfur_filename_extension("mfur");
+static constexpr std::string dfur_filename_extension("dfur");
+static constexpr std::string mdfur_filename_extension("mdfur");
 
 namespace current_version_number {
 constexpr uint8_t major = 4;

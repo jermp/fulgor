@@ -18,13 +18,12 @@ struct meta {
 
     struct builder {
         explicit builder(const uint64_t num_colors, const uint64_t num_partitions,
-                         const std::string& tmp_dirname,  const uint64_t max_RAM_bytes = 8,
+                         const std::string& tmp_dirname, const uint64_t max_RAM_bytes = 8,
                          const bool verbose = false)
             : m_offset(0)
             , m_tmp_dirname(tmp_dirname)
             , m_max_RAM_bytes(max_RAM_bytes)
-            , m_verbose(verbose)
-        {
+            , m_verbose(verbose) {
             m_meta_color_sets_offsets.push_back(0);
             init_color_sets_builder(num_colors, num_partitions);
         }
@@ -52,9 +51,9 @@ struct meta {
 
         void init_partition(uint64_t partition_id, uint64_t num_colors_in_partition) {
             assert(partition_id < m_color_sets_builders.size());
-            std::string partition_filename = m_tmp_dirname + "/partial_sets_" +
-                std::to_string(partition_id) + ".bin";
-            m_color_sets_builders[partition_id].init(num_colors_in_partition, partition_filename);
+            m_ofstreams.push_back(
+                std::ofstream(partition_filename(partition_id), std::ios::binary));
+            m_color_sets_builders[partition_id].init(num_colors_in_partition, m_ofstreams.back());
             m_color_sets_builders[partition_id].set_verbose(m_verbose);
             m_color_sets_builders[partition_id].set_max_RAM_bytes(m_max_RAM_bytes);
         }
@@ -64,7 +63,8 @@ struct meta {
             m_color_sets_builders[partition_id].reserve_num_bits(num_bits);
         }
 
-        void encode_partial_color_set(uint64_t partition_id, std::span<uint32_t> color_set, uint32_t partial_color_set_id) {
+        void encode_partial_color_set(uint64_t partition_id, std::span<uint32_t> color_set,
+                                      uint32_t partial_color_set_id) {
             assert(partition_id < m_color_sets_builders.size());
             m_color_sets_builders[partition_id].encode_color_set(color_set, partial_color_set_id);
             if (num_bytes() > m_max_RAM_bytes) {
@@ -83,7 +83,9 @@ struct meta {
         }
 
         void flush() {
-            if (m_is_flushing.exchange(true)) { return; }
+            if (m_is_flushing.exchange(true)) {
+                return;
+            }
 
             for (auto& builder : m_color_sets_builders) {
                 builder.flush();
@@ -113,14 +115,15 @@ struct meta {
         }
 
         ~builder() {
-            for (auto& builder : m_color_sets_builders) {
-                std::remove(builder.output_filename().c_str());
+            for (uint64_t i = 0; i != m_color_sets_builders.size(); ++i) {
+                std::remove(partition_filename(i).c_str());
             }
         }
 
     private:
         bits::compact_vector::builder m_meta_color_sets_builder;
         std::vector<typename ColorSets::builder> m_color_sets_builders;
+        std::vector<std::ofstream> m_ofstreams;
 
         uint64_t m_num_colors;
         uint64_t m_offset;
@@ -132,6 +135,10 @@ struct meta {
         std::string m_tmp_dirname;
         uint64_t m_max_RAM_bytes;
         bool m_verbose;
+
+        std::string partition_filename(uint64_t partition_id) const {
+            return m_tmp_dirname + "/partial_sets_" + std::to_string(partition_id) + ".bin";
+        }
     };
 
     struct iterator_sentinel {};
@@ -182,9 +189,7 @@ struct meta {
         }
         void operator++() { next(); }
 
-        bool operator==(iterator_sentinel) const {
-            return m_curr_val == num_colors();
-        }
+        bool operator==(iterator_sentinel) const { return m_curr_val == num_colors(); }
 
         /* update the state of the iterator to the element
            which is greater-than or equal-to lower_bound */

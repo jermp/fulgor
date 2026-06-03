@@ -68,42 +68,41 @@ int help(char* arg0) {
 int main(int argc, char** argv) {
     if (argc < 2) return help(argv[0]);
 
-    auto tool = std::string(argv[1]);
+    const auto tool = std::string(argv[1]);
 
-    /* basic tools */
+    using ToolFunction = int (*)(int, char**);
+    const std::unordered_map<std::string, ToolFunction> tool_map{{
+        {"build", build},
+        {"pseudoalign", pseudoalign},
+        {"kmer-conservation", kmer_conservation},
+        {"kmer-matches", kmer_matches},
+        {"check", check},
+        {"verify", verify},
+        {"stats", stats},
+        {"print-filenames", print_filenames},
+        {"permute", permute},
+        {"dump", dump},
+        {"load", load},
+        {"color", color},
+    }};
+
     if (tool == "help") {
         help(argv[0]);
         return 0;
-    } else if (tool == "build") {
-        return build(argc - 1, argv + 1);
-    } else if (tool == "pseudoalign") {
-        return pseudoalign(argc - 1, argv + 1);
-    } else if (tool == "kmer-conservation") {
-        return kmer_conservation(argc - 1, argv + 1);
-    } else if (tool == "kmer-matches") {
-        return kmer_matches(argc - 1, argv + 1);
-    } else if (tool == "check") {
-        return check(argc - 1, argv + 1);
-    } else if (tool == "verify") {
-        return verify(argc - 1, argv + 1);
-    } else if (tool == "stats") {
-        return stats(argc - 1, argv + 1);
-    } else if (tool == "print-filenames") {
-        return print_filenames(argc - 1, argv + 1);
+    }
+    if (tool == "load") {
+        std::cerr << "Operation temporarily disabled" << std::endl;
+        return 1;
     }
 
-    /* advanced tools */
-    else if (tool == "permute") {
-        return permute(argc - 1, argv + 1);
-    } else if (tool == "dump") {
-        return dump(argc - 1, argv + 1);
-    } else if (tool == "load") {
-        return load(argc - 1, argv + 1);
-    } else if (tool == "color") {
-        return color(argc - 1, argv + 1);
+    // 3. Look up the tool in the map
+    const auto it = tool_map.find(tool);
+    if (it != tool_map.end()) {
+        // Execute the function dynamically
+        return it->second(argc - 1, argv + 1);
     }
 
-    std::cout << "Unsupported tool '" << tool << "'.\n" << std::endl;
+    std::cout << "Unsupported tool '" << tool << "'." << std::endl;
 
     return help(argv[0]);
 }

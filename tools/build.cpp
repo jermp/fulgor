@@ -72,8 +72,12 @@ void diff_color(build_configuration const& build_config, const bool force)  //
     essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");
 
-    if (build_config.verbose) { index.print_stats(); }
-    if (build_config.check) { builder.check(index); }
+    if (build_config.verbose) {
+        index.print_stats();
+    }
+    if (build_config.check) {
+        builder.check(index);
+    }
 }
 
 void meta_diff_color(build_configuration const& build_config, const bool force)  //
@@ -129,8 +133,12 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
     essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");
 
-    if (build_config.verbose) { index.print_stats(); }
-    if (build_config.check) { builder.check(index); }
+    if (build_config.verbose) {
+        index.print_stats();
+    }
+    if (build_config.check) {
+        builder.check(index);
+    }
 }
 
 int build(int argc, char** argv) {
@@ -227,8 +235,9 @@ int build(int argc, char** argv) {
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
     essentials::logger("saving index to disk...");
-    essentials::save(index, output_filename.c_str());
+    // essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");
+    essentials::load(index, output_filename.c_str());
 
     if (build_config.verbose) index.print_stats();
     if (build_config.check) builder.check(index);
@@ -254,9 +263,9 @@ int color(int argc, char** argv) {
         "-d", false);
     parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
     parser.add("RAM",
-           "RAM limit in GiB (default is " +
-               std::to_string(constants::default_ram_limit_in_GiB) + ").",
-           "-g", false);
+               "RAM limit in GiB (default is " +
+                   std::to_string(constants::default_ram_limit_in_GiB) + ").",
+               "-g", false);
     parser.add("verbose", "Verbose output during construction.", "--verbose", false, true);
     parser.add("check", "Check correctness after index construction (it might take some time).",
                "--check", false, true);

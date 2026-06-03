@@ -94,10 +94,10 @@ private:
     static void visit_impl(Visitor& visitor, T&& t) {
         visitor.visit(t.m_vnum);
         util::check_version_number(t.m_vnum);
-        visitor.visit(t.m_k2u);
+        visitor.visit(t.m_color_sets);
         visitor.visit(t.m_u2c);
         visitor.visit(t.m_u2c_rank1_index);
-        visitor.visit(t.m_color_sets);
+        visitor.visit(t.m_k2u);
         visitor.visit(t.m_filenames);
     }
 

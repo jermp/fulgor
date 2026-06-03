@@ -9,26 +9,22 @@ struct hybrid {
     static constexpr index_t type = HYBRID;
 
     struct builder {
-        explicit builder() : m_max_RAM_bytes(1<<30), m_verbose(false) {
-            init(0, "color_sets.bin");
-        }
+        explicit builder() : m_max_RAM_bytes(1 << 30), m_verbose(false) { init(0, *m_output_file); }
 
-        explicit builder(const uint64_t num_colors, const build_configuration& build_config)
+        explicit builder(const uint64_t num_colors, std::ofstream& output_file,
+                         const build_configuration& build_config)
             : m_max_RAM_bytes(build_config.ram_limit_in_GiB << 30)
             , m_verbose(build_config.ram_limit_in_GiB) {
-            init(num_colors, build_config.tmp_dirname + "/color_sets.bin");
+            init(num_colors, output_file);
         }
 
-        builder(const uint32_t num_colors, const std::string& output_filename,
-                         const uint64_t max_RAM_bytes = 1<<30, const bool verbose = false)
-            : m_output_filename(output_filename)
-            , m_max_RAM_bytes(max_RAM_bytes)
-            , m_verbose(verbose)
-        {
-            init(num_colors, output_filename);
+        builder(const uint32_t num_colors, std::ofstream& output_file,
+                const uint64_t max_RAM_bytes = 1 << 30, const bool verbose = false)
+            : m_max_RAM_bytes(max_RAM_bytes), m_verbose(verbose) {
+            init(num_colors, output_file);
         }
 
-        void init(const uint64_t num_colors, const std::string& output_filename) {
+        void init(const uint64_t num_colors, std::ofstream& output_file) {
             m_num_colors = num_colors;
             m_sparse_set_threshold_size = 0.25 * m_num_colors;
             m_very_dense_set_threshold_size = 0.75 * m_num_colors;
@@ -37,24 +33,28 @@ struct hybrid {
             m_offsets.push_back(0);
             m_num_color_sets = 0;
             m_num_total_integers = 0;
+            m_num_bits = 0;
 
             m_curr_color_set_id = 0;
             m_queue_size = 0;
             m_base_offset = 0;
 
-            m_output_filename = output_filename;
-            std::ofstream file(m_output_filename.c_str());
-            constexpr uint64_t zero = 0;
-            file.write(reinterpret_cast<const char*>(&zero), sizeof(zero));
-            file.write(reinterpret_cast<const char*>(&zero), sizeof(zero));
+            m_output_file = &output_file;
+
+            output_file.write(reinterpret_cast<const char*>(&m_num_colors), sizeof(m_num_colors));
+            output_file.write(reinterpret_cast<const char*>(&m_sparse_set_threshold_size),
+                              sizeof(m_sparse_set_threshold_size));
+            output_file.write(reinterpret_cast<const char*>(&m_very_dense_set_threshold_size),
+                              sizeof(m_very_dense_set_threshold_size));
+            m_bitvector_start = output_file.tellp();
+
+            constexpr uint64_t zero64 = 0;
+            output_file.write(reinterpret_cast<const char*>(&zero64), sizeof(zero64));  // num_bits
+            output_file.write(reinterpret_cast<const char*>(&zero64), sizeof(zero64));  // num_bytes
         }
 
-        void set_max_RAM_bytes(const uint64_t max_RAM_bytes) {
-            m_max_RAM_bytes = max_RAM_bytes;
-        }
-        void set_verbose(const bool verbose) {
-            m_verbose = verbose;
-        }
+        void set_max_RAM_bytes(const uint64_t max_RAM_bytes) { m_max_RAM_bytes = max_RAM_bytes; }
+        void set_verbose(const bool verbose) { m_verbose = verbose; }
 
         void reserve_num_bits(uint64_t num_bits) { m_color_sets_builder.reserve(num_bits); }
 
@@ -75,6 +75,8 @@ struct hybrid {
                 encode_very_dense(color_set, bvb);
             }
 
+            // TODO: try to use a condition variable instead of the queue
+
             {
                 std::shared_lock flush_lock(*m_flush_mutex);
                 std::lock_guard queue_lock(*m_queue_mutex);
@@ -86,16 +88,19 @@ struct hybrid {
                     ++m_curr_color_set_id;
                     while (!m_csb_queue.empty() && m_curr_color_set_id == m_csb_queue.top().first) {
                         auto& [_, csb] = m_csb_queue.top();
-                        m_queue_size -= 8 + essentials::vec_bytes(csb.data()) + 16; // first + bvb struct
+                        m_queue_size -=
+                            8 + essentials::vec_bytes(csb.data()) + 16;  // first + bvb struct
 
                         m_color_sets_builder.append(csb);
                         m_csb_queue.pop();
                         m_offsets.push_back(m_base_offset + m_color_sets_builder.num_bits());
                         ++m_curr_color_set_id;
                     }
-                    assert((m_csb_queue.empty() && m_queue_size == 0) || (!m_csb_queue.empty() && m_queue_size > 0));
+                    assert((m_csb_queue.empty() && m_queue_size == 0) ||
+                           (!m_csb_queue.empty() && m_queue_size > 0));
                 } else {
-                    m_queue_size += 8 + essentials::vec_bytes(bvb.data()) + 16; // first + bvb struct
+                    m_queue_size +=
+                        8 + essentials::vec_bytes(bvb.data()) + 16;  // first + bvb struct
                     m_csb_queue.emplace(color_set_id, std::move(bvb));
                 }
             }
@@ -107,7 +112,7 @@ struct hybrid {
 
         uint64_t size() const {
             return essentials::vec_bytes(m_color_sets_builder.data()) +
-                essentials::vec_bytes(m_offsets) + m_queue_size;
+                   essentials::vec_bytes(m_offsets) + m_queue_size;
         }
 
         void append(hybrid::builder& hb) {
@@ -124,7 +129,7 @@ struct hybrid {
             assert(m_num_color_sets == m_offsets.size() - 1);
         }
 
-        void build(hybrid& h) {
+        void build(hybrid& h) {  // TODO: remove
             h.m_num_colors = m_num_colors;
             h.m_sparse_set_threshold_size = m_sparse_set_threshold_size;
             h.m_very_dense_set_threshold_size = m_very_dense_set_threshold_size;
@@ -133,27 +138,55 @@ struct hybrid {
 
             h.m_offsets.encode(m_offsets.begin(), m_offsets.size(), m_offsets.back());
             // m_color_sets_builder.build(h.m_color_sets);
-            essentials::load(h.m_color_sets, m_output_filename.c_str());
+            // essentials::load(h.m_color_sets, m_output_filename.c_str());
 
             if (m_verbose) {
                 std::cout << "processed " << m_num_color_sets << " color sets" << std::endl;
                 std::cout << "m_num_total_integers " << m_num_total_integers << std::endl;
-                std::cout << "  total bits for ints = " << 8 * h.m_color_sets.num_bytes() << std::endl;
-                std::cout << "  total bits per offsets = " << 8 * h.m_offsets.num_bytes() << std::endl;
+                std::cout << "  total bits for ints = " << 8 * h.m_color_sets.num_bytes()
+                          << std::endl;
+                std::cout << "  total bits per offsets = " << 8 * h.m_offsets.num_bytes()
+                          << std::endl;
                 std::cout << "  total bits = "
-                          << 8 * (h.m_color_sets.num_bytes() + h.m_offsets.num_bytes()) << std::endl;
+                          << 8 * (h.m_color_sets.num_bytes() + h.m_offsets.num_bytes())
+                          << std::endl;
                 std::cout << "  offsets: " << (8.0 * h.m_offsets.num_bytes()) / m_num_total_integers
                           << " bits/int" << std::endl;
                 std::cout << "  color sets: "
-                          << (8.0 * h.m_color_sets.num_bytes()) / m_num_total_integers << " bits/int"
-                          << std::endl;
+                          << (8.0 * h.m_color_sets.num_bytes()) / m_num_total_integers
+                          << " bits/int" << std::endl;
+            }
+        }
+
+        void build(essentials::generic_saver& h) {
+            flush();
+            assert(m_num_color_sets == m_offsets.size() - 1);
+
+            bits::elias_fano<false, false> offsets;
+            offsets.encode(m_offsets.begin(), m_offsets.size(), m_offsets.back());
+            h.visit(offsets);
+
+            if (m_verbose) {
+                std::cout << "processed " << m_num_color_sets << " color sets" << std::endl;
+                std::cout << "m_num_total_integers " << m_num_total_integers << std::endl;
+                // std::cout << "  total bits for ints = " << 8 * color_sets.num_bytes() <<
+                // std::endl;
+                std::cout << "  total bits per offsets = " << 8 * offsets.num_bytes() << std::endl;
+                // std::cout << "  total bits = " << 8 * (color_sets.num_bytes() +
+                // offsets.num_bytes())
+                //           << std::endl;
+                std::cout << "  offsets: " << 8.0 * offsets.num_bytes() / m_num_total_integers
+                          << " bits/int" << std::endl;
+                // std::cout << "  color sets: " << 8.0 * color_sets.num_bytes() /
+                // m_num_total_integers
+                //           << " bits/int" << std::endl;
             }
         }
 
         void clear() {
             m_offsets.clear();
             m_color_sets_builder.clear();
-            init(m_num_colors, m_output_filename);
+            init(m_num_colors, *m_output_file);
         }
 
         void flush() {
@@ -163,41 +196,33 @@ struct hybrid {
             }
             const std::unique_lock lock(*m_flush_mutex);
 
-            std::fstream file(m_output_filename, std::ios::in | std::ios::out | std::ios::binary);
-            if (!file.is_open()) return;
-
-            uint64_t num_bits;
-            file.read(reinterpret_cast<char*>(&num_bits), sizeof(uint64_t));
-
-            const uint64_t pos = num_bits >> 6 ;
+            const uint64_t pos = m_num_bits >> 6;
             const uint64_t final_num_bits = (pos << 6) + m_color_sets_builder.num_bits();
             const uint64_t final_num_words = (final_num_bits + 63) >> 6;
             m_base_offset = final_num_bits & ~63;
             assert(final_num_bits == m_offsets.back());
 
-            file.seekp(sizeof(uint64_t)*2  + (pos * sizeof(uint64_t)));
-            file.write(reinterpret_cast<char*>(
-                m_color_sets_builder.data().data()),
-                m_color_sets_builder.data().size() * sizeof(uint64_t)
-            );
+            m_output_file->seekp(m_bitvector_start +
+                                 static_cast<std::streamoff>(sizeof(uint64_t) * (2 + pos)));
+            m_output_file->write(reinterpret_cast<char*>(m_color_sets_builder.data().data()),
+                                 m_color_sets_builder.data().size() * sizeof(uint64_t));
 
-            file.seekp(0);
-            file.write(reinterpret_cast<const char*>(&final_num_bits), sizeof(uint64_t));
-            file.write(reinterpret_cast<const char*>(&final_num_words), sizeof(uint64_t));
+            m_output_file->seekp(m_bitvector_start);
+            m_output_file->write(reinterpret_cast<const char*>(&final_num_bits), sizeof(uint64_t));
+            m_output_file->write(reinterpret_cast<const char*>(&final_num_words), sizeof(uint64_t));
+            m_num_bits = final_num_bits;
+
+            m_output_file->seekp(0, std::ios::end);
 
             const uint64_t last_word = m_color_sets_builder.data().back();
             m_color_sets_builder.clear();
-            m_color_sets_builder.reserve(m_max_RAM_bytes << 3); //bits
+            m_color_sets_builder.reserve(m_max_RAM_bytes << 3);  // bits
             const uint64_t remaining_bits = final_num_bits & 63;
             if (remaining_bits > 0) {
                 m_color_sets_builder.append_bits(last_word, remaining_bits);
             }
 
             *m_is_flushing = false;
-        }
-
-        std::string output_filename() {
-            return m_output_filename;
         }
 
     private:
@@ -210,22 +235,25 @@ struct hybrid {
         uint64_t m_curr_color_set_id;
         std::unique_ptr<std::mutex> m_queue_mutex = std::make_unique<std::mutex>();
         std::unique_ptr<std::shared_mutex> m_flush_mutex = std::make_unique<std::shared_mutex>();
-        std::unique_ptr<std::atomic<bool>> m_is_flushing = std::make_unique<std::atomic<bool>>(false);
+        std::unique_ptr<std::atomic<bool>> m_is_flushing =
+            std::make_unique<std::atomic<bool>>(false);
         bits::bit_vector::builder m_color_sets_builder;
         std::vector<uint64_t> m_offsets;
         uint64_t m_base_offset;
-        std::priority_queue<
-            std::pair<uint64_t, bits::bit_vector::builder>,
-            std::vector<std::pair<uint64_t, bits::bit_vector::builder>>,
-            util::compare_first
-        > m_csb_queue;
+        std::priority_queue<std::pair<uint64_t, bits::bit_vector::builder>,
+                            std::vector<std::pair<uint64_t, bits::bit_vector::builder>>,
+                            util::compare_first>
+            m_csb_queue;
         uint64_t m_queue_size;
+        uint64_t m_num_bits;
+        std::streampos m_bitvector_start;
 
-        std::string m_output_filename;
+        std::ofstream* m_output_file = nullptr;
         uint64_t m_max_RAM_bytes;
         bool m_verbose;
 
-        void encode_sparse(const std::span<const uint32_t> color_set, bits::bit_vector::builder& bvb) const {
+        void encode_sparse(const std::span<const uint32_t> color_set,
+                           bits::bit_vector::builder& bvb) const {
             const uint64_t size = color_set.size();
             uint32_t prev_val = color_set[0];
             bits::util::write_delta(bvb, prev_val);
@@ -237,7 +265,8 @@ struct hybrid {
             }
         }
 
-        void encode_dense(const std::span<const uint32_t> color_set, bits::bit_vector::builder& bvb) const {
+        void encode_dense(const std::span<const uint32_t> color_set,
+                          bits::bit_vector::builder& bvb) const {
             const uint64_t size = color_set.size();
             bits::bit_vector::builder tmp_bvb;
             tmp_bvb.resize(m_num_colors);
@@ -245,7 +274,8 @@ struct hybrid {
             bvb.append(tmp_bvb);
         }
 
-        void encode_very_dense(const std::span<const uint32_t> color_set, bits::bit_vector::builder& bvb) const {
+        void encode_very_dense(const std::span<const uint32_t> color_set,
+                               bits::bit_vector::builder& bvb) const {
             const uint64_t size = color_set.size();
             bool first = true;
             uint32_t val = 0;
@@ -386,9 +416,7 @@ struct hybrid {
 
         void operator++() { next(); }
 
-        bool operator==(iterator_sentinel) const {
-            return m_curr_val == m_num_colors;
-        }
+        bool operator==(iterator_sentinel) const { return m_curr_val == m_num_colors; }
 
         /* update the state of the iterator to the element
            which is greater-than or equal-to lower_bound */
@@ -482,8 +510,8 @@ private:
         visitor.visit(t.m_num_colors);
         visitor.visit(t.m_sparse_set_threshold_size);
         visitor.visit(t.m_very_dense_set_threshold_size);
-        visitor.visit(t.m_offsets);
         visitor.visit(t.m_color_sets);
+        visitor.visit(t.m_offsets);
     }
 
     uint32_t m_num_colors;

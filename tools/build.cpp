@@ -33,6 +33,7 @@ void meta_color(build_configuration const& build_config, const bool force)  //
     essentials::logger("saving index to disk...");
     essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");
+    essentials::load(index, output_filename.c_str());
 
     if (build_config.verbose) index.print_stats();
     if (build_config.check) builder.check(index);
@@ -234,10 +235,7 @@ int build(int argc, char** argv) {
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
-    essentials::logger("saving index to disk...");
-    // essentials::save(index, output_filename.c_str());
-    essentials::logger("DONE");
-    essentials::load(index, output_filename.c_str());
+    essentials::mmap(index, output_filename.c_str());
 
     if (build_config.verbose) index.print_stats();
     if (build_config.check) builder.check(index);

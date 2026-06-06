@@ -1,4 +1,5 @@
 #pragma once
+#include <future>
 
 namespace fulgor {
 
@@ -17,7 +18,7 @@ struct meta {
     };
 
     struct builder {
-        explicit builder(const uint64_t num_colors, const uint64_t num_partitions,
+        explicit builder(const uint64_t num_colors, const std::vector<uint32_t>& partition_starts,
                          const std::string& tmp_dirname, const uint64_t max_RAM_bytes = 8,
                          const bool verbose = false)
             : m_offset(0)
@@ -25,37 +26,50 @@ struct meta {
             , m_max_RAM_bytes(max_RAM_bytes)
             , m_verbose(verbose) {
             m_meta_color_sets_offsets.push_back(0);
-            init_color_sets_builder(num_colors, num_partitions);
+            init(num_colors, partition_starts);
         }
 
-        void init_meta_color_sets_builder(
-            uint64_t num_integers_in_metacolor_sets, uint64_t num_color_sets,
-            std::vector<uint32_t> const& partition_sizes,
-            std::vector<uint32_t> const& num_color_sets_in_partitions)  //
-        {
-            m_meta_color_sets_builder.resize(num_integers_in_metacolor_sets,
-                                             std::ceil(std::log2(num_color_sets)));
-            m_partition_endpoints.reserve(num_color_sets_in_partitions.size() + 1);
-            assert(partition_sizes.front() == 0);
-            m_partition_endpoints.push_back({partition_sizes[0], 0});
-            for (uint32_t i = 0, val = 0; i != num_color_sets_in_partitions.size(); ++i) {
-                val += num_color_sets_in_partitions[i];
-                m_partition_endpoints.push_back({partition_sizes[i + 1], val});
+        void init(const uint64_t num_colors, std::vector<uint32_t> const& partition_starts) {
+            m_num_colors = num_colors;
+
+            const uint32_t num_partitions = partition_starts.size() - 1;
+            partitions_mutex.reserve(num_partitions);
+            m_ofstreams.reserve(num_partitions);
+            hashes.resize(num_partitions);
+            m_partition_starts = partition_starts;
+
+            for (uint64_t partition_id = 0; partition_id < num_partitions; ++partition_id) {
+                partitions_mutex.push_back(std::make_unique<std::shared_mutex>());
+
+                m_ofstreams.emplace_back(partition_filename(partition_id),
+                                         std::ios::binary | std::ios::trunc);
+                const uint32_t num_colors_in_partition =
+                    partition_starts[partition_id + 1] - partition_starts[partition_id];
+
+                m_color_sets_builders.emplace_back(num_colors_in_partition, m_ofstreams.back());
+                m_color_sets_builders[partition_id].set_verbose(m_verbose);
+                m_color_sets_builders[partition_id].set_max_RAM_bytes(m_max_RAM_bytes);
             }
         }
 
-        void init_color_sets_builder(uint64_t num_colors, uint64_t num_partitions) {
-            m_num_colors = num_colors;
-            m_color_sets_builders.resize(num_partitions);
-        }
+        void init_meta_color_sets_builder(const uint64_t num_integers_in_metacolor_sets)  //
+        {
+            uint64_t num_partial_color_sets = 0;
+            num_partial_color_sets_before.push_back(0);
+            for (auto& dict : hashes) {
+                num_partial_color_sets += dict.size();
+                num_partial_color_sets_before.push_back(num_partial_color_sets);
+            }
+            m_meta_color_sets_builder.resize(num_integers_in_metacolor_sets,
+                                             std::ceil(std::log2(num_partial_color_sets)));
+            m_partition_endpoints.reserve(hashes.size() + 1);
 
-        void init_partition(uint64_t partition_id, uint64_t num_colors_in_partition) {
-            assert(partition_id < m_color_sets_builders.size());
-            m_ofstreams.push_back(
-                std::ofstream(partition_filename(partition_id), std::ios::binary));
-            m_color_sets_builders[partition_id].init(num_colors_in_partition, m_ofstreams.back());
-            m_color_sets_builders[partition_id].set_verbose(m_verbose);
-            m_color_sets_builders[partition_id].set_max_RAM_bytes(m_max_RAM_bytes);
+            assert(m_partition_starts.size() == num_partial_color_sets_before.size());
+            for (uint32_t partition_id = 0; partition_id != m_partition_starts.size();
+                 ++partition_id) {
+                m_partition_endpoints.push_back({m_partition_starts[partition_id],
+                                                 num_partial_color_sets_before[partition_id]});
+            }
         }
 
         void reserve_num_bits(uint64_t partition_id, uint64_t num_bits) {
@@ -63,13 +77,54 @@ struct meta {
             m_color_sets_builders[partition_id].reserve_num_bits(num_bits);
         }
 
-        void encode_partial_color_set(uint64_t partition_id, std::span<uint32_t> color_set,
-                                      uint32_t partial_color_set_id) {
+        std::vector<uint32_t> num_partial_cs_before() const {
+            return num_partial_color_sets_before;
+        }
+
+        uint32_t num_partitions() const { return m_color_sets_builders.size(); }
+
+        std::pair<uint32_t, uint32_t> encode_partial_color_set(
+            uint64_t partition_id, std::span<uint32_t> partial_color_set) {
             assert(partition_id < m_color_sets_builders.size());
-            m_color_sets_builders[partition_id].encode_color_set(color_set, partial_color_set_id);
+            assert(!partial_color_set.empty());
+            uint32_t partial_color_set_id;
+            auto partition_begin = m_partition_starts[partition_id];
+            auto hash = util::hash128(reinterpret_cast<char const*>(partial_color_set.data()),
+                                      partial_color_set.size() * sizeof(uint32_t));
+            bool requires_compression = false;
+            std::promise<uint32_t> promise;
+            std::shared_future future = promise.get_future();
+
+            {
+                std::lock_guard lock(*partitions_mutex[partition_id]);
+                const auto it = hashes[partition_id].find(hash);
+
+                if (it == hashes[partition_id].cend()) {
+                    // new partial color
+                    hashes[partition_id].insert({hash, future});
+                    requires_compression = true;
+                } else {
+                    future = it->second;
+                }
+            }
+            if (requires_compression) {
+                std::ranges::transform(
+                    partial_color_set, partial_color_set.begin(),
+                    [partition_begin](const uint32_t n) { return n - partition_begin; });
+                partial_color_set_id =
+                    m_color_sets_builders[partition_id].encode_color_set_with_reorder(
+                        partial_color_set);
+                promise.set_value(partial_color_set_id);
+            } else {
+                partial_color_set_id = future.get();
+            }
+
+            /*  Note: at this stage, partial_color_set_id is relative
+             *  to its partition (is not global yet). */
             if (num_bytes() > m_max_RAM_bytes) {
                 flush();
             }
+            return {partition_id, partial_color_set_id};
         }
 
         void encode_metacolor_set(uint32_t const* metacolor_set, const uint64_t size) {
@@ -105,9 +160,25 @@ struct meta {
             m.m_num_colors = m_num_colors;
             m_meta_color_sets_builder.build(m.m_meta_color_sets);
             m.m_partial_color_sets.resize(m_color_sets_builders.size());
-            for (uint64_t i = 0; i != m_color_sets_builders.size(); ++i) {
-                m_color_sets_builders[i].build(m.m_partial_color_sets[i]);
+            for (uint64_t partition_id = 0; partition_id < m_color_sets_builders.size();
+                 ++partition_id) {
+                m_ofstreams[partition_id].flush();
+                essentials::generic_saver saver(m_ofstreams[partition_id]);
+                m_color_sets_builders[partition_id].build(saver);
+                m_ofstreams[partition_id].close();
             }
+
+            m.m_partial_color_sets.reserve(num_partitions());
+            for (uint64_t partition_id = 0; partition_id != m_color_sets_builders.size();
+                 ++partition_id) {
+                essentials::load(m.m_partial_color_sets[partition_id],
+                                 partition_filename(partition_id).c_str());
+            }
+
+            for (auto& part : m.m_partial_color_sets) {
+                part.print_stats();
+            }
+
             m.m_meta_color_sets_offsets.encode(m_meta_color_sets_offsets.begin(),
                                                m_meta_color_sets_offsets.size(),
                                                m_meta_color_sets_offsets.back());
@@ -124,6 +195,13 @@ struct meta {
         bits::compact_vector::builder m_meta_color_sets_builder;
         std::vector<typename ColorSets::builder> m_color_sets_builders;
         std::vector<std::ofstream> m_ofstreams;
+
+        std::vector<std::unique_ptr<std::shared_mutex>> partitions_mutex;
+        using hash_id_map =
+            std::unordered_map<__uint128_t, std::shared_future<uint32_t>, util::hasher_uint128_t>;
+        std::vector<hash_id_map> hashes;  // (hash, id)
+        std::vector<uint32_t> m_partition_starts;
+        std::vector<uint32_t> num_partial_color_sets_before;
 
         uint64_t m_num_colors;
         uint64_t m_offset;

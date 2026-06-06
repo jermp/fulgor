@@ -41,16 +41,19 @@ struct hybrid {
 
             m_output_file = &output_file;
 
-            output_file.write(reinterpret_cast<const char*>(&m_num_colors), sizeof(m_num_colors));
-            output_file.write(reinterpret_cast<const char*>(&m_sparse_set_threshold_size),
-                              sizeof(m_sparse_set_threshold_size));
-            output_file.write(reinterpret_cast<const char*>(&m_very_dense_set_threshold_size),
-                              sizeof(m_very_dense_set_threshold_size));
+            m_output_file->write(reinterpret_cast<const char*>(&m_num_colors),
+                                 sizeof(m_num_colors));
+            m_output_file->write(reinterpret_cast<const char*>(&m_sparse_set_threshold_size),
+                                 sizeof(m_sparse_set_threshold_size));
+            m_output_file->write(reinterpret_cast<const char*>(&m_very_dense_set_threshold_size),
+                                 sizeof(m_very_dense_set_threshold_size));
             m_bitvector_start = output_file.tellp();
 
             constexpr uint64_t zero64 = 0;
-            output_file.write(reinterpret_cast<const char*>(&zero64), sizeof(zero64));  // num_bits
-            output_file.write(reinterpret_cast<const char*>(&zero64), sizeof(zero64));  // num_bytes
+            m_output_file->write(reinterpret_cast<const char*>(&zero64),
+                                 sizeof(zero64));  // num_bits
+            m_output_file->write(reinterpret_cast<const char*>(&zero64),
+                                 sizeof(zero64));  // num_bytes
         }
 
         void set_max_RAM_bytes(const uint64_t max_RAM_bytes) { m_max_RAM_bytes = max_RAM_bytes; }
@@ -108,6 +111,41 @@ struct hybrid {
             if (m_verbose && m_num_color_sets % 500000 == 0) {
                 std::cout << "  processed " << m_num_color_sets << " color sets" << std::endl;
             }
+        }
+
+        uint32_t encode_color_set_with_reorder(const std::span<const uint32_t> color_set)  //
+        {
+            if (size() >= m_max_RAM_bytes) {
+                flush();
+            }
+
+            const uint64_t cs_size = color_set.size();
+            bits::bit_vector::builder bvb;
+            bits::util::write_delta(bvb, cs_size);
+            if (cs_size < m_sparse_set_threshold_size) {
+                encode_sparse(color_set, bvb);
+            } else if (cs_size < m_very_dense_set_threshold_size) {
+                encode_dense(color_set, bvb);
+            } else {
+                encode_very_dense(color_set, bvb);
+            }
+
+            uint32_t color_set_id;
+            {
+                std::shared_lock flush_lock(*m_flush_mutex);
+                std::lock_guard queue_lock(*m_queue_mutex);
+                color_set_id = m_num_color_sets;
+                m_num_total_integers += cs_size;
+                m_num_color_sets += 1;
+
+                m_color_sets_builder.append(bvb);
+                m_offsets.push_back(m_base_offset + m_color_sets_builder.num_bits());
+            }
+
+            if (m_verbose && m_num_color_sets % 500000 == 0) {
+                std::cout << "  processed " << m_num_color_sets << " color sets" << std::endl;
+            }
+            return color_set_id;
         }
 
         uint64_t size() const {

@@ -61,6 +61,7 @@ struct hybrid {
 
         void reserve_num_bits(uint64_t num_bits) { m_color_sets_builder.reserve(num_bits); }
 
+        [[deprecated("With the new ccdbg-builder this is not required. Method `encode` is better")]]
         void encode_color_set(std::span<const uint32_t> color_set, const uint64_t color_set_id)  //
         {
             if (size() >= m_max_RAM_bytes) {
@@ -113,7 +114,7 @@ struct hybrid {
             }
         }
 
-        uint32_t encode_color_set_with_reorder(const std::span<const uint32_t> color_set)  //
+        uint32_t encode(const std::span<const uint32_t> color_set)  //
         {
             if (size() >= m_max_RAM_bytes) {
                 flush();

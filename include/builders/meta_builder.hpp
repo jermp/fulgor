@@ -135,19 +135,18 @@ struct index<ColorSets>::meta_builder {
 
         essentials::logger("step 1. loading index to be partitioned...");
         essentials::load(
-            base_index,
+            m_base_index,
             m_build_config.index_filename_to_partition.c_str());  // TODO: requires custom loader
         essentials::logger("DONE");
 
-        const uint64_t num_threads = m_build_config.num_threads;
-        const uint64_t num_colors = base_index.num_colors();
-        const uint64_t num_color_sets = base_index.num_color_sets();
+        const uint64_t num_colors = m_base_index.num_colors();
+        const uint64_t num_color_sets = m_base_index.num_color_sets();
 
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
 
         permuter p(m_build_config);
-        p.permute(base_index);
-        std::swap(permutation, p.permutation());
+        p.permute(m_base_index);
+        std::swap(m_permutation, p.permutation());
 
         const uint64_t num_partitions = p.num_partitions();
         const uint64_t max_partition_size = p.max_partition_size();
@@ -165,87 +164,63 @@ struct index<ColorSets>::meta_builder {
                 num_colors, p.partition_starts(), m_build_config.tmp_dirname,
                 m_build_config.ram_limit_in_GiB << 30, m_build_config.verbose);
 
-            std::string tmp_filename = m_build_config.tmp_dirname + "/metacolor_sets.bin";
-            std::ofstream metacolor_sets_ofstream(tmp_filename, std::ios::binary | std::ios::trunc);
+            std::string metacolor_sets_filename =
+                m_build_config.tmp_dirname + "/metacolor_sets.bin";
+            std::ofstream metacolor_sets_ofstream(metacolor_sets_filename,
+                                                  std::ios::binary | std::ios::trunc);
             if (!metacolor_sets_ofstream.is_open()) {
                 throw std::runtime_error("error in opening file");
             }
             using QueueElem = std::pair<uint64_t, std::vector<uint32_t>>;
-            std::priority_queue<QueueElem, std::vector<QueueElem>, util::compare_first> q;
+            // TODO: capacity based on max RAM?
+            util::bounded_priority_queue<QueueElem, util::compare_first> q(1 << 10);
+            std::mutex write_mutex;
             std::atomic<uint64_t> num_written_meta_sets = 0;
-            std::mutex queue_mutex;
 
-            auto process_color_set = [&](const uint64_t color_set_id) {
+            auto flush_meta_queue = [&num_written_meta_sets, &q, &metacolor_sets_ofstream] {
+                QueueElem item;
+                while (q.try_pop_if(item, [&num_written_meta_sets](const QueueElem& top_item) {
+                    return top_item.first == num_written_meta_sets;
+                })) {
+                    const auto& meta_set = item.second;
+                    const uint32_t size = meta_set.size() / 2;
+
+                    metacolor_sets_ofstream.write(reinterpret_cast<char const*>(&size),
+                                                  sizeof(uint32_t));
+                    metacolor_sets_ofstream.write(reinterpret_cast<char const*>(meta_set.data()),
+                                                  meta_set.size() * sizeof(uint32_t));
+                    ++num_written_meta_sets;
+                }
+            };
+
+            auto process_color_set = [this, num_colors, &color_sets_builder, &num_written_meta_sets,
+                                      &num_integers_in_metacolor_sets, &write_mutex, &q,
+                                      &flush_meta_queue](const uint64_t color_set_id) {
                 std::vector<uint32_t> permuted_set;
                 permuted_set.reserve(num_colors);
 
-                const auto color_set = util::range_view(base_index.color_set(color_set_id));
+                const auto color_set = util::range_view(m_base_index.color_set(color_set_id));
                 for (const auto& color : color_set) {
-                    permuted_set.push_back(permutation[color]);
+                    permuted_set.push_back(m_permutation[color]);
                 }
                 std::ranges::sort(permuted_set);
 
-                /* partition set */
-                uint32_t partition_id = 0;
-                partition_endpoint curr_partition = p.partition_endpoints(0);
-                std::vector<uint32_t> metacolor_set;
-                metacolor_set.reserve(num_partitions * 2);
-
-                /* reserve space to hold the size of the meta color set */
-                const std::span data(permuted_set);
-                uint32_t partial_start = 0;
-                for (uint64_t i = 0; i < data.size(); ++i) {
-                    const uint32_t color = data[i];
-                    while (color >= curr_partition.end) {
-                        auto partition_view = data.subspan(partial_start, i - partial_start);
-                        if (!partition_view.empty()) {
-                            auto metacolor = color_sets_builder.encode_partial_color_set(
-                                partition_id, partition_view);
-                            metacolor_set.push_back(metacolor.first);
-                            metacolor_set.push_back(metacolor.second);
-                        }
-
-                        partition_id += 1;
-                        curr_partition = p.partition_endpoints(partition_id);
-                        partial_start = i;
-                    }
-                    assert(color >= curr_partition.begin);
-                }
-                const auto final_view = data.subspan(partial_start);
-                if (!final_view.empty()) {
-                    auto metacolor =
-                        color_sets_builder.encode_partial_color_set(partition_id, final_view);
-                    metacolor_set.push_back(metacolor.first);
-                    metacolor_set.push_back(metacolor.second);
-                }
-
+                std::vector<uint32_t> metacolor_set = color_sets_builder.encode(permuted_set);
                 const uint32_t metacolor_set_size = metacolor_set.size() / 2;
                 num_integers_in_metacolor_sets += metacolor_set_size;
 
-                {
-                    std::lock_guard lock(queue_mutex);
-                    if (num_written_meta_sets == color_set_id) {
-                        metacolor_sets_ofstream.write(
-                            reinterpret_cast<char const*>(&metacolor_set_size), sizeof(uint32_t));
-                        metacolor_sets_ofstream.write(
-                            reinterpret_cast<char const*>(metacolor_set.data()),
-                            metacolor_set.size() * sizeof(uint32_t));
-                        ++num_written_meta_sets;
-                        while (!q.empty() && num_written_meta_sets == q.top().first) {
-                            auto& [_, meta_set] = q.top();
-                            const uint32_t size = meta_set.size() / 2;
-                            metacolor_sets_ofstream.write(reinterpret_cast<char const*>(&size),
-                                                          sizeof(uint32_t));
-                            metacolor_sets_ofstream.write(
-                                reinterpret_cast<char const*>(meta_set.data()),
-                                meta_set.size() * sizeof(uint32_t));
+                q.push(std::make_pair(color_set_id, std::move(metacolor_set)));
 
-                            q.pop();
-                            ++num_written_meta_sets;
-                        }
-                    } else {
-                        q.emplace(color_set_id, std::move(metacolor_set));
-                    }
+                const bool is_next_in_sequence = color_set_id == num_written_meta_sets;
+                std::unique_lock write_lock(write_mutex, std::defer_lock);
+
+                if (is_next_in_sequence) {
+                    write_lock.lock();
+                } else {
+                    write_lock.try_lock();
+                }
+                if (write_lock.owns_lock()) {
+                    flush_meta_queue();
                 }
             };
 
@@ -254,62 +229,37 @@ struct index<ColorSets>::meta_builder {
                 threads.enqueue([&, color_set_id] { process_color_set(color_set_id); });
             }
             threads.wait();
+
             color_sets_builder.flush();
+            flush_meta_queue();
             metacolor_sets_ofstream.close();
-
-            // std::vector<uint64_t> num_partial_color_sets_before;
-            // std::vector<uint32_t> num_sets_in_partition;
-            // num_partial_color_sets_before.reserve(num_partitions);
-            // num_sets_in_partition.reserve(num_partitions);
-            // for (uint64_t partition_id = 0; partition_id != num_partitions; ++partition_id) {
-            // uint64_t num_partial_color_sets_in_partition = hashes[partition_id].size();
-            // num_sets_in_partition.push_back(num_partial_color_sets_in_partition);
-
-            // if (m_build_config.verbose) {
-            //     std::cout << "num_partial_color_sets_in_partition-" << partition_id << ": "
-            //               << num_partial_color_sets_in_partition << std::endl;
-            // }
-            // }
-
-            // if (m_build_config.verbose) {
-            //     std::cout << "total num. partial color sets = " << num_partial_color_sets
-            //               << std::endl;
-            // }
 
             color_sets_builder.init_meta_color_sets_builder(num_integers_in_metacolor_sets +
                                                             num_color_sets);
 
-            std::vector<uint32_t> metacolor_set;
+            std::vector<std::pair<uint32_t, uint32_t>> metacolor_set;
             metacolor_set.reserve(num_partitions);  // at most
 
-            std::ifstream metacolor_set_in(tmp_filename, std::ios::binary);
+            std::ifstream metacolor_set_in(metacolor_sets_filename, std::ios::binary);
             if (!metacolor_set_in.is_open()) throw std::runtime_error("error in opening file");
 
             for (uint64_t color_set_id = 0; color_set_id != num_color_sets; ++color_set_id) {
                 assert(metacolor_set.empty());
-                uint32_t meta_color_set_size = 0;
-                metacolor_set_in.read(reinterpret_cast<char*>(&meta_color_set_size),
-                                      sizeof(uint32_t));
-                for (uint32_t i = 0; i != meta_color_set_size; ++i) {
-                    uint32_t partition_id = 0;
-                    uint32_t partial_color_set_id = 0;
-                    metacolor_set_in.read(reinterpret_cast<char*>(&partition_id), sizeof(uint32_t));
-                    metacolor_set_in.read(reinterpret_cast<char*>(&partial_color_set_id),
-                                          sizeof(uint32_t));
-                    /* transform the partial_color_set_id into a global id */
-                    metacolor_set.push_back(
-                        partial_color_set_id +
-                        color_sets_builder.num_partial_cs_before()[partition_id]);
+                uint32_t size = 0;
+                metacolor_set_in.read(reinterpret_cast<char*>(&size), sizeof(uint32_t));
+                for (uint32_t i = 0; i != size; ++i) {
+                    std::array<uint32_t, 2> metacolor;
+                    metacolor_set_in.read(reinterpret_cast<char*>(metacolor.data()),
+                                          sizeof(metacolor));
+                    metacolor_set.emplace_back(metacolor);
                 }
-                color_sets_builder.encode_metacolor_set(metacolor_set.data(), metacolor_set.size());
+                color_sets_builder.encode_metacolor_set(metacolor_set);
                 metacolor_set.clear();
             }
 
             metacolor_set_in.close();
-            std::remove(tmp_filename.c_str());
-            color_sets_builder.flush();
+            std::remove(metacolor_sets_filename.c_str());
             color_sets_builder.build(idx.m_color_sets);
-            idx.m_color_sets.print_stats();
 
             timer.stop();
             std::cout << "** building partial/meta color sets took " << timer.elapsed()
@@ -320,9 +270,9 @@ struct index<ColorSets>::meta_builder {
         {
             essentials::logger("step 5. copy u2c + rank1_index and k2u");
             timer.start();
-            idx.m_u2c = base_index.get_u2c();
-            idx.m_u2c_rank1_index = base_index.get_u2c_rank1_index();
-            idx.m_k2u = base_index.get_k2u();
+            idx.m_u2c = m_base_index.get_u2c();
+            idx.m_u2c_rank1_index = m_base_index.get_u2c_rank1_index();
+            idx.m_k2u = m_base_index.get_k2u();
             timer.stop();
             std::cout << "** copying u2c and k2u took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
@@ -362,7 +312,7 @@ struct index<ColorSets>::meta_builder {
             permuted_set.reserve(num_colors);
 
             for (uint64_t color_set_id = start; color_set_id != end; ++color_set_id) {
-                auto it_exp = base_index.color_set(color_set_id);
+                auto it_exp = m_base_index.color_set(color_set_id);
                 auto it_got = idx.color_set(color_set_id);
                 const uint64_t exp_size = it_exp.size();
                 const uint64_t got_size = it_got.size();
@@ -378,7 +328,7 @@ struct index<ColorSets>::meta_builder {
                 permuted_set.clear();
                 for (uint64_t i = 0; i != exp_size; ++i, ++it_exp) {
                     const uint32_t ref_id = *it_exp;
-                    permuted_set.push_back(permutation[ref_id]);
+                    permuted_set.push_back(m_permutation[ref_id]);
                 }
                 std::ranges::sort(permuted_set);
 
@@ -425,8 +375,8 @@ struct index<ColorSets>::meta_builder {
 
 private:
     build_configuration m_build_config;
-    hfur_index_t base_index;
-    std::vector<uint32_t> permutation;
+    hfur_index_t m_base_index;
+    std::vector<uint32_t> m_permutation;
 
     std::string metacolor_set_file_name(const uint32_t id) const {
         return m_build_config.tmp_dirname + "/metacolor_set_" + std::to_string(id) + ".bin";

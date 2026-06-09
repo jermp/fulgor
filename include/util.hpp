@@ -262,5 +262,44 @@ struct range_view {
     auto size() const { return _it.size(); }
 };
 
+template <typename T, typename Compare = std::less<T>>
+class bounded_priority_queue {
+public:
+    explicit bounded_priority_queue(const size_t capacity, Compare c = Compare())
+        : comp(c), max_capacity(capacity) {}
+
+    void push(T item) {
+        std::unique_lock lock(mtx);
+        cv_push.wait(lock, [this, &item] {
+            return heap.size() < max_capacity || (!heap.empty() && comp(heap.front(), item));
+        });
+
+        heap.push_back(std::move(item));
+        std::push_heap(heap.begin(), heap.end(), comp);
+    }
+
+    template <typename Predicate>
+    bool try_pop_if(T& out_item, Predicate condition) {
+        std::lock_guard lock(mtx);
+        if (heap.empty() || !condition(heap.front())) {
+            return false;
+        }
+        std::pop_heap(heap.begin(), heap.end(), comp);
+
+        out_item = std::move(heap.back());
+        heap.pop_back();
+
+        cv_push.notify_all();
+        return true;
+    }
+
+private:
+    std::vector<T> heap;
+    Compare comp;
+    std::mutex mtx;
+    std::condition_variable cv_push;
+    size_t max_capacity;
+};
+
 }  // namespace util
 }  // namespace fulgor

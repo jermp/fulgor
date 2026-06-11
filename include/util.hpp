@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <algorithm>  // for std::set_intersection
+#include <condition_variable>
 
 #include "external/smhasher/src/City.h"
 
@@ -16,11 +17,11 @@ namespace constants {
 
 constexpr double invalid_threshold = -1.0;
 constexpr uint64_t default_ram_limit_in_GiB = 8;
-static constexpr std::string default_tmp_dirname(".");
-static constexpr std::string hfur_filename_extension("fur");
-static constexpr std::string mfur_filename_extension("mfur");
-static constexpr std::string dfur_filename_extension("dfur");
-static constexpr std::string mdfur_filename_extension("mdfur");
+static const std::string default_tmp_dirname(".");
+static const std::string hfur_filename_extension("fur");
+static const std::string mfur_filename_extension("mfur");
+static const std::string dfur_filename_extension("dfur");
+static const std::string mdfur_filename_extension("mdfur");
 
 namespace current_version_number {
 constexpr uint8_t major = 4;
@@ -299,6 +300,53 @@ private:
     std::mutex mtx;
     std::condition_variable cv_push;
     size_t max_capacity;
+};
+
+class external_saver {
+public:
+    explicit external_saver(const std::string& output_filename)
+        : output_stream(output_filename, std::ios::binary | std::ios::trunc)
+        , saver(output_stream) {}
+
+    template <typename T>
+    void visit(T const& item) {
+        saver.visit(item);
+    }
+
+    template <typename T>
+    void write_raw(const T& value) {
+        static_assert(std::is_trivially_copyable_v<T>,
+                      "Type must be trivially copyable for raw binary writes.");
+
+        output_stream.write(reinterpret_cast<const char*>(&value), sizeof(T));
+    }
+
+    template <typename T>
+    void write_vec_data(const std::vector<T>& vec) {
+        if (!vec.empty()) {
+            static_assert(std::is_trivially_copyable_v<T>,
+                          "Vector elements must be trivially copyable for bulk binary writes.");
+
+            output_stream.write(reinterpret_cast<const char*>(vec.data()), vec.size() * sizeof(T));
+        }
+    }
+
+    void seek(const std::streampos& pos) { output_stream.seekp(pos); }
+    void seek_end() { output_stream.seekp(0, std::ios::end); }
+
+    std::streampos tell() { return output_stream.tellp(); }
+
+    void append(const std::ifstream& input_stream) {
+        if (input_stream.is_open()) {
+            output_stream << input_stream.rdbuf();
+        }
+    }
+
+    void close() { output_stream.close(); }
+
+private:
+    std::ofstream output_stream;
+    essentials::generic_saver saver;
 };
 
 }  // namespace util

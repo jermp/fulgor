@@ -2,10 +2,8 @@ using namespace fulgor;
 
 void meta_color(build_configuration const& build_config, const bool force)  //
 {
-    std::string output_filename = build_config.index_filename_to_partition.substr(
-                                      0, build_config.index_filename_to_partition.length() -
-                                             constants::hfur_filename_extension.length() - 1) +
-                                  "." + constants::mfur_filename_extension;
+    const std::string output_filename =
+        build_config.file_base_name + "." + constants::mfur_filename_extension;
 
     if (std::filesystem::exists(output_filename)) {
         std::cerr << "An index with the name '" << output_filename << "' already exists."
@@ -31,7 +29,7 @@ void meta_color(build_configuration const& build_config, const bool force)  //
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
     essentials::logger("saving index to disk...");
-    essentials::save(index, output_filename.c_str());
+    // essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");
     essentials::load(index, output_filename.c_str());
 
@@ -41,10 +39,8 @@ void meta_color(build_configuration const& build_config, const bool force)  //
 
 void diff_color(build_configuration const& build_config, const bool force)  //
 {
-    std::string output_filename = build_config.index_filename_to_partition.substr(
-                                      0, build_config.index_filename_to_partition.length() -
-                                             constants::hfur_filename_extension.length() - 1) +
-                                  "." + constants::dfur_filename_extension;
+    std::string output_filename =
+        build_config.file_base_name + "." + constants::dfur_filename_extension;
 
     if (std::filesystem::exists(output_filename)) {
         std::cerr << "An index with the name '" << output_filename << "' already exists."
@@ -83,10 +79,8 @@ void diff_color(build_configuration const& build_config, const bool force)  //
 
 void meta_diff_color(build_configuration const& build_config, const bool force)  //
 {
-    std::string output_filename = build_config.index_filename_to_partition.substr(
-                                      0, build_config.index_filename_to_partition.length() -
-                                             constants::hfur_filename_extension.length() - 1) +
-                                  "." + constants::mdfur_filename_extension;
+    std::string output_filename =
+        build_config.file_base_name + "." + constants::mdfur_filename_extension;
 
     if (std::filesystem::exists(output_filename)) {
         std::cerr << "An index with the name '" << output_filename << "' already exists."
@@ -285,6 +279,9 @@ int color(int argc, char** argv) {
                   << std::endl;
         return 1;
     }
+    build_config.file_base_name = build_config.index_filename_to_partition.substr(
+        0, build_config.index_filename_to_partition.length() -
+               constants::hfur_filename_extension.length() - 1);
 
     if (parser.parsed("tmp_dirname")) {
         build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");

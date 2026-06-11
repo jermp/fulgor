@@ -12,16 +12,10 @@ template <typename ColorSets>
 struct index<ColorSets>::builder {
     builder(build_configuration const& build_config)
         : m_build_config(build_config)
-        , m_out_index(build_config.file_base_name + "." + constants::hfur_filename_extension,
-                      std::ios::binary | std::ios::trunc)
-        , m_saver(m_out_index) {
-        m_out_index.clear();
-        m_out_index.write(reinterpret_cast<const char*>(&constants::current_version_number::major),
-                          sizeof(constants::current_version_number::major));
-        m_out_index.write(reinterpret_cast<const char*>(&constants::current_version_number::minor),
-                          sizeof(constants::current_version_number::minor));
-        m_out_index.write(reinterpret_cast<const char*>(&constants::current_version_number::patch),
-                          sizeof(constants::current_version_number::patch));
+        , m_saver(build_config.file_base_name + "." + constants::hfur_filename_extension) {
+        m_saver.write_raw(constants::current_version_number::major);
+        m_saver.write_raw(constants::current_version_number::minor);
+        m_saver.write_raw(constants::current_version_number::patch);
     }
 
     void build(index& idx) {
@@ -51,7 +45,7 @@ struct index<ColorSets>::builder {
             uint64_t num_unitigs = 0;
             uint64_t num_distinct_color_sets = 0;
 
-            typename ColorSets::builder builder(m_build_config.num_colors, m_out_index,
+            typename ColorSets::builder builder(m_build_config.num_colors, m_saver,
                                                 m_build_config.ram_limit_in_GiB << 30,
                                                 m_build_config.verbose);
 
@@ -129,7 +123,7 @@ struct index<ColorSets>::builder {
             std::cout << "num_unitigs " << num_unitigs << std::endl;
             std::cout << "num_distinct_color_sets " << num_distinct_color_sets << std::endl;
 
-            builder.build(m_saver);
+            builder.build();
 
             timer.stop();
             std::cout << "** encoding color sets took " << timer.elapsed() << " seconds / "
@@ -262,8 +256,7 @@ struct index<ColorSets>::builder {
 private:
     build_configuration m_build_config;
     GGCAT m_ccdbg;
-    std::ofstream m_out_index;
-    essentials::generic_saver m_saver;
+    util::external_saver m_saver;
 };
 
 }  // namespace fulgor

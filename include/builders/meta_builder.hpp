@@ -126,9 +126,13 @@ private:
 
 template <typename ColorSets>
 struct index<ColorSets>::meta_builder {
-    meta_builder() {}
-
-    meta_builder(build_configuration const& build_config) : m_build_config(build_config) {}
+    meta_builder(build_configuration const& build_config)
+        : m_build_config(build_config)
+        , m_saver(build_config.file_base_name + "." + constants::mfur_filename_extension) {
+        m_saver.write_raw(constants::current_version_number::major);
+        m_saver.write_raw(constants::current_version_number::minor);
+        m_saver.write_raw(constants::current_version_number::patch);
+    }
 
     void build(index& idx) {
         if (idx.m_k2u.num_kmers() != 0) throw std::runtime_error("index already built");
@@ -161,7 +165,7 @@ struct index<ColorSets>::meta_builder {
 
             std::atomic<uint64_t> num_integers_in_metacolor_sets = 0;
             typename ColorSets::builder color_sets_builder(
-                num_colors, p.partition_starts(), m_build_config.tmp_dirname,
+                num_colors, m_saver, p.partition_starts(), m_build_config.tmp_dirname,
                 m_build_config.ram_limit_in_GiB << 30, m_build_config.verbose);
 
             std::string metacolor_sets_filename =
@@ -248,10 +252,9 @@ struct index<ColorSets>::meta_builder {
                 uint32_t size = 0;
                 metacolor_set_in.read(reinterpret_cast<char*>(&size), sizeof(uint32_t));
                 for (uint32_t i = 0; i != size; ++i) {
-                    std::array<uint32_t, 2> metacolor;
-                    metacolor_set_in.read(reinterpret_cast<char*>(metacolor.data()),
-                                          sizeof(metacolor));
-                    metacolor_set.emplace_back(metacolor);
+                    uint32_t metacolor[2];
+                    metacolor_set_in.read(reinterpret_cast<char*>(metacolor), sizeof(metacolor));
+                    metacolor_set.emplace_back(metacolor[0], metacolor[1]);
                 }
                 color_sets_builder.encode_metacolor_set(metacolor_set);
                 metacolor_set.clear();
@@ -259,7 +262,7 @@ struct index<ColorSets>::meta_builder {
 
             metacolor_set_in.close();
             std::remove(metacolor_sets_filename.c_str());
-            color_sets_builder.build(idx.m_color_sets);
+            color_sets_builder.build();
 
             timer.stop();
             std::cout << "** building partial/meta color sets took " << timer.elapsed()
@@ -270,9 +273,9 @@ struct index<ColorSets>::meta_builder {
         {
             essentials::logger("step 5. copy u2c + rank1_index and k2u");
             timer.start();
-            idx.m_u2c = m_base_index.get_u2c();
-            idx.m_u2c_rank1_index = m_base_index.get_u2c_rank1_index();
-            idx.m_k2u = m_base_index.get_k2u();
+            m_saver.visit(m_base_index.get_u2c());
+            m_saver.visit(m_base_index.get_u2c_rank1_index());
+            m_saver.visit(m_base_index.get_k2u());
             timer.stop();
             std::cout << "** copying u2c and k2u took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
@@ -282,7 +285,11 @@ struct index<ColorSets>::meta_builder {
         {
             essentials::logger("step 6. building filenames");
             timer.start();
-            idx.m_filenames.build(p.filenames());
+
+            filenames filenames;
+            filenames.build(p.filenames());
+            m_saver.visit(filenames);
+
             timer.stop();
             std::cout << "** building filenames took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
@@ -377,6 +384,7 @@ private:
     build_configuration m_build_config;
     hfur_index_t m_base_index;
     std::vector<uint32_t> m_permutation;
+    util::external_saver m_saver;
 
     std::string metacolor_set_file_name(const uint32_t id) const {
         return m_build_config.tmp_dirname + "/metacolor_set_" + std::to_string(id) + ".bin";

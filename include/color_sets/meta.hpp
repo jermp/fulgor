@@ -18,7 +18,8 @@ struct meta {
     };
 
     struct builder {
-        explicit builder(const uint64_t num_colors, const std::vector<uint32_t>& partition_starts,
+        explicit builder(const uint64_t num_colors, util::external_saver& saver,
+                         const std::vector<uint32_t>& partition_starts,
                          const std::string& tmp_dirname, const uint64_t max_RAM_bytes = 8,
                          const bool verbose = false)
             : m_offset(0)
@@ -26,27 +27,29 @@ struct meta {
             , m_max_RAM_bytes(max_RAM_bytes)
             , m_verbose(verbose) {
             m_meta_color_sets_offsets.push_back(0);
-            init(num_colors, partition_starts);
+            init(num_colors, saver, partition_starts);
         }
 
-        void init(const uint64_t num_colors, std::vector<uint32_t> const& partition_starts) {
+        void init(const uint64_t num_colors, util::external_saver& saver,
+                  std::vector<uint32_t> const& partition_starts) {
             m_num_colors = num_colors;
+            m_saver = &saver;
 
             const uint32_t num_partitions = partition_starts.size() - 1;
             m_partitions_mutex.reserve(num_partitions);
-            m_outstreams.reserve(num_partitions);
+            m_partition_savers.reserve(num_partitions);
             m_hashes.resize(num_partitions);
             m_partition_starts = partition_starts;
 
             for (uint64_t partition_id = 0; partition_id < num_partitions; ++partition_id) {
                 m_partitions_mutex.push_back(std::make_unique<std::shared_mutex>());
 
-                m_outstreams.emplace_back(partition_filename(partition_id),
-                                          std::ios::binary | std::ios::trunc);
+                m_partition_savers.emplace_back(partition_filename(partition_id));
                 const uint32_t num_colors_in_partition =
                     partition_starts[partition_id + 1] - partition_starts[partition_id];
 
-                m_color_sets_builders.emplace_back(num_colors_in_partition, m_outstreams.back());
+                m_color_sets_builders.emplace_back(num_colors_in_partition,
+                                                   m_partition_savers.back());
                 m_color_sets_builders[partition_id].set_verbose(m_verbose);
                 m_color_sets_builders[partition_id].set_max_RAM_bytes(m_max_RAM_bytes);
             }
@@ -99,7 +102,7 @@ struct meta {
                         metacolor_set.push_back(partial_color_set_id);
                     }
 
-                    partition_id += 1;
+                    ++partition_id;
                     part_end = m_partition_starts[partition_id + 1];
                     span_start = i;
                 }
@@ -146,6 +149,7 @@ struct meta {
             return size;
         }
 
+        [[deprecated("External memory construction requires build()")]]
         void build(meta& m) {
             flush();
             m.m_num_colors = m_num_colors;
@@ -153,10 +157,7 @@ struct meta {
             m.m_partial_color_sets.resize(m_color_sets_builders.size());
             for (uint64_t partition_id = 0; partition_id < m_color_sets_builders.size();
                  ++partition_id) {
-                m_outstreams[partition_id].flush();
-                essentials::generic_saver saver(m_outstreams[partition_id]);
-                m_color_sets_builders[partition_id].build(saver);
-                m_outstreams[partition_id].close();
+                m_color_sets_builders[partition_id].build();
             }
 
             m.m_partial_color_sets.reserve(num_partitions());
@@ -172,6 +173,36 @@ struct meta {
             m.m_partition_endpoints.swap(m_partition_endpoints);
         }
 
+        void build() {
+            flush();
+            assert(m_saver != nullptr);
+            m_saver->visit(m_num_colors);
+
+            {
+                bits::compact_vector metacolor_sets;
+                m_meta_color_sets_builder.build(metacolor_sets);
+                m_saver->visit(metacolor_sets);
+            }
+            {
+                bits::elias_fano offsets;
+                offsets.encode(m_meta_color_sets_offsets.begin(), m_meta_color_sets_offsets.size(),
+                               m_meta_color_sets_offsets.back());
+                m_saver->visit(offsets);
+            }
+
+            const size_t num_parts = num_partitions();
+            m_saver->visit(num_parts);
+            for (uint64_t partition_id = 0; partition_id < num_parts; ++partition_id) {
+                m_color_sets_builders[partition_id].build();
+                m_partition_savers[partition_id].close();
+
+                std::ifstream part_colors(partition_filename(partition_id), std::ios::binary);
+                m_saver->append(part_colors);
+            }
+
+            m_saver->visit(m_partition_endpoints);
+        }
+
         ~builder() {
             for (uint64_t i = 0; i != m_color_sets_builders.size(); ++i) {
                 std::remove(partition_filename(i).c_str());
@@ -181,7 +212,8 @@ struct meta {
     private:
         bits::compact_vector::builder m_meta_color_sets_builder;
         std::vector<typename ColorSets::builder> m_color_sets_builders;
-        std::vector<std::ofstream> m_outstreams;
+        std::vector<util::external_saver> m_partition_savers;
+        util::external_saver* m_saver = nullptr;
 
         std::vector<std::unique_ptr<std::shared_mutex>> m_partitions_mutex;
         using hash_id_map =
@@ -190,7 +222,7 @@ struct meta {
         std::vector<uint32_t> m_partition_starts;
         std::vector<uint32_t> m_partial_sets_starts;
 
-        uint64_t m_num_colors;
+        uint32_t m_num_colors;
         uint64_t m_offset;
         std::vector<uint64_t> m_meta_color_sets_offsets;
         std::vector<partition_endpoint> m_partition_endpoints;
@@ -445,10 +477,10 @@ private:
     }
 
     uint32_t m_num_colors;
-    std::vector<ColorSets> m_partial_color_sets;
-    std::vector<partition_endpoint> m_partition_endpoints;
     bits::compact_vector m_meta_color_sets;
     bits::elias_fano<false, false> m_meta_color_sets_offsets;
+    std::vector<ColorSets> m_partial_color_sets;
+    std::vector<partition_endpoint> m_partition_endpoints;
 };
 
 }  // namespace fulgor

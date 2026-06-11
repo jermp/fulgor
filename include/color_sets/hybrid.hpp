@@ -9,22 +9,22 @@ struct hybrid {
     static constexpr index_t type = HYBRID;
 
     struct builder {
-        explicit builder() : m_max_RAM_bytes(1 << 30), m_verbose(false) { init(0, *m_output_file); }
+        explicit builder() : m_max_RAM_bytes(1 << 30), m_verbose(false) { init(0, *m_saver); }
 
-        explicit builder(const uint64_t num_colors, std::ofstream& output_file,
+        explicit builder(const uint64_t num_colors, util::external_saver& saver,
                          const build_configuration& build_config)
             : m_max_RAM_bytes(build_config.ram_limit_in_GiB << 30)
             , m_verbose(build_config.ram_limit_in_GiB) {
-            init(num_colors, output_file);
+            init(num_colors, saver);
         }
 
-        builder(const uint32_t num_colors, std::ofstream& output_file,
+        builder(const uint32_t num_colors, util::external_saver& saver,
                 const uint64_t max_RAM_bytes = 1 << 30, const bool verbose = false)
             : m_max_RAM_bytes(max_RAM_bytes), m_verbose(verbose) {
-            init(num_colors, output_file);
+            init(num_colors, saver);
         }
 
-        void init(const uint64_t num_colors, std::ofstream& output_file) {
+        void init(const uint64_t num_colors, util::external_saver& saver) {
             m_num_colors = num_colors;
             m_sparse_set_threshold_size = 0.25 * m_num_colors;
             m_very_dense_set_threshold_size = 0.75 * m_num_colors;
@@ -39,27 +39,25 @@ struct hybrid {
             m_queue_size = 0;
             m_base_offset = 0;
 
-            m_output_file = &output_file;
+            m_saver = &saver;
 
-            m_output_file->write(reinterpret_cast<const char*>(&m_num_colors),
-                                 sizeof(m_num_colors));
-            m_output_file->write(reinterpret_cast<const char*>(&m_sparse_set_threshold_size),
-                                 sizeof(m_sparse_set_threshold_size));
-            m_output_file->write(reinterpret_cast<const char*>(&m_very_dense_set_threshold_size),
-                                 sizeof(m_very_dense_set_threshold_size));
-            m_bitvector_start = output_file.tellp();
+            m_saver->write_raw(m_num_colors);
+            m_saver->write_raw(m_sparse_set_threshold_size);
+            m_saver->write_raw(m_very_dense_set_threshold_size);
+            m_bitvector_start = m_saver->tell();
 
             constexpr uint64_t zero64 = 0;
-            m_output_file->write(reinterpret_cast<const char*>(&zero64),
-                                 sizeof(zero64));  // num_bits
-            m_output_file->write(reinterpret_cast<const char*>(&zero64),
-                                 sizeof(zero64));  // num_bytes
+            m_saver->write_raw(zero64);  // num_bits
+            m_saver->write_raw(zero64);  // num_bytes
         }
 
         void set_max_RAM_bytes(const uint64_t max_RAM_bytes) { m_max_RAM_bytes = max_RAM_bytes; }
         void set_verbose(const bool verbose) { m_verbose = verbose; }
 
-        void reserve_num_bits(uint64_t num_bits) { m_color_sets_builder.reserve(num_bits); }
+        [[deprecated("Unused with external memory construction")]]
+        void reserve_num_bits(uint64_t num_bits) {
+            m_color_sets_builder.reserve(num_bits);
+        }
 
         [[deprecated("With the new ccdbg-builder this is not required. Method `encode` is better")]]
         void encode_color_set(std::span<const uint32_t> color_set, const uint64_t color_set_id)  //
@@ -154,6 +152,7 @@ struct hybrid {
                    essentials::vec_bytes(m_offsets) + m_queue_size;
         }
 
+        [[deprecated("Unused with external memory construction")]]
         void append(hybrid::builder& hb) {
             if (hb.m_num_color_sets == 0) return;
             m_color_sets_builder.append(hb.m_color_sets_builder);
@@ -168,7 +167,8 @@ struct hybrid {
             assert(m_num_color_sets == m_offsets.size() - 1);
         }
 
-        void build(hybrid& h) {  // TODO: remove
+        [[deprecated("External memory construction requires build()")]]
+        void build(hybrid& h) {
             h.m_num_colors = m_num_colors;
             h.m_sparse_set_threshold_size = m_sparse_set_threshold_size;
             h.m_very_dense_set_threshold_size = m_very_dense_set_threshold_size;
@@ -197,13 +197,13 @@ struct hybrid {
             }
         }
 
-        void build(essentials::generic_saver& h) {
+        void build() {
             flush();
             assert(m_num_color_sets == m_offsets.size() - 1);
 
-            bits::elias_fano<false, false> offsets;
+            bits::elias_fano offsets;
             offsets.encode(m_offsets.begin(), m_offsets.size(), m_offsets.back());
-            h.visit(offsets);
+            m_saver->visit(offsets);
 
             if (m_verbose) {
                 std::cout << "processed " << m_num_color_sets << " color sets" << std::endl;
@@ -225,7 +225,7 @@ struct hybrid {
         void clear() {
             m_offsets.clear();
             m_color_sets_builder.clear();
-            init(m_num_colors, *m_output_file);
+            init(m_num_colors, *m_saver);
         }
 
         void flush() {
@@ -241,17 +241,16 @@ struct hybrid {
             m_base_offset = final_num_bits & ~63;
             assert(final_num_bits == m_offsets.back());
 
-            m_output_file->seekp(m_bitvector_start +
-                                 static_cast<std::streamoff>(sizeof(uint64_t) * (2 + pos)));
-            m_output_file->write(reinterpret_cast<char*>(m_color_sets_builder.data().data()),
-                                 m_color_sets_builder.data().size() * sizeof(uint64_t));
+            m_saver->seek(m_bitvector_start +
+                          static_cast<std::streamoff>(sizeof(uint64_t) * (2 + pos)));
+            m_saver->write_vec_data(m_color_sets_builder.data());
 
-            m_output_file->seekp(m_bitvector_start);
-            m_output_file->write(reinterpret_cast<const char*>(&final_num_bits), sizeof(uint64_t));
-            m_output_file->write(reinterpret_cast<const char*>(&final_num_words), sizeof(uint64_t));
+            m_saver->seek(m_bitvector_start);
+            m_saver->write_raw(final_num_bits);
+            m_saver->write_raw(final_num_words);
             m_num_bits = final_num_bits;
 
-            m_output_file->seekp(0, std::ios::end);
+            m_saver->seek_end();
 
             const uint64_t last_word = m_color_sets_builder.data().back();
             m_color_sets_builder.clear();
@@ -287,7 +286,7 @@ struct hybrid {
         uint64_t m_num_bits;
         std::streampos m_bitvector_start;
 
-        std::ofstream* m_output_file = nullptr;
+        util::external_saver* m_saver = nullptr;
         uint64_t m_max_RAM_bytes;
         bool m_verbose;
 

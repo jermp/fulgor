@@ -84,6 +84,8 @@ int main(int argc, char** argv) {
         return kmer_matches(argc - 1, argv + 1);
     } else if (tool == "check") {
         return check(argc - 1, argv + 1);
+    } else if (tool == "probabilistic-check") {
+        return probabilistic_check(argc - 1, argv + 1);
     } else if (tool == "verify") {
         return verify(argc - 1, argv + 1);
     } else if (tool == "stats") {

@@ -474,3 +474,156 @@ int check(int argc, char** argv) {
 
     return 0;
 }
+
+template <typename Index>
+uint64_t probabilistic_check(Index& index, double const file_prob, double const kmer_prob,
+                             uint32_t const num_threads, const bool verbose) {
+    const uint64_t k = index.k();
+    const uint32_t num_colors = index.num_colors();
+
+    std::atomic<uint32_t> next_color_id(0);
+    std::atomic<uint64_t> total_files_sampled(0);
+    std::atomic<uint64_t> total_kmers_checked(0), total_raw_kmers(0);
+
+    auto worker = [&](const int thread_id) {
+        std::random_device rd;
+        std::mt19937 gen(rd() ^ (static_cast<uint32_t>(thread_id) << 16));
+
+        std::bernoulli_distribution file_dis(file_prob);
+        std::geometric_distribution<size_t> kmer_dis(kmer_prob);
+
+        while (true) {
+            uint32_t color = next_color_id.fetch_add(1, std::memory_order_relaxed);
+            if (color >= num_colors) break;
+
+            if (!file_dis(gen)) continue;
+
+            total_files_sampled.fetch_add(1, std::memory_order_relaxed);
+            std::string_view filename = index.filename(color);
+
+            try {
+                const std::vector file_vec = {std::string(filename)};
+
+                fastx_parser::FastxParser<fastx_parser::ReadSeq> parser(file_vec, 1, 1);
+                parser.start();
+
+                auto rg = parser.getReadGroup();
+                while (parser.refill(rg)) {
+                    for (const auto& record : rg) {
+                        const std::string& seq = record.seq;
+                        if (seq.length() < k) continue;
+                        total_raw_kmers += record.seq.length() - k + 1;
+
+                        const size_t max_idx = seq.length() - k;
+                        size_t i = kmer_dis(gen);
+
+                        while (i <= max_idx) {
+                            std::string_view kmer_view(seq.data() + i, k);
+
+                            if (kmer_view.find('N') == std::string_view::npos) {
+                                std::vector<uint32_t> color_set_ids;
+                                index.fetch_color_set_ids(std::string(kmer_view), color_set_ids);
+                                assert(color_set_ids.size() == 1);
+                                auto color_set = index.color_set(color_set_ids.front());
+                                ++total_kmers_checked;
+                                while (*color_set < color) { ++color_set; }
+                                if (*color_set != color) {
+                                    std::cerr << "[File " << filename << "] K-mer " << kmer_view
+                                              << " not found" << std::endl;
+                                }
+                            }
+
+                            i += 1 + kmer_dis(gen);
+                        }
+                    }
+                }
+                parser.stop();
+
+            } catch (const std::exception& e) {
+                if (verbose) {
+                    std::cerr << "[Thread " << thread_id << "] Error reading file " << filename
+                              << ": " << e.what() << "\n";
+                }
+            }
+        }
+    };
+
+    std::vector<std::thread> threads;
+    threads.reserve(num_threads);
+    for (uint64_t t = 0; t < num_threads; ++t) { threads.emplace_back(worker, t); }
+
+    for (auto& t : threads) { t.join(); }
+
+    if (verbose) {
+        std::cout << "\n--- Probabilistic Check Report ---\n";
+        std::cout << "Files sampled: " << total_files_sampled << " / " << num_colors << " ("
+                  << 100. * total_files_sampled / num_colors << "%)" << "\n";
+        std::cout << "Total kmers checked: " << total_kmers_checked << "/" << total_raw_kmers
+                  << " (" << 100. * total_kmers_checked / total_raw_kmers << "%)" << "\n";
+        std::cout << "----------------------------------\n";
+    }
+
+    return 0;
+}
+
+int probabilistic_check(int argc, char** argv) {
+    cmd_line_parser::parser parser(argc, argv);
+    parser.add("index_filename", "The Fulgor index to be checked for correctness.", "-i", true);
+    parser.add(
+        "file_prob",
+        "Probability of each file to be checked. Value must be in (0, 1]. (1 means all files)",
+        "-q", true);
+    parser.add(
+        "kmer_prob",
+        "Probability of each kmer to be checked. Value must be in (0, 1]. (1 means all kmers)",
+        "-p", true);
+    parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
+    parser.add("verbose", "Verbose output during processing (default is false).", "--verbose",
+               false, true);
+    if (!parser.parse()) return 1;
+    util::print_cmd(argc, argv);
+
+    auto index_filename = parser.get<std::string>("index_filename");
+    auto file_prob = parser.get<double>("file_prob");
+    auto kmer_prob = parser.get<double>("kmer_prob");
+    bool verbose = parser.get<bool>("verbose");
+    uint64_t num_threads = parser.parsed("num_threads") ? parser.get<uint64_t>("num_threads") : 1;
+
+    if (file_prob < 0.0 || file_prob > 1.0 || kmer_prob <= 0.0 || kmer_prob > 1.0) {
+        throw std::invalid_argument(
+            "Probabilities must be within valid bounds (0 < kmer_prob <= 1).");
+    }
+
+    std::variant<hfur_index_t, mdfur_index_t, mfur_index_t, dfur_index_t> index;
+    if (is_meta_diff(index_filename)) {
+        index = mdfur_index_t();
+    } else if (is_meta(index_filename)) {
+        index = mfur_index_t();
+    } else if (is_diff(index_filename)) {
+        index = dfur_index_t();
+    } else if (is_hybrid(index_filename)) {
+        index = hfur_index_t();
+    } else {
+        std::cerr << "Wrong index filename supplied." << std::endl;
+        return 1;
+    }
+
+    uint64_t with_errors = 0;
+    std::visit(
+        [&index_filename, &with_errors, file_prob, kmer_prob, num_threads, verbose](auto&& index) {
+            if (verbose) essentials::logger("*** START: loading the base index");
+            essentials::load(index, index_filename.c_str());
+            if (verbose) essentials::logger("*** DONE: loading the base index");
+
+            with_errors = probabilistic_check(index, file_prob, kmer_prob, num_threads, verbose);
+        },
+        index);
+
+    if (with_errors) {
+        essentials::logger("*** Completed with errors, try to rebuild the index");
+    } else {
+        essentials::logger("*** Completed successfully!");
+    }
+
+    return 0;
+}

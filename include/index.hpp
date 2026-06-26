@@ -36,7 +36,7 @@ struct index {
     /* from unitig_id to color_set_id */
     uint64_t u2c(uint64_t unitig_id) const { return m_u2c_rank1_index.rank1(m_u2c, unitig_id); }
 
-    void fetch_color_set_ids(std::string const& sequence,
+    void fetch_color_set_ids(std::string const& sequence,  // TODO: use std::string_view
                              std::vector<uint32_t>& color_set_ids) const;
     void pseudoalign_full_intersection(std::vector<uint32_t>& color_set_ids,  //
                                        std::vector<uint32_t>& results,

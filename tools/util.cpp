@@ -484,6 +484,10 @@ uint64_t probabilistic_check(Index& index, double const file_prob, double const 
     std::atomic<uint32_t> next_color_id(0);
     std::atomic<uint64_t> total_files_sampled(0);
     std::atomic<uint64_t> total_kmers_checked(0), total_raw_kmers(0);
+    std::atomic<uint64_t> num_errors(0);
+
+    cout << "Checked " << total_files_sampled << " files, " << total_kmers_checked << " kmers\r"
+         << std::flush;
 
     auto worker = [&](const int thread_id) {
         std::random_device rd;
@@ -512,33 +516,39 @@ uint64_t probabilistic_check(Index& index, double const file_prob, double const 
                     for (const auto& record : rg) {
                         const std::string& seq = record.seq;
                         if (seq.length() < k) continue;
-                        total_raw_kmers += record.seq.length() - k + 1;
 
-                        const size_t max_idx = seq.length() - k;
-                        size_t i = kmer_dis(gen);
+                        const uint64_t num_kmers = seq.length() - k + 1;
+                        total_raw_kmers += num_kmers;
 
-                        while (i <= max_idx) {
+                        for (uint64_t i = kmer_dis(gen); i < num_kmers; i += 1 + kmer_dis(gen)) {
                             std::string_view kmer_view(seq.data() + i, k);
+                            if (kmer_view.find('N') != std::string_view::npos) continue;
+                            ++total_kmers_checked;
 
-                            if (kmer_view.find('N') == std::string_view::npos) {
-                                std::vector<uint32_t> color_set_ids;
-                                index.fetch_color_set_ids(std::string(kmer_view), color_set_ids);
-                                assert(color_set_ids.size() == 1);
-                                auto color_set = index.color_set(color_set_ids.front());
-                                ++total_kmers_checked;
-                                while (*color_set < color) { ++color_set; }
-                                if (*color_set != color) {
-                                    std::cerr << "[File " << filename << "] K-mer " << kmer_view
-                                              << " not found" << std::endl;
-                                }
+                            std::vector<uint32_t> color_set_ids;
+                            index.fetch_color_set_ids(std::string(kmer_view), color_set_ids);
+                            assert(color_set_ids.size() <= 1);
+                            if (color_set_ids.empty()) {
+                                std::cerr << "[File " << filename << "] K-mer " << kmer_view
+                                          << " not found" << std::endl;
+                                ++num_errors;
+                                continue;
                             }
 
-                            i += 1 + kmer_dis(gen);
+                            auto color_set = index.color_set(color_set_ids.front());
+                            while (*color_set < color) { ++color_set; }
+
+                            if (*color_set != color) {
+                                std::cerr << "[File " << filename << "] K-mer " << kmer_view
+                                          << " not found" << std::endl;
+                                ++num_errors;
+                            }
                         }
                     }
                 }
                 parser.stop();
-
+                std::cout << "Checked " << total_files_sampled << " files, " << total_kmers_checked
+                          << " kmers\r" << std::flush;
             } catch (const std::exception& e) {
                 if (verbose) {
                     std::cerr << "[Thread " << thread_id << "] Error reading file " << filename
@@ -563,7 +573,7 @@ uint64_t probabilistic_check(Index& index, double const file_prob, double const 
         std::cout << "----------------------------------\n";
     }
 
-    return 0;
+    return num_errors;
 }
 
 int probabilistic_check(int argc, char** argv) {

@@ -314,7 +314,7 @@ public:
     }
 
     template <typename T>
-    void write_raw(const T& value) {
+    void write(const T& value) {
         static_assert(std::is_trivially_copyable_v<T>,
                       "Type must be trivially copyable for raw binary writes.");
 
@@ -339,6 +339,31 @@ public:
     void append(const std::ifstream& input_stream) {
         if (input_stream.is_open()) {
             output_stream << input_stream.rdbuf();
+        }
+    }
+
+    void append(std::ifstream& input_stream, const std::streamsize bytes_to_copy) {
+        if (!input_stream.is_open() || bytes_to_copy <= 0) {
+            return;
+        }
+
+        char buffer[4096];
+        std::streamsize total_bytes_written = 0;
+
+        while (total_bytes_written < bytes_to_copy && input_stream) {
+            const std::streamsize bytes_to_read = std::min(
+                static_cast<std::streamsize>(sizeof(buffer)), bytes_to_copy - total_bytes_written);
+            input_stream.read(buffer, bytes_to_read);
+            const std::streamsize bytes_read = input_stream.gcount();
+
+            if (bytes_read > 0) {
+                output_stream.write(buffer, bytes_read);
+                total_bytes_written += bytes_read;
+            }
+
+            if (bytes_read < bytes_to_read) {
+                break;
+            }
         }
     }
 

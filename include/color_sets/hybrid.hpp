@@ -41,14 +41,14 @@ struct hybrid {
 
             m_saver = &saver;
 
-            m_saver->write_raw(m_num_colors);
-            m_saver->write_raw(m_sparse_set_threshold_size);
-            m_saver->write_raw(m_very_dense_set_threshold_size);
+            m_saver->write(m_num_colors);
+            m_saver->write(m_sparse_set_threshold_size);
+            m_saver->write(m_very_dense_set_threshold_size);
             m_bitvector_start = m_saver->tell();
 
             constexpr uint64_t zero64 = 0;
-            m_saver->write_raw(zero64);  // num_bits
-            m_saver->write_raw(zero64);  // num_bytes
+            m_saver->write(zero64);  // num_bits
+            m_saver->write(zero64);  // num_bytes
         }
 
         void set_max_RAM_bytes(const uint64_t max_RAM_bytes) { m_max_RAM_bytes = max_RAM_bytes; }
@@ -246,8 +246,8 @@ struct hybrid {
             m_saver->write_vec_data(m_color_sets_builder.data());
 
             m_saver->seek(m_bitvector_start);
-            m_saver->write_raw(final_num_bits);
-            m_saver->write_raw(final_num_words);
+            m_saver->write(final_num_bits);
+            m_saver->write(final_num_words);
             m_num_bits = final_num_bits;
 
             m_saver->seek_end();

@@ -4,9 +4,6 @@
 [submodule "external/sketch"]
 	path = external/sketch
 	url = https://github.com/dnbaker/sketch
-[submodule "external/ggcat"]
-	path = external/ggcat
-	url = https://github.com/algbio/ggcat
 [submodule "external/smhasher"]
 	path = external/smhasher
 	url = https://github.com/aappleby/smhasher
@@ -16,3 +13,6 @@
 [submodule "external/kmeans"]
 	path = external/kmeans
 	url = https://github.com/jermp/kmeans
+[submodule "external/cdbg-builder"]
+	path = external/cdbg-builder
+	url = git@github.com:jermp/cdbg-builder.git

@@ -2,7 +2,8 @@
 
 #include "external/kmeans/include/kmeans.hpp"
 #include "include/index.hpp"
-#include "include/GGCAT.hpp"
+#include "external/cdbg-builder/include/util.hpp"
+#include "external/cdbg-builder/include/builder.hpp"
 
 #include <span>
 
@@ -13,117 +14,57 @@ struct index<ColorSets>::builder {
     builder(build_configuration const& build_config)
         : m_build_config(build_config)
         , m_saver(build_config.file_base_name + "." + constants::hfur_filename_extension) {
-        m_saver.write_raw(constants::current_version_number::major);
-        m_saver.write_raw(constants::current_version_number::minor);
-        m_saver.write_raw(constants::current_version_number::patch);
+        m_saver.write(constants::current_version_number::major);
+        m_saver.write(constants::current_version_number::minor);
+        m_saver.write(constants::current_version_number::patch);
     }
 
     void build(index& idx) {
         if (idx.m_k2u.num_kmers() != 0) throw std::runtime_error("index already built");
 
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+        cdbg::build_config cdbg_build_config;
+        cdbg_build_config.filenames_list = m_build_config.filenames_list;
+        cdbg_build_config.out_basename =
+            std::format("{}/{}", m_build_config.tmp_dirname, m_build_config.file_base_name);
+        cdbg_build_config.k = m_build_config.k;
+        cdbg_build_config.m = m_build_config.m;
+        cdbg_build_config.num_threads = m_build_config.num_threads;
+        cdbg_build_config.max_ram_gb = 8;
+        uint64_t curr_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                               std::chrono::system_clock::now().time_since_epoch())
+                               .count();
+        cdbg_build_config.tmp_dir =
+            std::format("{}/cbdg_run-{}", m_build_config.tmp_dirname, curr_ms);
+        cdbg::builder cdbg_builder(cdbg_build_config);
 
         {
-            essentials::logger("step 1. building colored compacted dBG from GGCAT...");
-            timer.start();
-            m_ccdbg.build(m_build_config);
-            m_build_config.num_colors = m_ccdbg.num_colors();
+            essentials::logger("step 1. building colored compacted dBG...");
+            cdbg_builder.build();
+
+            m_build_config.num_colors = cdbg_builder.num_colors();
             timer.stop();
             std::cout << "** building the ccdBG took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
             timer.reset();
         }
 
-        std::string input_filename_for_sshash = m_build_config.tmp_dirname + "/" +
-                                                util::filename(m_build_config.file_base_name) +
-                                                ".sshash.fa";
-
         {
             essentials::logger("step 2. building unitig-to-color map and encoding color sets...");
             timer.start();
 
-            uint64_t num_unitigs = 0;
-            uint64_t num_distinct_color_sets = 0;
+            std::ifstream cs_file(cdbg_build_config.cs_filename(), std::ios::binary);
+            m_saver.append(cs_file, 12);      // write num_cols, sp_thresh, vd_thresh
+            cs_file.seekg(8, std::ios::cur);  // skip num_color_sets
+            m_saver.append(cs_file);
+            cs_file.close();
 
-            typename ColorSets::builder builder(m_build_config.num_colors, m_saver,
-                                                m_build_config.ram_limit_in_GiB << 30,
-                                                m_build_config.verbose);
+            assert(cdbg_builder.num_unitigs() > 0);
+            assert(cdbg_builder.num_unitigs() <= UINT32_MAX);
 
-            const uint64_t num_threads = m_build_config.num_threads;
-            kmeans::thread_pool threads(num_threads);
-
-            bits::bit_vector::builder u2c_builder;
-
-            /* write unitigs to fasta file for SSHash */
-            std::ofstream out(input_filename_for_sshash.c_str());
-            if (!out.is_open()) throw std::runtime_error("cannot open output file");
-            std::mutex m_queue_mtx;
-            std::condition_variable m_cv;
-            std::atomic<uint64_t> enqueued_jobs_bytes = 0;
-            const auto max_bytes =
-                static_cast<uint64_t>(0.001 * (m_build_config.ram_limit_in_GiB << 30));
-
-            m_ccdbg.loop_through_unitigs([&](ggcat::Slice<char> const unitig,
-                                             ggcat::Slice<uint32_t> const color_set,
-                                             const bool same_color_set) {
-                try {
-                    if (!same_color_set) {
-                        if (num_unitigs > 0) u2c_builder.set(num_unitigs - 1, true);
-
-                        std::vector cs(color_set.data, color_set.data + color_set.size);
-                        uint64_t vec_bytes = essentials::vec_bytes(cs);
-
-                        {
-                            std::unique_lock lock(m_queue_mtx);
-                            m_cv.wait(lock, [&] {
-                                return enqueued_jobs_bytes.load() + vec_bytes < max_bytes;
-                            });
-                            enqueued_jobs_bytes += vec_bytes;
-                        }
-
-                        threads.enqueue([vec_bytes, &enqueued_jobs_bytes, &builder,
-                                         cs = std::move(cs), num_distinct_color_sets, &m_queue_mtx,
-                                         &m_cv]() mutable {
-                            builder.encode_color_set(cs, num_distinct_color_sets);
-                            {
-                                std::lock_guard lock(m_queue_mtx);
-                                enqueued_jobs_bytes -= vec_bytes;
-                            }
-                            m_cv.notify_all();
-                        });
-                        num_distinct_color_sets += 1;
-                    }
-                    u2c_builder.push_back(false);
-
-                    /*
-                        Rewrite unitigs in color-set order.
-                        This is *not* the same order in which
-                        unitigs are written in the ggcat.fa file.
-                    */
-                    out << ">\n";
-                    out.write(unitig.data, unitig.size);
-                    out << '\n';
-
-                    num_unitigs += 1;
-
-                } catch (std::exception const& e) {
-                    std::cerr << e.what() << std::endl;
-                    exit(1);
-                }
-            });
-            threads.wait();
-            builder.flush();
-            u2c_builder.set(num_unitigs - 1, true);
-
-            out.close();
-
-            assert(num_unitigs > 0);
-            assert(num_unitigs < (1LL << 32));
-
-            std::cout << "num_unitigs " << num_unitigs << std::endl;
-            std::cout << "num_distinct_color_sets " << num_distinct_color_sets << std::endl;
-
-            builder.build();
+            std::cout << "num_unitigs " << cdbg_builder.num_unitigs() << std::endl;
+            std::cout << "num_distinct_color_sets " << cdbg_builder.num_color_classes()
+                      << std::endl;
 
             timer.stop();
             std::cout << "** encoding color sets took " << timer.elapsed() << " seconds / "
@@ -134,13 +75,13 @@ struct index<ColorSets>::builder {
 
             bits::bit_vector u2c;
             bits::rank9 u2c_rank1_index;
-            u2c_builder.build(u2c);
+            essentials::load(u2c, cdbg_build_config.u2c_filename().c_str());
             u2c_rank1_index.build(u2c);
             m_saver.visit(u2c);
             m_saver.visit(u2c_rank1_index);
 
-            assert(u2c.num_bits() == num_unitigs);
-            assert(u2c_rank1_index.num_ones() == num_distinct_color_sets);
+            assert(u2c.num_bits() == cdbg_builder.num_unitigs());
+            assert(u2c_rank1_index.num_ones() == cdbg_builder.num_color_classes());
 
             std::cout << "m_u2c.num_bits() " << u2c.num_bits() << std::endl;
             std::cout << "m_u2c_rank1_index.num_ones() " << u2c_rank1_index.num_ones() << std::endl;
@@ -165,11 +106,11 @@ struct index<ColorSets>::builder {
             sshash_config.print();
 
             sshash::dictionary_type k2u;
-            k2u.build(input_filename_for_sshash, sshash_config);
+            k2u.build(cdbg_build_config.fa_filename(), sshash_config);
             m_saver.visit(k2u);
 
             try {  // remove unitig file
-                std::remove(input_filename_for_sshash.c_str());
+                std::remove(cdbg_build_config.fa_filename().c_str());
             } catch (std::exception const& e) {
                 std::cerr << e.what() << std::endl;
             }
@@ -185,7 +126,7 @@ struct index<ColorSets>::builder {
             timer.start();
 
             filenames filenames;
-            filenames.build(m_ccdbg.filenames());
+            filenames.build_from_file(m_build_config.filenames_list);
             m_saver.visit(filenames);
 
             timer.stop();
@@ -201,10 +142,11 @@ struct index<ColorSets>::builder {
         timer.start();
         std::atomic<uint64_t> num_checked_unitigs(0);
 
+        /*
         m_ccdbg.loop_through_unitigs(
             [&](ggcat::Slice<char> const unitig,         //
                 ggcat::Slice<uint32_t> const color_set,  //
-                bool /* same_color_set */)               //
+                bool same_color_set)               //
             {
                 auto lookup_result = idx.m_k2u.lookup(unitig.data);
                 const uint64_t unitig_id = lookup_result.string_id;
@@ -243,6 +185,7 @@ struct index<ColorSets>::builder {
             },
             m_build_config.num_threads  //
         );
+        */
 
         std::cout << "\rChecked " << num_checked_unitigs << "/" << idx.m_k2u.num_strings()
                   << " unitigs" << std::endl;
@@ -255,7 +198,6 @@ struct index<ColorSets>::builder {
 
 private:
     build_configuration m_build_config;
-    GGCAT m_ccdbg;
     util::external_saver m_saver;
 };
 

@@ -129,9 +129,9 @@ struct index<ColorSets>::meta_builder {
     meta_builder(build_configuration const& build_config)
         : m_build_config(build_config)
         , m_saver(build_config.file_base_name + "." + constants::mfur_filename_extension) {
-        m_saver.write_raw(constants::current_version_number::major);
-        m_saver.write_raw(constants::current_version_number::minor);
-        m_saver.write_raw(constants::current_version_number::patch);
+        m_saver.write(constants::current_version_number::major);
+        m_saver.write(constants::current_version_number::minor);
+        m_saver.write(constants::current_version_number::patch);
     }
 
     void build(index& idx) {

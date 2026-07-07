@@ -37,23 +37,13 @@ MESSAGE(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 MESSAGE(STATUS "Compiling for processor: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
 MESSAGE(STATUS "Compiling with flags:${CMAKE_CXX_FLAGS}")
 
-### GGCAT ####
-
-add_custom_target(
-        ggcat_cpp_api
-        COMMAND ${CMAKE_COMMAND} -E env CARGO_ENCODED_RUSTFLAGS="-Awarnings" make
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api
-)
-
-set(GGCAT_CPP_BINDINGS ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cpp_bindings.a)
-set(GGCAT_CXX_INTEROP ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_cxx_interop.a)
-set(GGCAT_API ${CMAKE_SOURCE_DIR}/external/ggcat/crates/capi/ggcat-cpp-api/lib/libggcat_api.a)
 set(CITYHASH_SOURCES ${CMAKE_SOURCE_DIR}/external/sshash/external/cityhash/cityhash.cpp)
 
 ### Fulgor ###
-
+add_subdirectory(external/cdbg-builder cdbg_builder_bin)
 add_executable(fulgor tools/fulgor.cpp)
 
+# Cleaned up: Only containing FULGOR's direct internal dependencies
 target_include_directories(fulgor PRIVATE
         .
         external/sshash
@@ -68,22 +58,18 @@ target_include_directories(fulgor PRIVATE
         external/sketch/include/blaze
 )
 
-add_dependencies(fulgor ggcat_cpp_api)
-
 target_link_libraries(fulgor
+        PRIVATE
         z
-        ${GGCAT}
-        ${GGCAT_API}
-        ${GGCAT_CPP_BINDINGS}
-        ${GGCAT_CXX_INTEROP}
         ${CMAKE_DL_LIBS}
         ${CITYHASH_SOURCES}
+        cdbg_builder_headers
 )
 
 if (UNIX)
     if (APPLE)
         MESSAGE(STATUS "linking with rt should not be necessary on OSX; not adding rt")
     else ()
-        target_link_libraries(fulgor rt)
+        target_link_libraries(fulgor PRIVATE rt)
     endif ()
 endif ()

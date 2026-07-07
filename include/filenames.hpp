@@ -13,6 +13,26 @@ struct filenames {
         }
     }
 
+    void build_from_file(std::string const& filepath) {
+        std::ifstream file(filepath, std::ios::binary);
+        if (!file.is_open()) {
+            throw std::runtime_error("Could not open file: " + filepath);
+        }
+        uint32_t offset = 0;
+        m_offsets.push_back(offset);
+
+        std::string line;
+        while (std::getline(file, line)) {
+            if (!line.empty() && line.back() == '\r') {
+                line.pop_back();
+            }
+            m_chars.insert(m_chars.end(), line.begin(), line.end());
+
+            offset += line.size();
+            m_offsets.push_back(offset);
+        }
+    }
+
     std::string_view operator[](uint64_t i) const {
         uint32_t begin = m_offsets[i];
         uint32_t end = m_offsets[i + 1];

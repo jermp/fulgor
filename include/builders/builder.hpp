@@ -26,7 +26,8 @@ struct index<ColorSets>::builder {
         cdbg::build_config cdbg_build_config;
         cdbg_build_config.filenames_list = m_build_config.filenames_list;
         cdbg_build_config.out_basename =
-            std::format("{}/{}", m_build_config.tmp_dirname, m_build_config.file_base_name);
+            std::format("{}/{}", m_build_config.tmp_dirname,
+                        std::filesystem::path(m_build_config.file_base_name).filename().string());
         cdbg_build_config.k = m_build_config.k;
         cdbg_build_config.m = m_build_config.m;
         cdbg_build_config.num_threads = m_build_config.num_threads;
@@ -35,7 +36,7 @@ struct index<ColorSets>::builder {
                                std::chrono::system_clock::now().time_since_epoch())
                                .count();
         cdbg_build_config.tmp_dir =
-            std::format("{}/cbdg_run-{}", m_build_config.tmp_dirname, curr_ms);
+            std::format("{}/cbdg_build_{}", m_build_config.tmp_dirname, curr_ms);
         cdbg::builder cdbg_builder(cdbg_build_config);
 
         {

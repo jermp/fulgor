@@ -1,5 +1,6 @@
 #include <iostream>
 #include <filesystem>
+#include <map>
 
 #include "external/sshash/external/gz/zip_stream.hpp"
 #include "external/sshash/external/gz/zip_stream.cpp"
@@ -21,7 +22,7 @@
 #include "kmer_conservation.cpp"
 #include "kmer_matches.cpp"
 
-int help(char* arg0) {
+void help(char* arg0) {
     std::cout << "== Fulgor: a colored de Bruijn graph index"
               << " (v"
               << essentials::version_number(constants::current_version_number::major,
@@ -33,76 +34,102 @@ int help(char* arg0) {
               << std::endl;
 
     std::cout << "Usage: " << arg0 << " <tool> ...\n\n";
-
-    std::cout << "Construction:\n"
-              << "  build              build an index\n"
-              << "  color              build a meta- or a diff- or a meta-diff- index\n"
-              << "  permute            permute the reference names of an index\n"
-              << std::endl;
-
-    std::cout << "Queries:\n"
-              << "  pseudoalign        perform pseudoalignment to an index\n"
-              << "  kmer-conservation  print color set info for each positive kmer in query\n"
-              << "  kmer-matches       print positive kmers per query and number of kmer matches "
-                 "per color\n"
-              << std::endl;
-
-    std::cout
-        << "Debug:\n"
-        << "  check              perform an in-depth check to verify that an index was built "
-           "correctly\n"
-        << "  verify             verify that index works correctly with current library version\n"
-        << "  stats              print index statistics\n"
-        << "  print-filenames    print all reference filenames\n"
-        << "  dump               write unitigs and color sets of an index in text format\n"
-        << "  load               build an index from dump output\n"
-        << std::endl;
-
-    std::cout << "Other:\n"
-              << "  help               print this helper and exit gracefully\n"
-              << std::endl;
-
-    return 1;
 }
 
-int main(int argc, char** argv) {
-    if (argc < 2) return help(argv[0]);
+struct tool_set {
+    using tool_function = int (*)(int, char**);
 
+    struct tool {
+        tool(const std::string& name, const tool_function function, const std::string& description)
+            : name(name), function(function), description(description) {}
+
+        const std::string name;
+        const tool_function function;
+        const std::string description;
+    };
+
+    void add(std::string const& name, const tool_function function,
+             std::string const& description) {
+        tools.emplace_back(name, function, description);
+        sections.back().second++;
+        longest_name = std::max(longest_name, name.size());
+    }
+
+    void add_section(std::string&& section) { sections.emplace_back(section, 0); }
+
+    int run(std::string const& name, int argc, char** argv) const {
+        if (name == "help") {
+            help(argv[0]);
+            print();
+            return 0;
+        }
+        for (auto& tool : tools) {
+            if (tool.name != name) continue;
+            return tool.function(argc - 1, argv + 1);
+        }
+        std::cout << "Unsupported tool '" << name << "'." << std::endl;
+
+        return 1;
+    }
+
+    void print() const {
+        auto it = tools.begin();
+        for (auto& [sec, num] : sections) {
+            std::cout << sec << std::endl;
+            for (uint64_t i = 0; i < num; ++i, ++it) {
+                auto tool = *it;
+                std::cout << std::format("  {}{}{}\n", tool.name,
+                                         std::string(longest_name + 5 - tool.name.size(), ' '),
+                                         tool.description);
+            }
+            std::cout << std::endl;
+        }
+    }
+
+private:
+    std::string::size_type longest_name = 0;
+    std::vector<tool> tools;
+    std::vector<std::pair<std::string, uint64_t>> sections;
+};
+
+int main(int argc, char** argv) {
+    tool_set tools;
+    tools.add_section("Construction");
+    tools.add("build", build, "build an index");
+    tools.add("color", color, "build a meta- or a diff- or a meta-diff- index");
+    tools.add("permute", permute, "permute the reference names of an index");
+
+    tools.add_section("Queries");
+    tools.add("pseudoalign", pseudoalign, "perform pseudoalignment to an index");
+    tools.add("kmer-conservation", kmer_conservation,
+              "print color set info for each positive kmer in query");
+    tools.add("kmer-matches", kmer_matches,
+              "print positive kmers per query and number of kmer matches per color");
+
+    tools.add_section("Debug");
+    tools.add("check", check,
+              "perform an in-depth check to verify that an index was built correctly");
+    tools.add("probabilistic-check", probabilistic_check,
+              "perform a probabilistic check to verify that an index was built correctly");
+    tools.add("verify", verify, "verify that index works correctly with current library version");
+    tools.add("stats", stats, "print index statistics");
+    tools.add("print-filenames", print_filenames, "print all reference filenames");
+    tools.add("dump", dump, "write unitigs and color sets of an index in text format");
+    tools.add("load", load, "build an index from dump output");
+
+    tools.add_section("Other");
+    tools.add("help", nullptr, "print this helper and exit gracefully");
+
+    if (argc < 2) {
+        tools.run("help", argc, argv);
+        return 1;
+    }
     const auto tool = std::string(argv[1]);
 
-    using ToolFunction = int (*)(int, char**);
-    const std::unordered_map<std::string, ToolFunction> tool_map{{
-        {"build", build},
-        {"pseudoalign", pseudoalign},
-        {"kmer-conservation", kmer_conservation},
-        {"kmer-matches", kmer_matches},
-        {"check", check},
-        {"verify", verify},
-        {"stats", stats},
-        {"print-filenames", print_filenames},
-        {"permute", permute},
-        {"dump", dump},
-        {"load", load},
-        {"color", color},
-    }};
-
-    if (tool == "help") {
-        help(argv[0]);
-        return 0;
-    }
     if (tool == "load") {
         std::cerr << "Operation temporarily disabled" << std::endl;
         return 1;
     }
 
-    // 3. Look up the tool in the map
-    const auto it = tool_map.find(tool);
-    if (it != tool_map.end()) {
-        // Execute the function dynamically
-        return it->second(argc - 1, argv + 1);
-    }
-
-    std::cout << "Unsupported tool '" << tool << "'." << std::endl;
-
-    return help(argv[0]);
+    return tools.run(tool, argc, argv);
 }

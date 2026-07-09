@@ -23,15 +23,14 @@
 #include "kmer_matches.cpp"
 
 void help(char* arg0) {
-    std::cout << "== Fulgor: a colored de Bruijn graph index"
-              << " (v"
-              << essentials::version_number(constants::current_version_number::major,
+    auto v_num = essentials::version_number(constants::current_version_number::major,
                                             constants::current_version_number::minor,
                                             constants::current_version_number::patch)
-                     .to_string()
-              << ')' << " ======================================="  //
-              << std::endl
-              << std::endl;
+                     .to_string();
+    std::cout << std::format(
+        "== Fulgor: a colored de Bruijn graph index (v{}) "
+        "=======================================\n\n",
+        v_num);
 
     std::cout << "Usage: " << arg0 << " <tool> ...\n\n";
 }

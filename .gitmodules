@@ -15,4 +15,4 @@
 	url = https://github.com/jermp/kmeans
 [submodule "external/cdbg-builder"]
 	path = external/cdbg-builder
-	url = git@github.com:jermp/cdbg-builder.git
+	url = https://github.com/jermp/cdbg-builder

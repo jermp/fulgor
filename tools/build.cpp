@@ -1,13 +1,12 @@
 using namespace fulgor;
 
-void meta_color(build_configuration const& build_config, const bool force)  //
+void meta_color(build_configuration& build_config, const bool force)  //
 {
-    const std::string output_filename =
-        build_config.file_base_name + "." + constants::mfur_filename_extension;
+    build_config.output_filename.replace_extension(constants::mfur_filename_extension);
 
-    if (std::filesystem::exists(output_filename)) {
-        std::cerr << "An index with the name '" << output_filename << "' already exists."
-                  << std::endl;
+    if (std::filesystem::exists(build_config.output_filename)) {
+        std::cerr << "An index with the name '" << build_config.output_filename
+                  << "' already exists." << std::endl;
         if (force) {
             std::cerr << "Option '--force' specified: re-building the index." << std::endl;
         } else {
@@ -31,20 +30,19 @@ void meta_color(build_configuration const& build_config, const bool force)  //
     essentials::logger("saving index to disk...");
     // essentials::save(index, output_filename.c_str());
     essentials::logger("DONE");
-    essentials::load(index, output_filename.c_str());
+    essentials::load(index, build_config.output_filename.c_str());
 
     if (build_config.verbose) index.print_stats();
     if (build_config.check) builder.check(index);
 }
 
-void diff_color(build_configuration const& build_config, const bool force)  //
+void diff_color(build_configuration& build_config, const bool force)  //
 {
-    std::string output_filename =
-        build_config.file_base_name + "." + constants::dfur_filename_extension;
+    build_config.output_filename.replace_extension(constants::dfur_filename_extension);
 
-    if (std::filesystem::exists(output_filename)) {
-        std::cerr << "An index with the name '" << output_filename << "' already exists."
-                  << std::endl;
+    if (std::filesystem::exists(build_config.output_filename)) {
+        std::cerr << "An index with the name '" << build_config.output_filename
+                  << "' already exists." << std::endl;
         if (force) {
             std::cerr << "Option '--force' specified: re-building the index." << std::endl;
         } else {
@@ -66,7 +64,7 @@ void diff_color(build_configuration const& build_config, const bool force)  //
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
     essentials::logger("saving index to disk...");
-    essentials::save(index, output_filename.c_str());
+    essentials::save(index, build_config.output_filename.c_str());
     essentials::logger("DONE");
 
     if (build_config.verbose) {
@@ -77,14 +75,13 @@ void diff_color(build_configuration const& build_config, const bool force)  //
     }
 }
 
-void meta_diff_color(build_configuration const& build_config, const bool force)  //
+void meta_diff_color(build_configuration& build_config, const bool force)  //
 {
-    std::string output_filename =
-        build_config.file_base_name + "." + constants::mdfur_filename_extension;
+    build_config.output_filename.replace_extension(constants::mdfur_filename_extension);
 
-    if (std::filesystem::exists(output_filename)) {
-        std::cerr << "An index with the name '" << output_filename << "' already exists."
-                  << std::endl;
+    if (std::filesystem::exists(build_config.output_filename)) {
+        std::cerr << "An index with the name '" << build_config.output_filename
+                  << "' already exists." << std::endl;
         if (force) {
             std::cerr << "Option '--force' specified: re-building the index." << std::endl;
         } else {
@@ -93,10 +90,8 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
         }
     }
 
-    std::string meta_filename = build_config.index_filename_to_partition.substr(
-                                    0, build_config.index_filename_to_partition.length() -
-                                           constants::hfur_filename_extension.length() - 1) +
-                                "." + constants::mfur_filename_extension;
+    std::filesystem::path meta_filename = build_config.index_filename_to_partition;
+    meta_filename.replace_extension(constants::mfur_filename_extension);
 
     /* first build a meta-colored Fulgor index */
     if (!std::filesystem::exists(meta_filename)) {
@@ -109,11 +104,7 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
     build_timer.start();
 
     build_configuration meta_diff_build_config = build_config;
-    meta_diff_build_config.index_filename_to_partition =
-        build_config.index_filename_to_partition.substr(
-            0, build_config.index_filename_to_partition.length() -
-                   constants::hfur_filename_extension.length() - 1) +
-        "." + constants::mfur_filename_extension;
+    meta_diff_build_config.index_filename_to_partition = meta_filename;
 
     mdfur_index_t index;
     mdfur_index_t::meta_differential_builder builder(meta_diff_build_config);
@@ -125,7 +116,7 @@ void meta_diff_color(build_configuration const& build_config, const bool force) 
               << build_timer.elapsed() / 60 << " minutes" << std::endl;
 
     essentials::logger("saving index to disk...");
-    essentials::save(index, output_filename.c_str());
+    essentials::save(index, build_config.output_filename.c_str());
     essentials::logger("DONE");
 
     if (build_config.verbose) {
@@ -165,11 +156,11 @@ int build(int argc, char** argv) {
     util::print_cmd(argc, argv);
 
     build_configuration build_config;
-    build_config.file_base_name = parser.get<std::string>("file_base_name");
-    std::string output_filename =
-        build_config.file_base_name + "." + constants::hfur_filename_extension;
-    build_config.index_filename_to_partition = output_filename;
-    bool force = parser.get<bool>("force");
+    build_config.output_filename = parser.get<std::string>("file_base_name");
+    build_config.output_filename.replace_extension(constants::hfur_filename_extension);
+    build_config.index_filename_to_partition = build_config.output_filename;
+
+    const bool force = parser.get<bool>("force");
     build_config.meta_colored = parser.get<bool>("meta");
     build_config.diff_colored = parser.get<bool>("diff");
 
@@ -181,27 +172,25 @@ int build(int argc, char** argv) {
         build_config.num_threads = parser.get<uint64_t>("num_threads");
     }
 
-    if (std::filesystem::exists(output_filename)) {
-        std::cerr << "An index with the name '" << output_filename << "' already exists."
-                  << std::endl;
+    if (std::filesystem::exists(build_config.output_filename)) {
+        std::cerr << "An index with the name '" << build_config.output_filename
+                  << "' already exists." << std::endl;
         if (force) {
             std::cerr << "Option '--force' specified: re-building the index." << std::endl;
         } else {
             std::cerr << "Use option '--force' to re-build the index." << std::endl;
-            if (build_config.meta_colored and build_config.diff_colored) {
-                std::cerr << "Consider using: \"./fulgor color -i " << output_filename << " -d "
-                          << build_config.tmp_dirname << " -t "
-                          << std::to_string(build_config.num_threads) << " --diff --meta\""
-                          << std::endl;
-            } else if (build_config.meta_colored) {
-                std::cerr << "Consider using: \"./fulgor color -i " << output_filename << " -d "
-                          << build_config.tmp_dirname << " -t "
-                          << std::to_string(build_config.num_threads) << " --meta\"" << std::endl;
-            } else if (build_config.diff_colored) {
-                std::cerr << "Consider using: \"./fulgor color -i " << output_filename << " -d "
-                          << build_config.tmp_dirname << " -t "
-                          << std::to_string(build_config.num_threads) << " --diff\"" << std::endl;
+            std::string color_flag = "";
+            if (build_config.meta_colored) {
+                color_flag += "--meta ";
             }
+            if (build_config.diff_colored) {
+                color_flag += "--diff ";
+            }
+
+            std::cerr << "Consider using: \"./fulgor color -i " << build_config.output_filename
+                      << " -d " << build_config.tmp_dirname << " -t "
+                      << std::to_string(build_config.num_threads) << " " << color_flag << "\""
+                      << std::endl;
             return 1;
         }
     }
@@ -229,7 +218,7 @@ int build(int argc, char** argv) {
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
-    essentials::mmap(index, output_filename.c_str());
+    essentials::mmap(index, build_config.output_filename.c_str());
 
     if (build_config.verbose) index.print_stats();
     if (build_config.check) builder.check(index);
@@ -271,17 +260,7 @@ int color(int argc, char** argv) {
 
     build_configuration build_config;
     build_config.index_filename_to_partition = parser.get<std::string>("index_filename");
-    if (!sshash::util::ends_with(build_config.index_filename_to_partition,
-                                 "." + constants::hfur_filename_extension)) {
-        std::cerr << "Error: the file to partition must have extension \"."
-                  << constants::hfur_filename_extension
-                  << "\". Have you first built a Fulgor index with the tool \"build\"?"
-                  << std::endl;
-        return 1;
-    }
-    build_config.file_base_name = build_config.index_filename_to_partition.substr(
-        0, build_config.index_filename_to_partition.length() -
-               constants::hfur_filename_extension.length() - 1);
+    build_config.output_filename = build_config.index_filename_to_partition;
 
     if (parser.parsed("tmp_dirname")) {
         build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");
@@ -294,9 +273,30 @@ int color(int argc, char** argv) {
     build_config.meta_colored = parser.get<bool>("meta");
     build_config.diff_colored = parser.get<bool>("diff");
     build_config.verbose = parser.get<bool>("verbose");
-    bool force = parser.get<bool>("force");
+    const bool force = parser.get<bool>("force");
     if (parser.get<uint64_t>("RAM")) {
         build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
+    }
+
+    if (build_config.meta_colored && build_config.diff_colored &&
+        build_config.index_filename_to_partition.extension() !=
+            constants::hfur_filename_extension &&
+        build_config.index_filename_to_partition.extension() !=
+            constants::mfur_filename_extension) {
+        const auto mess = std::format(
+            "Error: the file to partition must have extension \"{}\" or \"{}\". Have "
+            "you first built a Fulgor index with the tool \"build\"?",
+            constants::hfur_filename_extension, constants::mfur_filename_extension);
+        std::cerr << mess << std::endl;
+        return 1;
+    }
+    if (build_config.index_filename_to_partition.extension() !=
+        constants::hfur_filename_extension) {
+        std::cerr << "Error: the file to partition must have extension \"."
+                  << constants::hfur_filename_extension
+                  << "\". Have you first built a Fulgor index with the tool \"build\"?"
+                  << std::endl;
+        return 1;
     }
 
     if (build_config.meta_colored and build_config.diff_colored) {

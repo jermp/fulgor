@@ -18,10 +18,10 @@ namespace constants {
 constexpr double invalid_threshold = -1.0;
 constexpr uint64_t default_ram_limit_in_GiB = 8;
 static const std::string default_tmp_dirname(".");
-static const std::string hfur_filename_extension("fur");
-static const std::string mfur_filename_extension("mfur");
-static const std::string dfur_filename_extension("dfur");
-static const std::string mdfur_filename_extension("mdfur");
+static const std::string hfur_filename_extension(".fur");
+static const std::string mfur_filename_extension(".mfur");
+static const std::string dfur_filename_extension(".dfur");
+static const std::string mdfur_filename_extension(".mdfur");
 
 namespace current_version_number {
 constexpr uint8_t major = 4;
@@ -53,17 +53,21 @@ struct build_configuration {
     uint64_t ram_limit_in_GiB;
     uint64_t num_colors;
 
-    std::string tmp_dirname;
-    std::string file_base_name;
-    std::string filenames_list;
+    std::filesystem::path tmp_dirname;
+    std::filesystem::path output_filename;
+    std::filesystem::path filenames_list;
 
-    std::string index_filename_to_partition;
+    std::filesystem::path index_filename_to_partition;
 
     bool verbose;
     bool check;
 
     bool meta_colored;
     bool diff_colored;
+
+    std::filesystem::path tmp_filename(const std::string& filename) const {
+        return tmp_dirname / filename;
+    }
 };
 
 struct kmer_conservation_triple {

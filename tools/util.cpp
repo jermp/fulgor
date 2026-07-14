@@ -2,20 +2,20 @@
 
 using namespace fulgor;
 
-bool is_meta(std::string const& index_filename) {
-    return sshash::util::ends_with(index_filename, constants::mfur_filename_extension);
+bool is_meta(std::filesystem::path const& index_filename) {
+    return index_filename.extension() == constants::mfur_filename_extension;
 }
 
-bool is_meta_diff(std::string const& index_filename) {
-    return sshash::util::ends_with(index_filename, constants::mdfur_filename_extension);
+bool is_meta_diff(std::filesystem::path const& index_filename) {
+    return index_filename.extension() == constants::mdfur_filename_extension;
 }
 
-bool is_diff(std::string const& index_filename) {
-    return sshash::util::ends_with(index_filename, constants::dfur_filename_extension);
+bool is_diff(std::filesystem::path const& index_filename) {
+    return index_filename.extension() == constants::dfur_filename_extension;
 }
 
-bool is_hybrid(std::string const& index_filename) {
-    return sshash::util::ends_with(index_filename, constants::hfur_filename_extension);
+bool is_hybrid(std::filesystem::path const& index_filename) {
+    return index_filename.extension() == constants::hfur_filename_extension;
 }
 
 template <typename FulgorIndex>
@@ -309,30 +309,19 @@ int dump(int argc, char** argv) {
     }
 
     build_configuration build_config;
+    build_config.output_filename = output_basename;
 
     if (is_meta_diff(index_filename)) {
-        std::string basename{
-            index_filename.data(),
-            index_filename.length() - constants::mdfur_filename_extension.length() - 1};
-        build_config.file_base_name = output_basename.length() == 0 ? basename : output_basename;
+        build_config.output_filename.replace_extension(constants::mdfur_filename_extension);
         dump<mdfur_index_t>(index_filename, build_config);
     } else if (is_meta(index_filename)) {
-        std::string basename{
-            index_filename.data(),
-            index_filename.length() - constants::mfur_filename_extension.length() - 1};
-        build_config.file_base_name = output_basename.length() == 0 ? basename : output_basename;
+        build_config.output_filename.replace_extension(constants::mfur_filename_extension);
         dump<mfur_index_t>(index_filename, build_config);
     } else if (is_diff(index_filename)) {
-        std::string basename{
-            index_filename.data(),
-            index_filename.length() - constants::dfur_filename_extension.length() - 1};
-        build_config.file_base_name = output_basename.length() == 0 ? basename : output_basename;
+        build_config.output_filename.replace_extension(constants::dfur_filename_extension);
         dump<dfur_index_t>(index_filename, build_config);
     } else if (is_hybrid(index_filename)) {
-        std::string basename{
-            index_filename.data(),
-            index_filename.length() - constants::hfur_filename_extension.length() - 1};
-        build_config.file_base_name = output_basename.length() == 0 ? basename : output_basename;
+        build_config.output_filename.replace_extension(constants::hfur_filename_extension);
         dump<hfur_index_t>(index_filename, build_config);
     } else {
         std::cerr << "Wrong filename supplied." << std::endl;
@@ -382,22 +371,19 @@ int load(int argc, char** argv) {
     }
     build_config.verbose = parser.get<bool>("verbose");
 
-    std::string input_basename = parser.get<std::string>("input_basename");
+    const auto input_basename = parser.get<std::string>("input_basename");
     assert(input_basename.length() != 0);
-    build_config.file_base_name = input_basename;
+    build_config.output_filename = input_basename;
+    if (parser.parsed("output_basename")) {
+        build_config.output_filename = parser.get<std::string>("output_basename");
+    }
+    build_config.output_filename.replace_extension(constants::hfur_filename_extension);
 
     hfur_index_t index;
     index.load(build_config);
 
     essentials::logger("saving index to disk...");
-
-    std::string output_filename =
-        build_config.file_base_name + "." + constants::hfur_filename_extension;
-    if (parser.parsed("output_basename")) {
-        output_filename =
-            parser.get<std::string>("output_basename") + "." + constants::hfur_filename_extension;
-    }
-    essentials::save(index, output_filename.c_str());
+    essentials::save(index, build_config.output_filename.c_str());
     essentials::logger("DONE");
 
     return 0;
@@ -610,7 +596,7 @@ int probabilistic_check(int argc, char** argv) {
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
 
-    auto index_filename = parser.get<std::string>("index_filename");
+    std::filesystem::path index_filename = parser.get<std::string>("index_filename");
     auto file_prob = parser.get<double>("file_prob");
     auto kmer_prob = parser.get<double>("kmer_prob");
     bool verbose = parser.get<bool>("verbose");
@@ -639,7 +625,7 @@ int probabilistic_check(int argc, char** argv) {
     std::visit(
         [&index_filename, &with_errors, file_prob, kmer_prob, num_threads, verbose](auto&& index) {
             if (verbose) essentials::logger("*** START: loading the base index");
-            essentials::load(index, index_filename.c_str());
+            essentials::mmap(index, index_filename.c_str());
             if (verbose) essentials::logger("*** DONE: loading the base index");
 
             with_errors = probabilistic_check(index, file_prob, kmer_prob, num_threads, verbose);

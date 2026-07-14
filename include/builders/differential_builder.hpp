@@ -22,7 +22,7 @@ struct differential_permuter {
                 timer.start();
                 build_colors_sketches_sliced(
                     index, p, m_build_config.num_threads,
-                    m_build_config.tmp_dirname + "/sketches" + std::to_string(slice_id) + ".bin",
+                    m_build_config.tmp_filename(std::format("sketches_{}.bin", slice_id)),
                     slices[slice_id], slices[slice_id + 1]);
                 timer.stop();
                 std::cout << "** building sketches took " << timer.elapsed() << " seconds / "
@@ -39,8 +39,9 @@ struct differential_permuter {
             std::vector<uint64_t> num_points(num_slices);
 
             for (uint64_t slice_id = 0; slice_id < num_slices; slice_id++) {
-                num_points[slice_id] = cluster("/sketches" + std::to_string(slice_id) + ".bin",
-                                               clustering_data[slice_id], color_set_ids);
+                num_points[slice_id] =
+                    cluster(m_build_config.tmp_filename(std::format("sketches_{}.bin", slice_id)),
+                            clustering_data[slice_id], color_set_ids);
             }
 
             timer.start();
@@ -132,12 +133,12 @@ private:
     std::vector<std::pair<uint32_t, uint32_t>> m_permutation;
     std::vector<uint32_t> m_partition_size;
 
-    uint64_t cluster(std::string filename, kmeans::cluster_data& clustering_data,
-                     std::vector<uint64_t>& color_set_ids) {
+    uint64_t cluster(const std::string& filename, kmeans::cluster_data& clustering_data,
+                     std::vector<uint64_t>& color_set_ids) const {
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
         timer.start();
 
-        std::ifstream in(m_build_config.tmp_dirname + filename, std::ios::binary);
+        std::ifstream in(filename, std::ios::binary);
         if (!in.is_open()) throw std::runtime_error("error in opening file");
 
         std::vector<kmeans::point> points;
@@ -157,7 +158,7 @@ private:
             in.read(reinterpret_cast<char*>(point.data()), num_bytes_per_point);
         }
         in.close();
-        std::remove((m_build_config.tmp_dirname + filename).c_str());
+        std::remove(filename.c_str());
 
         {
             essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> timer;
@@ -252,8 +253,8 @@ struct index<ColorSets>::differential_builder {
             s.end = num_color_sets;
             thread_slices.push_back(s);
 
-            std::vector<typename ColorSets::builder> thread_builders(thread_slices.size(),
-                                                                     typename ColorSets::builder(num_colors));
+            std::vector<typename ColorSets::builder> thread_builders(
+                thread_slices.size(), typename ColorSets::builder(num_colors));
             std::vector<std::thread> threads(thread_slices.size());
 
             auto encode_color_sets = [&](uint64_t thread_id) {
@@ -283,7 +284,9 @@ struct index<ColorSets>::differential_builder {
                         auto& [group_id, color_set_id] = permutation[i];
                         auto it = index.color_set(color_set_id);
                         uint64_t it_size = it.size();
-                        for (uint64_t pos = 0; pos < it_size; ++pos, ++it) { distribution[*it]++; }
+                        for (uint64_t pos = 0; pos < it_size; ++pos, ++it) {
+                            distribution[*it]++;
+                        }
                     }
                     uint64_t g_size = g_end - g_begin;
                     for (uint64_t color = 0; color < num_colors; ++color) {
@@ -324,7 +327,7 @@ struct index<ColorSets>::differential_builder {
             timer.start();
 
             const std::string permuted_unitigs_filename =
-                m_build_config.tmp_dirname + "/permuted_unitigs.fa";
+                m_build_config.tmp_filename("permuted_unitigs.fa");
             std::ofstream out(permuted_unitigs_filename.c_str());
             if (!out.is_open()) throw std::runtime_error("cannot open output file");
 
@@ -390,7 +393,9 @@ struct index<ColorSets>::differential_builder {
             assert(idx.get_k2u().num_kmers() == dict.num_kmers());
             try {  // remove unitig file
                 std::remove(permuted_unitigs_filename.c_str());
-            } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
+            } catch (std::exception const& e) {
+                std::cerr << e.what() << std::endl;
+            }
 
             timer.stop();
             std::cout << "** permuting unitigs and rebuilding k2u took " << timer.elapsed()
@@ -439,7 +444,7 @@ struct index<ColorSets>::differential_builder {
         std::cout << " COLORS DONE." << std::endl;
 
         auto const& dict = idx.get_k2u();
-            for (uint64_t unitig_id = 0; unitig_id < idx.m_k2u.num_strings(); ++unitig_id) {
+        for (uint64_t unitig_id = 0; unitig_id < idx.m_k2u.num_strings(); ++unitig_id) {
             auto it = dict.at_string_id(unitig_id);
             while (it.has_next()) {
                 auto [_, uint_kmer] = it.next();

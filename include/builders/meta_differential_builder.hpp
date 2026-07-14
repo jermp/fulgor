@@ -80,8 +80,8 @@ struct index<ColorSets>::meta_differential_builder {
                 s.end = num_partition_color_sets;
                 thread_slices.push_back(s);
 
-                std::vector<differential::builder> thread_builders(thread_slices.size(),
-                                                                   differential::builder(num_partition_colors));
+                std::vector<differential::builder> thread_builders(
+                    thread_slices.size(), differential::builder(num_partition_colors));
                 std::vector<std::thread> threads(thread_slices.size());
 
                 auto encode_color_sets = [&thread_builders, &thread_slices, &permutation,
@@ -220,7 +220,9 @@ struct index<ColorSets>::meta_differential_builder {
                     it.next_partition_id();
                 }
 
-                if (!broken) { slices.emplace(start, end); }
+                if (!broken) {
+                    slices.emplace(start, end);
+                }
             }
 
             std::sort(endpoints.begin(), endpoints.end());
@@ -269,7 +271,7 @@ struct index<ColorSets>::meta_differential_builder {
             timer.start();
 
             const std::string permuted_unitigs_filename =
-                m_build_config.tmp_dirname + "/permuted_unitigs.fa";
+                m_build_config.tmp_filename("permuted_unitigs.fa");
             std::ofstream out(permuted_unitigs_filename.c_str());
             if (!out.is_open()) throw std::runtime_error("cannot open output file");
 
@@ -334,7 +336,9 @@ struct index<ColorSets>::meta_differential_builder {
             assert(idx.get_k2u().num_kmers() == dict.num_kmers());
             try {  // remove unitig file
                 std::remove(permuted_unitigs_filename.c_str());
-            } catch (std::exception const& e) { std::cerr << e.what() << std::endl; }
+            } catch (std::exception const& e) {
+                std::cerr << e.what() << std::endl;
+            }
 
             timer.stop();
             std::cout << "** building u2c and k2u took " << timer.elapsed() << " seconds / "

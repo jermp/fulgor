@@ -156,7 +156,9 @@ void fetch_and_deduplicate_sets(const std::string& query_filename, Formatter& ou
         }
     };
 
-    for (uint64_t i = 1; i < options.num_threads; ++i) { workers.push_back(std::thread(fetch)); }
+    for (uint64_t i = 1; i < options.num_threads; ++i) {
+        workers.push_back(std::thread(fetch));
+    }
     for (auto& w : workers) w.join();
     rparser.stop();
     tmp_file.close();
@@ -186,7 +188,9 @@ void fetch_and_deduplicate_sets(const std::string& query_filename, Formatter& ou
         }
     }
 
-    if (queries.empty()) { return; }
+    if (queries.empty()) {
+        return;
+    }
 
     std::sort(queries.begin(), queries.end(),
               [](const std::vector<uint32_t>& a, const std::vector<uint32_t>& b) -> bool {
@@ -218,7 +222,9 @@ void fetch_and_deduplicate_sets(const std::string& query_filename, Formatter& ou
     for (auto& query : queries) {
         uint32_t s = query.size();
         ofile.write(reinterpret_cast<char*>(&s), sizeof(s));
-        if (s > 0) { ofile.write(reinterpret_cast<char*>(query.data()), sizeof(query[0]) * s); }
+        if (s > 0) {
+            ofile.write(reinterpret_cast<char*>(query.data()), sizeof(query[0]) * s);
+        }
     }
     ofile.close();
 
@@ -281,8 +287,9 @@ int pseudoalign(int argc, char** argv) {
     auto ps_alg = pseudoalignment_algorithm::FULL_INTERSECTION;
     if (threshold != constants::invalid_threshold) {
         if (deduplicate) {
-            std::cerr << "Deduplication not available for threshold < 1.0. Remove --deduplicate flag."
-                 << std::endl;
+            std::cerr
+                << "Deduplication not available for threshold < 1.0. Remove --deduplicate flag."
+                << std::endl;
             return 1;
         }
         ps_alg = pseudoalignment_algorithm::THRESHOLD_UNION;
@@ -324,13 +331,16 @@ int pseudoalign(int argc, char** argv) {
     ps_options options(ps_alg, verbose, num_threads);
 
     if (verbose) {
-        std::cout << "\n---------------------------------" << std::endl;
-        std::cout << "[Index]     " << index_filename << std::endl;
-        std::cout << "[Queries]   " << query_filename << std::endl;
-        std::cout << "[Output]    " << output_filename << std::endl;
-        std::cout << "[Algorithm] " << to_string(ps_alg, threshold)
-                  << (deduplicate ? "(dedup.)" : "") << std::endl;
-        std::cout << "---------------------------------\n" << std::endl;
+        auto header = std::format(
+            "\n---------------------------------\n"
+            "[Index]      {}\n"
+            "[Queries]    {}\n"
+            "[Output]     {}\n"
+            "[Algorithm]  {}\n"
+            "---------------------------------\n",
+            index_filename, query_filename, output_filename,
+            to_string(ps_alg, threshold) + (deduplicate ? "(dedup.)" : ""));
+        std::cout << header << std::endl;
     }
 
     std::visit(

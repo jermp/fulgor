@@ -12,8 +12,7 @@ namespace fulgor {
 template <typename ColorSets>
 struct index<ColorSets>::builder {
     builder(build_configuration const& build_config)
-        : m_build_config(build_config)
-        , m_saver(build_config.file_base_name + "." + constants::hfur_filename_extension) {
+        : m_build_config(build_config), m_saver(build_config.output_filename) {
         m_saver.write(constants::current_version_number::major);
         m_saver.write(constants::current_version_number::minor);
         m_saver.write(constants::current_version_number::patch);
@@ -26,17 +25,17 @@ struct index<ColorSets>::builder {
         cdbg::build_config cdbg_build_config;
         cdbg_build_config.filenames_list = m_build_config.filenames_list;
         cdbg_build_config.out_basename =
-            std::format("{}/{}", m_build_config.tmp_dirname,
-                        std::filesystem::path(m_build_config.file_base_name).filename().string());
+            std::format("{}/{}", m_build_config.tmp_dirname.string(),
+                        std::filesystem::path(m_build_config.output_filename).filename().string());
         cdbg_build_config.k = m_build_config.k;
         cdbg_build_config.m = m_build_config.m;
         cdbg_build_config.num_threads = m_build_config.num_threads;
-        cdbg_build_config.max_ram_gb = 8;
+        cdbg_build_config.max_ram_gb = m_build_config.ram_limit_in_GiB;
         uint64_t curr_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                std::chrono::system_clock::now().time_since_epoch())
                                .count();
         cdbg_build_config.tmp_dir =
-            std::format("{}/cbdg_build_{}", m_build_config.tmp_dirname, curr_ms);
+            std::format("{}/cdbg_build_{}", m_build_config.tmp_dirname.string(), curr_ms);
         cdbg::builder cdbg_builder(cdbg_build_config);
 
         {

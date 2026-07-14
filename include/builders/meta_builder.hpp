@@ -24,7 +24,7 @@ struct permuter {
             timer.start();
             constexpr uint64_t p = 10;  // use 2^p bytes per HLL sketch
             build_reference_sketches(index, p, m_build_config.num_threads,
-                                     m_build_config.tmp_dirname + "/sketches.bin");
+                                     m_build_config.tmp_filename("sketches.bin"));
             timer.stop();
             std::cout << "** building sketches took " << timer.elapsed() << " seconds / "
                       << timer.elapsed() / 60 << " minutes" << std::endl;
@@ -35,7 +35,7 @@ struct permuter {
             essentials::logger("step 3. clustering sketches");
             timer.start();
 
-            std::ifstream in(m_build_config.tmp_dirname + "/sketches.bin", std::ios::binary);
+            std::ifstream in(m_build_config.tmp_filename("sketches.bin"), std::ios::binary);
             if (!in.is_open()) throw std::runtime_error("error in opening file");
 
             std::vector<kmeans::point> points;
@@ -49,7 +49,7 @@ struct permuter {
             }
             in.close();
 
-            std::remove((m_build_config.tmp_dirname + "/sketches.bin").c_str());
+            std::remove(m_build_config.tmp_filename("sketches.bin").c_str());
 
             kmeans::clustering_parameters params;
 
@@ -127,8 +127,7 @@ private:
 template <typename ColorSets>
 struct index<ColorSets>::meta_builder {
     meta_builder(build_configuration const& build_config)
-        : m_build_config(build_config)
-        , m_saver(build_config.file_base_name + "." + constants::mfur_filename_extension) {
+        : m_build_config(build_config), m_saver(build_config.output_filename) {
         m_saver.write(constants::current_version_number::major);
         m_saver.write(constants::current_version_number::minor);
         m_saver.write(constants::current_version_number::patch);
@@ -168,8 +167,7 @@ struct index<ColorSets>::meta_builder {
                 num_colors, m_saver, p.partition_starts(), m_build_config.tmp_dirname,
                 m_build_config.ram_limit_in_GiB << 30, m_build_config.verbose);
 
-            std::string metacolor_sets_filename =
-                m_build_config.tmp_dirname + "/metacolor_sets.bin";
+            std::string metacolor_sets_filename = m_build_config.tmp_filename("metacolor_sets.bin");
             std::ofstream metacolor_sets_ofstream(metacolor_sets_filename,
                                                   std::ios::binary | std::ios::trunc);
             if (!metacolor_sets_ofstream.is_open()) {
@@ -387,7 +385,7 @@ private:
     util::external_saver m_saver;
 
     std::string metacolor_set_file_name(const uint32_t id) const {
-        return m_build_config.tmp_dirname + "/metacolor_set_" + std::to_string(id) + ".bin";
+        return m_build_config.tmp_filename(std::format("metacolor_set_{}.bin", id));
     }
 };
 

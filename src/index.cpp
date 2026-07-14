@@ -60,8 +60,17 @@ template <typename ColorSets>
 void index<ColorSets>::dump(build_configuration const& build_config) const  //
 {
     /* metadata file */
-    essentials::logger("writing '" + build_config.file_base_name + ".metadata.txt'...");
-    std::ofstream metadata_file(build_config.file_base_name + ".metadata.txt");
+    std::filesystem::path metadata_fn = build_config.output_filename;
+    metadata_fn.replace_extension("metadata.txt");
+    std::filesystem::path unitigs_fn = build_config.output_filename;
+    unitigs_fn.replace_extension("unitigs.fa");
+    std::filesystem::path color_sets_fn = build_config.output_filename;
+    color_sets_fn.replace_extension("color_sets.fa");
+    std::filesystem::path filenames_fn = build_config.output_filename;
+    filenames_fn.replace_extension("filenames.txt");
+
+    essentials::logger(std::format("writing '{}'...", metadata_fn.string()));
+    std::ofstream metadata_file(metadata_fn);
     if (!metadata_file.is_open()) throw std::runtime_error("cannot open output file");
     metadata_file << "k=" << k() << '\n';
     metadata_file << "num_kmers=" << num_kmers() << '\n';
@@ -71,15 +80,15 @@ void index<ColorSets>::dump(build_configuration const& build_config) const  //
     metadata_file.close();
 
     /* filenames file */
-    essentials::logger("writing '" + build_config.file_base_name + ".filenames.txt'...");
-    std::ofstream filenames_file(build_config.file_base_name + ".filenames.txt");
+    essentials::logger(std::format("writing '{}'...", filenames_fn.string()));
+    std::ofstream filenames_file(filenames_fn);
     if (!filenames_file.is_open()) throw std::runtime_error("cannot open output file");
     for (uint64_t i = 0; i != num_colors(); ++i) filenames_file << filename(i) << '\n';
     filenames_file.close();
 
     /* unitigs file */
-    essentials::logger("writing '" + build_config.file_base_name + ".unitigs.fa'...");
-    std::ofstream unitigs_file(build_config.file_base_name + ".unitigs.fa");
+    essentials::logger(std::format("writing '{}'...", unitigs_fn.string()));
+    std::ofstream unitigs_file(unitigs_fn);
     if (!unitigs_file.is_open()) throw std::runtime_error("cannot open output file");
     const uint64_t u = num_unitigs();
     const uint64_t kmer_length = k();
@@ -100,8 +109,8 @@ void index<ColorSets>::dump(build_configuration const& build_config) const  //
     unitigs_file.close();
 
     /* color_sets file */
-    essentials::logger("writing '" + build_config.file_base_name + ".color_sets.txt'...");
-    std::ofstream color_sets_file(build_config.file_base_name + ".color_sets.txt");
+    essentials::logger(std::format("writing '{}'...", color_sets_fn.string()));
+    std::ofstream color_sets_file(color_sets_fn);
     if (!color_sets_file.is_open()) throw std::runtime_error("cannot open output file");
     auto const& color_sets = get_color_sets();
     const uint64_t n = num_color_sets();
@@ -132,10 +141,18 @@ void index<ColorSets>::load(build_configuration const& build_config)  //
     uint64_t num_unitigs = 0;
     uint64_t num_color_sets = 0;
 
+    std::filesystem::path metadata_fn = build_config.output_filename;
+    metadata_fn.replace_extension("metadata.txt");
+    std::filesystem::path unitigs_fn = build_config.output_filename;
+    unitigs_fn.replace_extension("unitigs.fa");
+    std::filesystem::path color_sets_fn = build_config.output_filename;
+    color_sets_fn.replace_extension("color_sets.fa");
+    std::filesystem::path filenames_fn = build_config.output_filename;
+    filenames_fn.replace_extension("filenames.txt");
+
     {
         essentials::logger("step 1. reading metadata...");
 
-        std::string metadata_fn = build_config.file_base_name + ".metadata.txt";
         std::ifstream in(metadata_fn.c_str());
         if (!in.is_open()) throw std::runtime_error("cannot open metadata file");
 
@@ -179,7 +196,6 @@ void index<ColorSets>::load(build_configuration const& build_config)  //
         bits::bit_vector::builder u2c_builder;
         u2c_builder.resize(num_unitigs, 0);
 
-        std::string unitigs_fn = build_config.file_base_name + ".unitigs.fa";
         std::ifstream in(unitigs_fn.c_str());
         if (!in.is_open()) throw std::runtime_error("cannot open unitigs file");
 
@@ -229,7 +245,6 @@ void index<ColorSets>::load(build_configuration const& build_config)  //
         const uint64_t num_bits = essentials::GiB * 8 * 8;
         color_sets_builder.reserve_num_bits(num_bits);
 
-        std::string color_sets_fn = build_config.file_base_name + ".color_sets.txt";
         std::ifstream in(color_sets_fn);
         if (!in.is_open()) throw std::runtime_error("cannot open color sets file");
 
@@ -267,7 +282,6 @@ void index<ColorSets>::load(build_configuration const& build_config)  //
     {
         essentials::logger("step 3. building SSHash...");
         timer.start();
-        std::string unitigs_fn = build_config.file_base_name + ".unitigs.fa";
         sshash::build_configuration sshash_config;
         sshash_config.k = k;
         sshash_config.m = build_config.m;
@@ -286,7 +300,6 @@ void index<ColorSets>::load(build_configuration const& build_config)  //
     {
         essentials::logger("step 4. reading filenames...");
         timer.start();
-        std::string filenames_fn = build_config.file_base_name + ".filenames.txt";
         std::ifstream in(filenames_fn.c_str());
         if (!in.is_open()) throw std::runtime_error("cannot open filenames file");
         std::vector<std::string> filenames;

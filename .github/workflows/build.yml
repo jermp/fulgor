@@ -15,13 +15,13 @@ jobs:
     strategy:
       matrix:
         compiler:
-          - { name: gcc, version: 11}
-          - { name: gcc, version: 12}
-          - { name: gcc, version: 13}
-          - { name: gcc, version: 14}
-          - { name: clang, version: 16}
-          - { name: clang, version: 17}
-          - { name: clang, version: 18}
+          # - { name: gcc, version: 11 }
+          # - { name: gcc, version: 12 }
+          - { name: gcc, version: 13 }
+          - { name: gcc, version: 14 }
+          - { name: clang, version: 16 }
+          - { name: clang, version: 17 }
+          - { name: clang, version: 18 }
     name: Build (${{ matrix.compiler.name }} ${{ matrix.compiler.version }})
     runs-on: ubuntu-24.04
     steps:
@@ -42,7 +42,7 @@ jobs:
           sudo apt-get install --assume-yes --no-install-recommends clang-${{ matrix.compiler.version }}
           echo "CC=/usr/bin/clang-${{ matrix.compiler.version }}" >> $GITHUB_ENV
           echo "CXX=/usr/bin/clang++-${{ matrix.compiler.version }}" >> $GITHUB_ENV
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: Build

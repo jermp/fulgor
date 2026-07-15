@@ -1,5 +1,6 @@
 #pragma once
 
+#include "stream.hpp"
 #include "include/index.hpp"
 #include "include/build_util.hpp"
 #include <span>
@@ -136,11 +137,34 @@ struct index<ColorSets>::meta_builder {
     void build(index& idx) {
         if (idx.m_k2u.num_kmers() != 0) throw std::runtime_error("index already built");
 
+        cdbg::build_config cdbg_build_config;
+        cdbg_build_config.filenames_list = m_build_config.filenames_list;
+        cdbg_build_config.out_basename =
+            std::format("{}/{}", m_build_config.tmp_dirname.string(),
+                        std::filesystem::path(m_build_config.output_filename).filename().string());
+        cdbg_build_config.k = m_build_config.k;
+        cdbg_build_config.m = m_build_config.m;
+        cdbg_build_config.num_threads = m_build_config.num_threads;
+        cdbg_build_config.max_ram_gb = m_build_config.ram_limit_in_GiB;
+        uint64_t curr_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                               std::chrono::system_clock::now().time_since_epoch())
+                               .count();
+        cdbg_build_config.tmp_dir =
+            std::format("{}/cdbg_build_{}", m_build_config.tmp_dirname.string(), curr_ms);
+        cdbg::builder cdbg_builder(cdbg_build_config);
+        // cdbg_builder.build();
+
+        m_build_config.num_colors = cdbg_builder.num_colors();
+
         essentials::logger("step 1. loading index to be partitioned...");
-        essentials::load(
-            m_base_index,
-            m_build_config.index_filename_to_partition.c_str());  // TODO: requires custom loader
+        // essentials::load(
+        //     m_base_index,
+        //     m_build_config.index_filename_to_partition.c_str());  // TODO: requires custom loader
         essentials::logger("DONE");
+
+        auto stream = cdbg::JointColorStreamer(cdbg_build_config.out_basename);
+        std::vector<cdbg::ColorRecord> color_records;
+        stream.get_next_batch(color_records, 14000);
 
         const uint64_t num_colors = m_base_index.num_colors();
         const uint64_t num_color_sets = m_base_index.num_color_sets();

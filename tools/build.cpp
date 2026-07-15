@@ -209,19 +209,25 @@ int build(int argc, char** argv) {
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
     timer.start();
 
-    hfur_index_t index;
-    hfur_index_t::builder builder(build_config);
-    builder.build(index);
+    if (build_config.meta_colored) {
+        mfur_index_t index;
+        mfur_index_t::meta_builder builder(build_config);
+        builder.build(index);
+    } else {
+        hfur_index_t index;
+        hfur_index_t::builder builder(build_config);
+        builder.build(index);
+    }
 
     timer.stop();
     essentials::logger("BUILDING DONE");
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
-    essentials::mmap(index, build_config.output_filename.c_str());
-
-    if (build_config.verbose) index.print_stats();
-    if (build_config.check) builder.check(index);
+    // essentials::mmap(index, build_config.output_filename.c_str());
+    //
+    // if (build_config.verbose) index.print_stats();
+    // if (build_config.check) builder.check(index);
 
     if (build_config.meta_colored and build_config.diff_colored) {
         meta_diff_color(build_config, force);

@@ -38,15 +38,15 @@ int permute(int argc, char** argv) {
     essentials::logger("DONE");
 
     permuter p(build_config);
-    p.permute(index);
-    auto const& filenames = p.filenames();
+    // p.permute(index); // FIXME
+    // auto const& filenames = p.filenames(); // FIXME
 
     std::ofstream out(parser.get<std::string>("output_filename").c_str());
     if (!out.is_open()) {
         std::cerr << "cannot open output filename" << std::endl;
         return 1;
     }
-    for (auto const& fn : filenames) out << fn << '\n';
+    // for (auto const& fn : filenames) out << fn << '\n'; //FIXME
     out.close();
 
     timer.stop();

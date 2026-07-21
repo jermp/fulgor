@@ -10,18 +10,13 @@
 namespace fulgor {
 
 template <typename ColorSets>
-struct index<ColorSets>::builder {
-    builder(build_configuration const& build_config)
-        : m_build_config(build_config), m_saver(build_config.output_filename) {
-        m_saver.write(constants::current_version_number::major);
-        m_saver.write(constants::current_version_number::minor);
-        m_saver.write(constants::current_version_number::patch);
-    }
+struct index<ColorSets>::hybrid_builder {
+    hybrid_builder(build_configuration const& build_config)
+        : m_build_config(build_config), m_saver(build_config.output_filename) {}
 
     void build(index& idx) {
         if (idx.m_k2u.num_kmers() != 0) throw std::runtime_error("index already built");
 
-        essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
         cdbg::build_config cdbg_build_config;
         cdbg_build_config.filenames_list = m_build_config.filenames_list;
         cdbg_build_config.out_basename =
@@ -39,19 +34,14 @@ struct index<ColorSets>::builder {
         cdbg::builder cdbg_builder(cdbg_build_config);
 
         {
-            essentials::logger("step 1. building colored compacted dBG...");
-            cdbg_builder.build();
+            util::timed_phase("step 1. build colored compacted dBG");
 
+            cdbg_builder.build();
             m_build_config.num_colors = cdbg_builder.num_colors();
-            timer.stop();
-            std::cout << "** building the ccdBG took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
-            timer.reset();
         }
 
         {
-            essentials::logger("step 2. building unitig-to-color map and encoding color sets...");
-            timer.start();
+            util::timed_phase("step 2. copy color sets");
 
             std::ifstream cs_file(cdbg_build_config.cs_filename(), std::ios::binary);
             m_saver.append(cs_file, 12);      // write num_cols, sp_thresh, vd_thresh
@@ -63,15 +53,11 @@ struct index<ColorSets>::builder {
             assert(cdbg_builder.num_unitigs() <= UINT32_MAX);
 
             std::cout << "num_unitigs " << cdbg_builder.num_unitigs() << std::endl;
-            std::cout << "num_distinct_color_sets " << cdbg_builder.num_color_classes()
-                      << std::endl;
+            std::cout << "num_distinct_color_sets " << cdbg_builder.num_color_sets() << std::endl;
+        }
 
-            timer.stop();
-            std::cout << "** encoding color sets took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
-            timer.reset();
-
-            timer.start();
+        {
+            util::timed_phase("step 3. build unitig-to-color map");
 
             bits::bit_vector u2c;
             bits::rank9 u2c_rank1_index;
@@ -81,20 +67,14 @@ struct index<ColorSets>::builder {
             m_saver.visit(u2c_rank1_index);
 
             assert(u2c.num_bits() == cdbg_builder.num_unitigs());
-            assert(u2c_rank1_index.num_ones() == cdbg_builder.num_color_classes());
+            assert(u2c_rank1_index.num_ones() == cdbg_builder.num_color_sets());
 
             std::cout << "m_u2c.num_bits() " << u2c.num_bits() << std::endl;
             std::cout << "m_u2c_rank1_index.num_ones() " << u2c_rank1_index.num_ones() << std::endl;
-
-            timer.stop();
-            std::cout << "** building unitig-to-color map took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
-            timer.reset();
         }
 
         {
-            essentials::logger("step 3. building SSHash...");
-            timer.start();
+            util::timed_phase("step 4. build SSHash");
 
             sshash::build_configuration sshash_config;
             sshash_config.k = m_build_config.k;
@@ -114,25 +94,20 @@ struct index<ColorSets>::builder {
             } catch (std::exception const& e) {
                 std::cerr << e.what() << std::endl;
             }
-
-            timer.stop();
-            std::cout << "** building SSHash took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
-            timer.reset();
         }
 
         {
-            essentials::logger("step 4. writing filenames...");
-            timer.start();
+            util::timed_phase("step 5. write filenames");
 
             filenames filenames;
             filenames.build_from_file(m_build_config.filenames_list);
             m_saver.visit(filenames);
+        }
 
-            timer.stop();
-            std::cout << "** writing filenames took " << timer.elapsed() << " seconds / "
-                      << timer.elapsed() / 60 << " minutes" << std::endl;
-            timer.reset();
+        {
+            m_saver.write(constants::current_version_number::major);
+            m_saver.write(constants::current_version_number::minor);
+            m_saver.write(constants::current_version_number::patch);
         }
     }
 

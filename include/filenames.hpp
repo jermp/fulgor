@@ -5,32 +5,40 @@ namespace fulgor {
 struct filenames {
     void build(std::vector<std::string> const& filenames) {
         uint32_t offset = 0;
-        m_offsets.push_back(offset);
+        std::vector<uint32_t> offsets;
+        std::vector<char> chars;
+        offsets.push_back(offset);
         for (auto const& f : filenames) {
-            std::copy(f.begin(), f.end(), std::back_inserter(m_chars));
+            std::ranges::copy(f, std::back_inserter(chars));
             offset += f.size();
-            m_offsets.push_back(offset);
+            offsets.push_back(offset);
         }
+        m_offsets = offsets;
+        m_chars = chars;
     }
 
     void build_from_file(std::string const& filepath) {
+        std::vector<uint32_t> offsets;
+        std::vector<char> chars;
         std::ifstream file(filepath, std::ios::binary);
         if (!file.is_open()) {
             throw std::runtime_error("Could not open file: " + filepath);
         }
         uint32_t offset = 0;
-        m_offsets.push_back(offset);
+        offsets.push_back(offset);
 
         std::string line;
         while (std::getline(file, line)) {
             if (!line.empty() && line.back() == '\r') {
                 line.pop_back();
             }
-            m_chars.insert(m_chars.end(), line.begin(), line.end());
+            chars.insert(chars.end(), line.begin(), line.end());
 
             offset += line.size();
-            m_offsets.push_back(offset);
+            offsets.push_back(offset);
         }
+        m_offsets = offsets;
+        m_chars = chars;
     }
 
     std::string_view operator[](uint64_t i) const {
@@ -60,8 +68,8 @@ private:
         visitor.visit(t.m_chars);
     }
 
-    std::vector<uint32_t> m_offsets;
-    std::vector<char> m_chars;
+    essentials::owning_span<uint32_t> m_offsets;
+    essentials::owning_span<char> m_chars;
 };
 
 }  // namespace fulgor

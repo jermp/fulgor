@@ -439,7 +439,9 @@ struct meta {
         return forward_iterator(this, begin);
     }
 
-    std::vector<ColorSets> const& partial_colors() const { return m_partial_color_sets; }
+    essentials::owning_span<ColorSets> const& partial_colors() const {
+        return m_partial_color_sets;
+    }
 
     uint32_t num_colors() const { return m_num_colors; }
     uint64_t num_color_sets() const { return m_meta_color_sets_offsets.size() - 1; }
@@ -479,8 +481,8 @@ private:
     uint32_t m_num_colors;
     bits::compact_vector m_meta_color_sets;
     bits::elias_fano<false, false> m_meta_color_sets_offsets;
-    std::vector<ColorSets> m_partial_color_sets;
-    std::vector<partition_endpoint> m_partition_endpoints;
+    essentials::owning_span<ColorSets> m_partial_color_sets;
+    essentials::owning_span<partition_endpoint> m_partition_endpoints;
 };
 
 }  // namespace fulgor

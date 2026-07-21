@@ -378,5 +378,22 @@ private:
     essentials::generic_saver saver;
 };
 
+struct timed_phase {
+    explicit timed_phase(const std::string& name) : name(name) {
+        essentials::logger(name);
+        timer.start();
+    }
+
+    ~timed_phase() {
+        timer.stop();
+        std::cout << "** " << name << " took " << timer.elapsed() << " seconds / "
+                  << timer.elapsed() / 60 << " minutes" << std::endl;
+    }
+
+private:
+    std::string name;
+    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+};
+
 }  // namespace util
 }  // namespace fulgor

@@ -211,31 +211,36 @@ int build(int argc, char** argv) {
 
     if (build_config.meta_colored) {
         mfur_index_t index;
+        build_config.output_filename.replace_extension(constants::mfur_filename_extension);
         mfur_index_t::meta_builder builder(build_config);
         builder.build(index);
     } else {
         hfur_index_t index;
-        hfur_index_t::builder builder(build_config);
+        hfur_index_t::hybrid_builder builder(build_config);
         builder.build(index);
     }
 
     timer.stop();
     essentials::logger("BUILDING DONE");
+    essentials::logger("Index stored in " + build_config.output_filename.string());
+
     std::cout << "** building the index took " << timer.elapsed() << " seconds / "
               << timer.elapsed() / 60 << " minutes" << std::endl;
 
     // essentials::mmap(index, build_config.output_filename.c_str());
     //
-    // if (build_config.verbose) index.print_stats();
+    mfur_index_t index;
+    essentials::load(index, build_config.output_filename.c_str());
+    if (build_config.verbose) index.print_stats();
     // if (build_config.check) builder.check(index);
 
-    if (build_config.meta_colored and build_config.diff_colored) {
-        meta_diff_color(build_config, force);
-    } else if (build_config.meta_colored) {
-        meta_color(build_config, force);
-    } else if (build_config.diff_colored) {
-        diff_color(build_config, force);
-    }
+    // if (build_config.meta_colored and build_config.diff_colored) {
+    //     meta_diff_color(build_config, force);
+    // } else if (build_config.meta_colored) {
+    //     meta_color(build_config, force);
+    // } else if (build_config.diff_colored) {
+    //     diff_color(build_config, force);
+    // }
 
     return 0;
 }

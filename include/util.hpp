@@ -308,13 +308,23 @@ private:
 
 class external_saver {
 public:
+    external_saver() = default;
+
     explicit external_saver(const std::string& output_filename)
         : output_stream(output_filename, std::ios::binary | std::ios::trunc)
         , saver(output_stream) {}
 
+    explicit external_saver(std::ofstream existing_stream)
+        : output_stream(std::move(existing_stream)), saver(output_stream) {}
+
+    void set_stream(std::ofstream out_stream) {
+        output_stream = std::move(out_stream);
+        saver.emplace(output_stream);
+    }
+
     template <typename T>
     void visit(T const& item) {
-        saver.visit(item);
+        saver->visit(item);
     }
 
     template <typename T>
@@ -375,7 +385,7 @@ public:
 
 private:
     std::ofstream output_stream;
-    essentials::generic_saver saver;
+    std::optional<essentials::generic_saver> saver;
 };
 
 struct timed_phase {

@@ -106,10 +106,10 @@ int main(int argc, char** argv) {
               "print positive kmers per query and number of kmer matches per color");
 
     tools.add_section("Debug");
-    tools.add("check", check,
+    tools.add("check", probabilistic_check,
               "perform an in-depth check to verify that an index was built correctly");
-    tools.add("probabilistic-check", probabilistic_check,
-              "perform a probabilistic check to verify that an index was built correctly");
+    // tools.add("probabilistic-check", probabilistic_check,
+    //           "perform a probabilistic check to verify that an index was built correctly");
     tools.add("verify", verify, "verify that index works correctly with current library version");
     tools.add("stats", stats, "print index statistics");
     tools.add("print-filenames", print_filenames, "print all reference filenames");

@@ -37,7 +37,7 @@ int permute(int argc, char** argv) {
     essentials::load(index, index_filename.c_str());
     essentials::logger("DONE");
 
-    permuter p(build_config);
+    // permuter p(build_config);
     // p.permute(index); // FIXME
     // auto const& filenames = p.filenames(); // FIXME
 

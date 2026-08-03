@@ -389,7 +389,7 @@ int load(int argc, char** argv) {
     return 0;
 }
 
-int check(int argc, char** argv) {
+[[deprecated("Use probabilistic_check")]] int check(int argc, char** argv) {
     cmd_line_parser::parser parser(argc, argv);
     parser.add("base_filename", "The *correct* Fulgor index to be checked against.", "--base",
                true);
@@ -468,20 +468,9 @@ uint64_t probabilistic_check(Index& index, double const file_prob, double const 
     std::atomic<uint64_t> total_files_sampled(0);
     std::atomic<uint64_t> total_kmers_checked(0), total_raw_kmers(0);
     std::atomic<uint64_t> num_errors(0);
+    std::mutex out_mtx;
 
-    std::cout << "Checked " << total_files_sampled << " files, " << total_kmers_checked
-              << " kmers\r" << std::flush;
-
-    // std::string test = "GCTGGCGGGGTTGGGTGTTCTACACGGATTG";
-    // std::vector<uint32_t> cset_ids;
-    // index.fetch_color_set_ids(test, cset_ids);
-    // auto cset = index.color_set(cset_ids.front());
-    // std::cout << cset.size() << ": ";
-    // while (*cset < index.num_colors()) {
-    //     std::cout << *cset << ' ';
-    //     ++cset;
-    // }
-    // return 1;
+    std::cout << "Checked 0 files, 0 k-mers\r" << std::flush;
 
     auto worker = [&](const int thread_id) {
         std::random_device rd;
@@ -523,35 +512,39 @@ uint64_t probabilistic_check(Index& index, double const file_prob, double const 
                             index.fetch_color_set_ids(std::string(kmer_view), color_set_ids);
                             assert(color_set_ids.size() <= 1);
                             if (color_set_ids.empty()) {
-                                std::cerr << "[File " << filename << "] K-mer " << kmer_view
-                                          << " not found" << std::endl;
+                                std::lock_guard lock(out_mtx);
+                                const auto msg = std::format("[File {}] K-mer {} not found",
+                                                             filename, kmer_view);
+                                std::cout << msg << std::endl;
                                 ++num_errors;
                                 continue;
                             }
 
                             auto color_set = index.color_set(color_set_ids.front());
-                            uint32_t prev = 0;
                             while (*color_set < color) {
-                                prev = *color_set;
                                 ++color_set;
                             }
 
                             if (*color_set != color) {
-                                std::cerr << std::format(
-                                    "[File {}] k-mer {} not found (exp: {}, got:{}, prev: {})\n",
-                                    filename, kmer_view, color, *color_set, prev);
+                                std::lock_guard lock(out_mtx);
+                                std::cout << std::format(
+                                    "[File {}] k-mer {} not found (exp: {}, got:{})\n", filename,
+                                    kmer_view, color, *color_set);
                                 ++num_errors;
                             }
                         }
                     }
                 }
                 parser.stop();
-                std::cout << "Checked " << total_files_sampled << " files, " << total_kmers_checked
-                          << " kmers\r" << std::flush;
+                const auto progress =
+                    std::format("Checked {} files, {} k-mers\r", total_files_sampled.load(),
+                                total_kmers_checked.load());
+                std::cout << progress << std::flush;
             } catch (const std::exception& e) {
                 if (verbose) {
-                    std::cerr << "[Thread " << thread_id << "] Error reading file " << filename
-                              << ": " << e.what() << "\n";
+                    const auto msg = std::format("[Thread {}] Error reading file {}: {}", thread_id,
+                                                 filename, e.what());
+                    std::cerr << msg << std::endl;
                 }
             }
         }
@@ -568,12 +561,16 @@ uint64_t probabilistic_check(Index& index, double const file_prob, double const 
     }
 
     if (verbose) {
-        std::cout << "\n--- Probabilistic Check Report ---\n";
-        std::cout << "Files sampled: " << total_files_sampled << " / " << num_colors << " ("
-                  << 100. * total_files_sampled / num_colors << "%)" << "\n";
-        std::cout << "Total kmers checked: " << total_kmers_checked << "/" << total_raw_kmers
-                  << " (" << 100. * total_kmers_checked / total_raw_kmers << "%)" << "\n";
-        std::cout << "----------------------------------\n";
+        const auto rpt_head = "\n--- Probabilistic Check Report ---\n";
+        const auto rpt_ln0 =
+            std::format("Files sampled: {} / {} ({}%)\n", total_files_sampled.load(), num_colors,
+                        100. * total_files_sampled / num_colors);
+        const auto rpt_ln1 =
+            std::format("Total kmers checked: {} / {} ({}%)\n", total_kmers_checked.load(),
+                        total_raw_kmers.load(), 100. * total_kmers_checked / total_raw_kmers);
+        const auto rpt_foot = "----------------------------------\n";
+
+        std::cout << rpt_head + rpt_ln0 + rpt_ln1 + rpt_foot << std::endl;
     }
 
     return num_errors;

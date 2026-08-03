@@ -1,5 +1,7 @@
 #pragma once
 
+#include <concepts>
+
 #include "external/sshash/include/dictionary_types.hpp"
 #include "external/sshash/external/pthash/external/bits/include/integer_codes.hpp"
 #include "external/sshash/external/pthash/external/bits/include/bit_vector.hpp"
@@ -13,13 +15,53 @@ namespace fulgor {
 using kmer_type = sshash::default_kmer_t;
 using sshash_type = sshash::dictionary_type;
 
+template <typename T>
+concept IndexBuildingStrategy =
+    std::constructible_from<T, const build_configuration&> && requires(T strategy) {
+        { strategy.build_cdbg() } -> std::same_as<void>;
+        { strategy.build_color_sets() } -> std::same_as<void>;
+        { strategy.build_u2c() } -> std::same_as<void>;
+        { strategy.build_filenames() } -> std::same_as<void>;
+        { strategy.build_kmer_dictionary() } -> std::same_as<void>;
+
+        { strategy.saver() } -> std::convertible_to<util::external_saver&>;
+    };
+
+struct unsupported_builder {};
+template <typename ColorSets>
+struct builder_strategy {
+    using type = unsupported_builder;
+};
+
 template <typename ColorSets>
 struct index {
     typedef ColorSets color_sets_type;
 
-    // struct builder;
-    struct hybrid_builder;
-    struct meta_builder;
+    using builder_strategy_t = builder_strategy<ColorSets>::type;
+    struct builder {
+        explicit builder(const build_configuration& config)
+            requires IndexBuildingStrategy<builder_strategy_t>
+            : m_strategy(config) {}
+
+        void build() {
+            m_strategy.build_cdbg();
+            m_strategy.build_color_sets();
+            m_strategy.build_u2c();
+            m_strategy.build_kmer_dictionary();
+            m_strategy.build_filenames();
+
+            auto&& saver = m_strategy.saver();
+            saver.write(constants::current_version_number::major);
+            saver.write(constants::current_version_number::minor);
+            saver.write(constants::current_version_number::patch);
+        }
+
+    private:
+        builder_strategy_t m_strategy;
+    };
+
+    // struct hybrid_builder;
+    // struct meta_builder;
     struct differential_builder;
     struct meta_differential_builder;
 
@@ -109,6 +151,37 @@ private:
     filenames m_filenames;
     essentials::version_number m_vnum;
 };
+
+}  // namespace fulgor
+
+/*
+struct modern_color_sets_strategy {
+    explicit modern_color_sets_strategy(const build_configuration& config)
+        : m_saver(config.output_filename) {}
+
+    util::external_saver& saver() { return m_saver; }
+
+    void build_cdbg() { }
+    void build_color_sets() {}
+    void build_u2c() { }
+    void build_filenames() {}
+    void build_kmer_index(std::filesystem::path fasta_filename) {}
+
+private:
+util::external_saver m_saver;
+};
+
+ *
+
+build_configuration config = load_config();
+
+// The compiler uses CTAD (Class Template Argument Deduction) to automatically
+// deduce the strategy type: index_builder<modern_color_sets_strategy>
+index_builder builder(config, modern_color_sets_strategy{config});
+
+// Executes safely, efficiently, and in order
+builder.build("data.fasta");
+ */
 
 /*
 template <typename ColorSets>
@@ -222,80 +295,3 @@ private:
     util::external_saver m_saver;
 };
 */
-
-}  // namespace fulgor
-
-/*
-#include <concepts>
-#include <filesystem>
-
-template <typename T>
-concept IndexBuildingStrategy = requires(T strategy, std::filesystem::path path) {
-    { strategy.build_cdbg() }        -> std::same_as<void>;
-    { strategy.build_color_sets() }  -> std::same_as<void>;
-    { strategy.build_u2c() }         -> std::same_as<void>;
-    { strategy.build_filenames() }   -> std::same_as<void>;
-    { strategy.build_kmer_index(path) } -> std::same_as<void>;
-
-    // The strategy provides access to its internal saver
-    { strategy.saver() } -> std::derived_from<util::external_saver>;
-};
-
- *
-
-template <IndexBuildingStrategy Strategy>
-class index_builder {
-public:
-    // Accept the specific building strategy via aggregate construction or forward values
-    explicit index_builder(build_configuration config, Strategy strategy)
-        : m_build_config(std::move(config)), m_strategy(std::move(strategy)) {}
-
-    void build(std::filesystem::path fasta_filename) {
-        // Safe, rigid execution order
-        m_strategy.build_cdbg();
-        m_strategy.build_color_sets();
-        m_strategy.build_u2c();
-        m_strategy.build_kmer_index(fasta_filename);
-        m_strategy.build_filenames();
-
-        // Metadata footer handled consistently
-        auto& saver = m_strategy.saver();
-        saver.write(constants::current_version_number::major);
-        saver.write(constants::current_version_number::minor);
-        saver.write(constants::current_version_number::patch);
-    }
-
-private:
-    build_configuration m_build_config;
-    Strategy m_strategy;
-};
-
-*
-
-struct modern_color_sets_strategy {
-    explicit modern_color_sets_strategy(const build_configuration& config)
-        : m_saver(config.output_filename) {}
-
-    util::external_saver& saver() { return m_saver; }
-
-    void build_cdbg() { }
-    void build_color_sets() {}
-    void build_u2c() { }
-    void build_filenames() {}
-    void build_kmer_index(std::filesystem::path fasta_filename) {}
-
-private:
-util::external_saver m_saver;
-};
-
- *
-
-build_configuration config = load_config();
-
-// The compiler uses CTAD (Class Template Argument Deduction) to automatically
-// deduce the strategy type: index_builder<modern_color_sets_strategy>
-index_builder builder(config, modern_color_sets_strategy{config});
-
-// Executes safely, efficiently, and in order
-builder.build("data.fasta");
- */

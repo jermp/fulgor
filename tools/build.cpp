@@ -1,6 +1,7 @@
 using namespace fulgor;
 
-void meta_color(build_configuration& build_config, const bool force)  //
+[[deprecated("Fix or remove")]] void meta_color(build_configuration& build_config,
+                                                const bool force)  //
 {
     build_config.output_filename.replace_extension(constants::mfur_filename_extension);
 
@@ -19,8 +20,8 @@ void meta_color(build_configuration& build_config, const bool force)  //
     timer.start();
 
     mfur_index_t index;
-    mfur_index_t::meta_builder builder(build_config);
-    builder.build(index);
+    // mfur_index_t::meta_builder builder(build_config);
+    // builder.build(index);
 
     timer.stop();
     essentials::logger("BUILDING DONE");
@@ -33,7 +34,7 @@ void meta_color(build_configuration& build_config, const bool force)  //
     essentials::load(index, build_config.output_filename.c_str());
 
     if (build_config.verbose) index.print_stats();
-    if (build_config.check) builder.check(index);
+    // if (build_config.check) builder.check(index);
 }
 
 void diff_color(build_configuration& build_config, const bool force)  //
@@ -150,7 +151,6 @@ int build(int argc, char** argv) {
     parser.add("force", "Re-build the index even when an index with the same name is found.",
                "--force", false, true);
     parser.add("meta", "Build a meta-colored index.", "--meta", false, true);
-    parser.add("diff", "Build a differential-colored index.", "--diff", false, true);
 
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
@@ -162,7 +162,6 @@ int build(int argc, char** argv) {
 
     const bool force = parser.get<bool>("force");
     build_config.meta_colored = parser.get<bool>("meta");
-    build_config.diff_colored = parser.get<bool>("diff");
 
     if (parser.parsed("tmp_dirname")) {
         build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");
@@ -182,9 +181,6 @@ int build(int argc, char** argv) {
             std::string color_flag = "";
             if (build_config.meta_colored) {
                 color_flag += "--meta ";
-            }
-            if (build_config.diff_colored) {
-                color_flag += "--diff ";
             }
 
             std::cerr << "Consider using: \"./fulgor color -i " << build_config.output_filename
@@ -206,32 +202,46 @@ int build(int argc, char** argv) {
         build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
     }
 
-    essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-    timer.start();
-
+    std::variant<hfur_index_t, mfur_index_t> index;
     if (build_config.meta_colored) {
-        mfur_index_t index;
         build_config.output_filename.replace_extension(constants::mfur_filename_extension);
-        mfur_index_t::meta_builder builder(build_config);
-        builder.build(index);
+        index = mfur_index_t();
     } else {
-        hfur_index_t index;
-        hfur_index_t::hybrid_builder builder(build_config);
-        builder.build(index);
+        index = hfur_index_t();
     }
 
-    timer.stop();
-    essentials::logger("BUILDING DONE");
-    essentials::logger("Index stored in " + build_config.output_filename.string());
+    std::visit(
+        [&]<typename Index>(Index index_) {
+            {
+                util::timed_phase timer("Building the index");
 
-    std::cout << "** building the index took " << timer.elapsed() << " seconds / "
-              << timer.elapsed() / 60 << " minutes" << std::endl;
+                typename Index::builder b(build_config);
+                b.build();
 
-    // essentials::mmap(index, build_config.output_filename.c_str());
-    //
-    mfur_index_t index;
-    essentials::load(index, build_config.output_filename.c_str());
-    if (build_config.verbose) index.print_stats();
+                essentials::logger("Index stored at " + build_config.output_filename.string());
+            }
+
+            if (build_config.verbose) {
+                essentials::mmap(index_, build_config.output_filename.c_str());
+                index_.print_stats();
+            }
+
+            if (build_config.verbose) {
+                const auto rpt_head = "---------- Build Report ----------\n";
+                const auto rpt_ln0 =
+                    std::format("Index built at: {}\n",
+                                std::filesystem::absolute(build_config.output_filename).string());
+                const auto rpt_ln1 = std::format(
+                    "Check correctness by using the tool \"check -i {} -q 0.01 -p 0.01 "
+                    "--verbose\"\n",
+                    build_config.output_filename.string());
+                const auto rpt_foot = "----------------------------------\n";
+
+                std::cout << rpt_head + rpt_ln0 + rpt_ln1 + rpt_foot << std::endl;
+            }
+        },
+        index);
+
     // if (build_config.check) builder.check(index);
 
     // if (build_config.meta_colored and build_config.diff_colored) {

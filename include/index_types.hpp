@@ -8,6 +8,10 @@
 namespace fulgor {
 typedef index<hybrid> hybrid_colors_index_type;
 typedef hybrid_colors_index_type hfur_index_t;  // in use
+template <>
+struct builder_strategy<hybrid> {
+    using type = hybrid_build_strategy<hybrid>;
+};
 }  // namespace fulgor
 
 #include "builders/meta_builder.hpp"
@@ -16,6 +20,10 @@ typedef hybrid_colors_index_type hfur_index_t;  // in use
 namespace fulgor {
 typedef index<meta<hybrid>> meta_hybrid_colors_index_type;
 typedef meta_hybrid_colors_index_type mfur_index_t;  // in use
+template <>
+struct builder_strategy<meta<hybrid>> {
+    using type = meta_build_strategy<meta<hybrid>>;
+};
 }  // namespace fulgor
 
 #include "builders/differential_builder.hpp"

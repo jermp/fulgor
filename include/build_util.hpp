@@ -36,8 +36,7 @@ inline void build_reference_sketches(
             }
             for (const auto color : color_set) {
                 std::lock_guard lock(mutexes[color]);
-                merge_sketches(sketches[color],
-                               sketch);  // 3. Use the helper instead of +=[cite: 1] }
+                merge_sketches(sketches[color], sketch);
             }
         }
     };

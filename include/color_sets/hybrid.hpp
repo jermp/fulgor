@@ -141,9 +141,9 @@ struct hybrid {
                 m_offsets.push_back(m_base_offset + m_color_sets_builder.num_bits());
             }
 
-            if (m_verbose && m_num_color_sets % 500000 == 0) {
-                std::cout << "  processed " << m_num_color_sets << " color sets" << std::endl;
-            }
+            // if (m_verbose && m_num_color_sets % 500000 == 0) {
+            //     std::cout << "  processed " << m_num_color_sets << " color sets" << std::endl;
+            // }
             return color_set_id;
         }
 

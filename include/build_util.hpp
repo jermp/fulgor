@@ -11,12 +11,11 @@ inline void merge_sketches(sketch::hll_t& dest, const sketch::hll_t& src) {
     dest.not_ready();                                                     //[cite: 1]
 }
 
-inline void build_reference_sketches(
-    const uint64_t num_colors,
-    const uint64_t p,                   // use 2^p bytes per HLL sketch
-    const uint64_t num_threads,         // num. threads for construction
-    std::string const& input_basename,  // where the sketches will be serialized
-    std::string const& output_filename) {
+inline void build_reference_sketches(const uint64_t num_colors,
+                                     const uint64_t p,            // use 2^p bytes per HLL sketch
+                                     const uint64_t num_threads,  // num. threads for construction
+                                     std::string const& input_basename,
+                                     std::string const& output_filename) {
     assert(num_threads > 0);
     const uint64_t max_queue_size = num_threads * 2;
 
@@ -24,7 +23,10 @@ inline void build_reference_sketches(
     std::vector<std::mutex> mutexes(num_colors);
 
     cdbg::unitigs_color_set_stream stream(input_basename, max_queue_size);
+    const cdbg::metadata metadata(cdbg::metadata_filename(input_basename));
     stream.start();
+
+    std::atomic<uint64_t> processed_sets = 0;
 
     auto process = [&] {
         for (auto opt = stream.get(); opt != std::nullopt; opt = stream.get()) {
@@ -38,6 +40,13 @@ inline void build_reference_sketches(
                 std::lock_guard lock(mutexes[color]);
                 merge_sketches(sketches[color], sketch);
             }
+            
+            if (processed_sets.fetch_add(1) % 10000 == 0) {
+                auto progress = std::format("\r[sketch-references] {}/{} ({:.2f}%)",
+                                            processed_sets.load(), metadata.num_color_sets,
+                                            100. * processed_sets / metadata.num_color_sets);
+                std::cout << progress << std::flush;
+            }
         }
     };
 
@@ -48,6 +57,12 @@ inline void build_reference_sketches(
     for (auto& t : threads) {
         if (t.joinable()) t.join();
     }
+
+    assert(processed_sets < metadata.num_color_sets);
+    auto progress =
+        std::format("\r[sketch-references] {}/{} ({:.2f}%)", processed_sets.load(),
+                    metadata.num_color_sets, 100. * processed_sets / metadata.num_color_sets);
+    std::cout << progress << std::endl;
 
     std::ofstream out(output_filename, std::ios::binary);
     if (!out.is_open()) throw std::runtime_error("cannot open file");

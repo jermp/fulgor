@@ -171,6 +171,25 @@ int build(int argc, char** argv) {
         build_config.num_threads = parser.get<uint64_t>("num_threads");
     }
 
+    auto k = parser.get<uint64_t>("k");
+    auto m = parser.get<uint64_t>("m");
+    build_config.k = k;
+    build_config.m = m;
+    build_config.verbose = parser.get<bool>("verbose");
+    build_config.check = parser.get<bool>("check");
+    build_config.filenames_list = parser.get<std::string>("filenames_list");
+    if (parser.get<uint64_t>("RAM")) {
+        build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
+    }
+
+    std::variant<hfur_index_t, mfur_index_t> index;
+    if (build_config.meta_colored) {
+        build_config.output_filename.replace_extension(constants::mfur_filename_extension);
+        index = mfur_index_t();
+    } else {
+        index = hfur_index_t();
+    }
+
     if (std::filesystem::exists(build_config.output_filename)) {
         std::cerr << "An index with the name '" << build_config.output_filename
                   << "' already exists." << std::endl;
@@ -189,25 +208,6 @@ int build(int argc, char** argv) {
                       << std::endl;
             return 1;
         }
-    }
-
-    auto k = parser.get<uint64_t>("k");
-    auto m = parser.get<uint64_t>("m");
-    build_config.k = k;
-    build_config.m = m;
-    build_config.verbose = parser.get<bool>("verbose");
-    build_config.check = parser.get<bool>("check");
-    build_config.filenames_list = parser.get<std::string>("filenames_list");
-    if (parser.get<uint64_t>("RAM")) {
-        build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
-    }
-
-    std::variant<hfur_index_t, mfur_index_t> index;
-    if (build_config.meta_colored) {
-        build_config.output_filename.replace_extension(constants::mfur_filename_extension);
-        index = mfur_index_t();
-    } else {
-        index = hfur_index_t();
     }
 
     std::visit(

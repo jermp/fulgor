@@ -470,7 +470,7 @@ uint64_t probabilistic_check(Index& index, double const file_prob, double const 
     std::atomic<uint64_t> num_errors(0);
     std::mutex out_mtx;
 
-    std::cout << "Checked 0 files, 0 k-mers\r" << std::flush;
+    std::cout << "\rChecked 0 files, 0 k-mers" << std::flush;
 
     auto worker = [&](const int thread_id) {
         std::random_device rd;
@@ -537,7 +537,7 @@ uint64_t probabilistic_check(Index& index, double const file_prob, double const 
                 }
                 parser.stop();
                 const auto progress =
-                    std::format("Checked {} files, {} k-mers\r", total_files_sampled.load(),
+                    std::format("\rChecked {} files, {} k-mers", total_files_sampled.load(),
                                 total_kmers_checked.load());
                 std::cout << progress << std::flush;
             } catch (const std::exception& e) {

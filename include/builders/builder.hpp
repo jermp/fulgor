@@ -4,7 +4,6 @@
 #include "include/index.hpp"
 #include "external/cdbg-builder/include/util.hpp"
 #include "external/cdbg-builder/include/builder.hpp"
-
 #include <span>
 
 namespace fulgor {
@@ -60,7 +59,7 @@ struct hybrid_build_strategy {
     }
 
     void build_kmer_dictionary() {
-        util::timed_phase timer("step 5. build SSHash");
+        util::timed_phase timer("step 4. build SSHash");
         sshash::build_configuration sshash_config;
         sshash_config.k = m_build_config.k;
         sshash_config.m = m_build_config.m;

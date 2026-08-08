@@ -108,8 +108,6 @@ int main(int argc, char** argv) {
     tools.add_section("Debug");
     tools.add("check", probabilistic_check,
               "perform an in-depth check to verify that an index was built correctly");
-    // tools.add("probabilistic-check", probabilistic_check,
-    //           "perform a probabilistic check to verify that an index was built correctly");
     tools.add("verify", verify, "verify that index works correctly with current library version");
     tools.add("stats", stats, "print index statistics");
     tools.add("print-filenames", print_filenames, "print all reference filenames");
@@ -124,11 +122,6 @@ int main(int argc, char** argv) {
         return 1;
     }
     const auto tool = std::string(argv[1]);
-
-    if (tool == "load") {
-        std::cerr << "Operation temporarily disabled" << std::endl;
-        return 1;
-    }
 
     return tools.run(tool, argc, argv);
 }

@@ -8,6 +8,8 @@
 
 #include "external/FQFeeder/include/blockingconcurrentqueue.h"
 
+#include <ranges>
+
 namespace fulgor {
 
 enum index_t { HYBRID, DIFF, META, META_DIFF };
@@ -57,6 +59,7 @@ struct build_configuration {
     std::filesystem::path output_filename;
     std::filesystem::path filenames_list;
 
+    std::filesystem::path base_filename;
     std::filesystem::path index_filename_to_partition;
 
     bool verbose;
@@ -391,18 +394,42 @@ private:
 struct timed_phase {
     explicit timed_phase(const std::string& name) : name(name) {
         essentials::logger(name);
+        idx = breakdown.size();
+        breakdown.emplace_back(name, 0);
         timer.start();
     }
 
     ~timed_phase() {
         timer.stop();
+        breakdown[idx].second = timer.elapsed();
         std::cout << "** " << name << " took " << timer.elapsed() << " seconds / "
                   << timer.elapsed() / 60 << " minutes" << std::endl;
+    }
+
+    static void print_breakdown() {
+        if (breakdown.empty()) return;
+
+        // Find the maximum length among all phase names
+        std::size_t max_len = 0;
+        for (const auto& name : breakdown | std::views::keys) {
+            max_len = std::max(max_len, name.length());
+        }
+
+        std::cout << "--- Execution Breakdown ---\n";
+        for (const auto& [name, seconds] : breakdown) {
+            double minutes = static_cast<double>(seconds) / 60.0;
+
+            std::cout << std::format("{:<{}} : {:>8} s | {:>8.2f} m\n", name, max_len, seconds,
+                                     minutes);
+        }
     }
 
 private:
     std::string name;
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
+    uint64_t idx;
+
+    inline static std::vector<std::pair<std::string, std::uint64_t>> breakdown;
 };
 
 }  // namespace util

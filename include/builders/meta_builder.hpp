@@ -24,7 +24,7 @@ struct permuter {
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
 
         {
-            util::timed_phase timer_("step 2.1. build sketches");
+            util::timed_phase timer_(" step 2.1. build sketches");
             constexpr uint64_t p = 10;  // use 2^p bytes per HLL sketch
             build_reference_sketches(
                 num_colors, p, m_build_config.num_threads,
@@ -33,7 +33,7 @@ struct permuter {
         }
 
         {
-            essentials::logger("step 2.2. clustering sketches");
+            util::timed_phase timer_(" step 2.2. cluster sketches");
             timer.start();
 
             std::ifstream in(m_build_config.tmp_filename("sketches.bin"), std::ios::binary);
@@ -165,10 +165,8 @@ struct meta_build_strategy {
     }
 
     void build_color_sets() {
-        {
-            util::timed_phase timer("step 2. compute partition and permutation");
-            permuter_.compute_permutation(m_build_config.num_colors);
-        }
+        util::timed_phase timer("step 2. compute partition and permutation");
+        permuter_.compute_permutation(m_build_config.num_colors);
 
         const uint32_t num_colors = m_build_config.num_colors;
         const uint64_t num_partitions = permuter_.num_partitions();
@@ -179,7 +177,7 @@ struct meta_build_strategy {
         }
 
         {
-            util::timed_phase timer("step 2.3. build partial/meta color sets");
+            util::timed_phase timer(" step 2.3. build partial/meta color sets");
 
             std::atomic<uint64_t> num_integers_in_metacolor_sets = 0;
             typename ColorSets::builder color_sets_builder(
@@ -325,7 +323,7 @@ struct meta_build_strategy {
     }
 
     void build_kmer_dictionary() {
-        util::timed_phase timer("step 5. build SSHash");
+        util::timed_phase timer("step 4. build SSHash");
 
         sshash::build_configuration sshash_config;
         sshash_config.k = m_build_config.k;

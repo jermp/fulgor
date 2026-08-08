@@ -35,7 +35,7 @@ template <typename FulgorIndex>
 void print_stats(std::string const& index_filename) {
     FulgorIndex index;
     essentials::logger("loading index from disk...");
-    essentials::load(index, index_filename.c_str());
+    essentials::mmap(index, index_filename.c_str());
     essentials::logger("DONE");
     index.print_stats();
 }
@@ -44,7 +44,7 @@ template <typename FulgorIndex>
 void print_filenames(std::string const& index_filename) {
     FulgorIndex index;
     essentials::logger("loading index from disk...");
-    essentials::load(index, index_filename.c_str());
+    essentials::mmap(index, index_filename.c_str());
     essentials::logger("DONE");
     for (uint64_t i = 0; i != index.num_colors(); ++i) {
         std::cout << i << '\t' << index.filename(i) << '\n';
@@ -55,7 +55,7 @@ template <typename FulgorIndex>
 void dump(std::string const& index_filename, build_configuration const& build_config) {
     FulgorIndex index;
     essentials::logger("loading index from disk...");
-    essentials::load(index, index_filename.c_str());
+    essentials::mmap(index, index_filename.c_str());
     essentials::logger("DONE");
     index.dump(build_config);
 }
@@ -371,88 +371,22 @@ int load(int argc, char** argv) {
     }
     build_config.verbose = parser.get<bool>("verbose");
 
-    const auto input_basename = parser.get<std::string>("input_basename");
+    build_config.base_filename = parser.get<std::string>("input_basename");
     assert(input_basename.length() != 0);
-    build_config.output_filename = input_basename;
+    build_config.output_filename = build_config.base_filename;
     if (parser.parsed("output_basename")) {
         build_config.output_filename = parser.get<std::string>("output_basename");
     }
     build_config.output_filename.replace_extension(constants::hfur_filename_extension);
 
-    hfur_index_t index;
-    index.load(build_config);
+    essentials::logger("loading the index...");
+    hfur_index_t::loader loader(build_config);
+    loader.load();
 
-    essentials::logger("saving index to disk...");
-    essentials::save(index, build_config.output_filename.c_str());
     essentials::logger("DONE");
 
-    return 0;
-}
-
-[[deprecated("Use probabilistic_check")]] int check(int argc, char** argv) {
-    cmd_line_parser::parser parser(argc, argv);
-    parser.add("base_filename", "The *correct* Fulgor index to be checked against.", "--base",
-               true);
-    parser.add("target_filename",
-               "The Fulgor index to be checked for correctness. Cannot be a .fur index.",
-               "--target", true);
-    parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
-    parser.add("verbose", "Verbose output during processing (default is false).", "--verbose",
-               false, true);
-    if (!parser.parse()) return 1;
-    util::print_cmd(argc, argv);
-
-    auto base_filename = parser.get<std::string>("base_filename");
-    auto target_filename = parser.get<std::string>("target_filename");
-    bool verbose = parser.get<bool>("verbose");
-    uint64_t num_threads = parser.parsed("num_threads") ? parser.get<uint64_t>("num_threads") : 1;
-
-    std::variant<hfur_index_t, mdfur_index_t, mfur_index_t, dfur_index_t> base_index;
-    if (is_meta_diff(base_filename)) {
-        base_index = mdfur_index_t();
-    } else if (is_meta(base_filename)) {
-        base_index = mfur_index_t();
-    } else if (is_diff(base_filename)) {
-        base_index = dfur_index_t();
-    } else if (is_hybrid(base_filename)) {
-        base_index = hfur_index_t();
-    } else {
-        std::cerr << "Wrong base index filename supplied." << std::endl;
-        return 1;
-    }
-
-    std::variant<mdfur_index_t, mfur_index_t, dfur_index_t> target_index;
-    if (is_meta_diff(target_filename)) {
-        target_index = mdfur_index_t();
-    } else if (is_meta(target_filename)) {
-        target_index = mfur_index_t();
-    } else if (is_diff(target_filename)) {
-        target_index = dfur_index_t();
-    } else {
-        std::cerr << "Wrong target index filename supplied." << std::endl;
-        return 1;
-    }
-
-    uint64_t with_errors = 0;
-    std::visit(
-        [&base_filename, &target_filename, &with_errors, num_threads, verbose](auto&& base,
-                                                                               auto&& target) {
-            if (verbose) essentials::logger("*** START: loading the base index");
-            essentials::mmap(base, base_filename.c_str());
-            if (verbose) essentials::logger("*** DONE: loading the base index");
-
-            if (verbose) essentials::logger("*** START: loading the target index");
-            essentials::mmap(target, target_filename.c_str());
-            if (verbose) essentials::logger("*** DONE: loading the target index");
-
-            with_errors = check(base, target, num_threads, verbose);
-        },
-        base_index, target_index);
-
-    if (with_errors) {
-        essentials::logger("*** Completed with errors, try to rebuild the index");
-    } else {
-        essentials::logger("*** Completed successfully!");
+    if (build_config.verbose) {
+        util::timed_phase::print_breakdown();
     }
 
     return 0;

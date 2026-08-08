@@ -151,6 +151,7 @@ int build(int argc, char** argv) {
     parser.add("force", "Re-build the index even when an index with the same name is found.",
                "--force", false, true);
     parser.add("meta", "Build a meta-colored index.", "--meta", false, true);
+    parser.add("stats", "Prints index stats after construction.", "--stats", false, true);
 
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
@@ -221,7 +222,7 @@ int build(int argc, char** argv) {
                 essentials::logger("Index stored at " + build_config.output_filename.string());
             }
 
-            if (build_config.verbose) {
+            if (parser.get<bool>("stats")) {
                 essentials::mmap(index_, build_config.output_filename.c_str());
                 index_.print_stats();
             }
@@ -238,6 +239,8 @@ int build(int argc, char** argv) {
                 const auto rpt_foot = "----------------------------------\n";
 
                 std::cout << rpt_head + rpt_ln0 + rpt_ln1 + rpt_foot << std::endl;
+
+                util::timed_phase::print_breakdown();
             }
         },
         index);

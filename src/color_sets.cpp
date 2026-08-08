@@ -57,22 +57,23 @@ void hybrid::print_stats() const  //
             uint64_t n = num_ints_per_bucket[i];
             integers += n;
             bits += num_bits_per_bucket[i];
-            std::cout << "  num. color_sets of size > "
-                      << (curr_color_set_size_upper_bound - bucket_size)
-                      << " and <= " << curr_color_set_size_upper_bound << ": "
-                      << num_color_sets_per_bucket[i] << " ("
-                      << (num_color_sets_per_bucket[i] * 100.0) / num_color_sets()
-                      << "%) -- integers: " << n << " (" << (n * 100.0) / num_total_integers
-                      << "%) -- bits/int: " << static_cast<double>(num_bits_per_bucket[i]) / n
-                      << " -- " << static_cast<double>(num_bits_per_bucket[i]) / total_bits * 100.0
-                      << "\% of total space" << '\n';
+
+            std::cout << std::format(
+                "  #color_sets of size > {} and <= {}: {} ({:.6f}%) "
+                "-- #ints: {} ({:.6f}%) -- bits/int: {:.6f} ({:.6f}%)\n",
+                curr_color_set_size_upper_bound - bucket_size, curr_color_set_size_upper_bound,
+                num_color_sets_per_bucket[i],
+                (num_color_sets_per_bucket[i] * 100.0) / num_color_sets(), n,
+                (n * 100.0) / num_total_integers, static_cast<double>(num_bits_per_bucket[i]) / n,
+                static_cast<double>(num_bits_per_bucket[i]) / total_bits * 100.0);
         }
     }
     assert(integers == num_total_integers);
     assert(std::accumulate(num_color_sets_per_bucket.begin(), num_color_sets_per_bucket.end(),
                            uint64_t(0)) == num_color_sets());
     std::cout << "  colors: " << static_cast<double>(bits) / integers << " bits/int" << std::endl;
-    std::cout << "  offsets: "
+    std::cout << "  offsets: " << m_offsets.num_bytes() << " B / "
+              << essentials::convert(m_offsets.num_bytes(), essentials::GB) << " GB -- "
               << ((sizeof(m_num_colors) + sizeof(m_sparse_set_threshold_size) +
                    sizeof(m_very_dense_set_threshold_size) + m_offsets.num_bytes()) *
                   8.0) /

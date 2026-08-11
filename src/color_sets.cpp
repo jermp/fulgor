@@ -77,7 +77,7 @@ void hybrid::print_stats() const  //
               << ((sizeof(m_num_colors) + sizeof(m_sparse_set_threshold_size) +
                    sizeof(m_very_dense_set_threshold_size) + m_offsets.num_bytes()) *
                   8.0) /
-                     integers
+                     num_color_sets()
               << " bits/int" << std::endl;
 }
 

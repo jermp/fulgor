@@ -215,7 +215,6 @@ struct meta_build_strategy {
 
             const uint64_t max_queue_size = m_build_config.num_threads * 2;
             cdbg::unitigs_color_set_stream stream(cdbg_config.out_basename, max_queue_size);
-            stream.start();
 
             auto process_color_set = [this, &color_sets_builder, &num_written_meta_sets,
                                       &num_integers_in_metacolor_sets, &write_mutex, &q,

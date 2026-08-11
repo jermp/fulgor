@@ -372,7 +372,7 @@ int load(int argc, char** argv) {
     build_config.verbose = parser.get<bool>("verbose");
 
     build_config.base_filename = parser.get<std::string>("input_basename");
-    assert(input_basename.length() != 0);
+    assert(build_config.base_filename.string().length() != 0);
     build_config.output_filename = build_config.base_filename;
     if (parser.parsed("output_basename")) {
         build_config.output_filename = parser.get<std::string>("output_basename");

@@ -209,7 +209,7 @@ void index<ColorSets>::loader::load_u2c() {
         prev = color_set_id;
         in.ignore(std::numeric_limits<std::streamsize>::max(), '\n');  // skip unitig sequence
     }
-    assert(count == num_color_sets);
+    assert(count == m_num_color_sets);
     (void)count;
     in.close();
 
@@ -218,8 +218,8 @@ void index<ColorSets>::loader::load_u2c() {
     u2c_builder.set(m_num_unitigs - 1, 1);
     u2c_builder.build(u2c);
     u2c_rank1_index.build(u2c);
-    assert(u2c.num_bits() == num_unitigs);
-    assert(u2c_rank1_index.num_ones() == num_color_sets);
+    assert(u2c.num_bits() == m_num_unitigs);
+    assert(u2c_rank1_index.num_ones() == m_num_color_sets);
 
     m_saver.visit(u2c);
     m_saver.visit(u2c_rank1_index);

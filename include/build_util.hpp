@@ -24,7 +24,6 @@ inline void build_reference_sketches(const uint64_t num_colors,
 
     cdbg::unitigs_color_set_stream stream(input_basename, max_queue_size);
     const cdbg::metadata metadata(cdbg::metadata_filename(input_basename));
-    stream.start();
 
     std::atomic<uint64_t> processed_sets = 0;
 
@@ -40,7 +39,7 @@ inline void build_reference_sketches(const uint64_t num_colors,
                 std::lock_guard lock(mutexes[color]);
                 merge_sketches(sketches[color], sketch);
             }
-            
+
             if (processed_sets.fetch_add(1) % 10000 == 0) {
                 auto progress = std::format("\r[sketch-references] {}/{} ({:.2f}%)",
                                             processed_sets.load(), metadata.num_color_sets,

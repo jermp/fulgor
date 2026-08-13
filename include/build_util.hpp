@@ -4,13 +4,6 @@
 
 namespace fulgor {
 
-inline void merge_sketches(sketch::hll_t& dest, const sketch::hll_t& src) {
-    std::transform(dest.mutable_core().begin(), dest.mutable_core().end(), src.core().begin(),
-                   dest.mutable_core().begin(),
-                   [](uint8_t x, uint8_t y) { return std::max(x, y); });  //[cite: 1]
-    dest.not_ready();                                                     //[cite: 1]
-}
-
 inline void build_reference_sketches(const uint64_t num_colors,
                                      const uint64_t p,            // use 2^p bytes per HLL sketch
                                      const uint64_t num_threads,  // num. threads for construction
@@ -28,16 +21,23 @@ inline void build_reference_sketches(const uint64_t num_colors,
     std::atomic<uint64_t> processed_sets = 0;
 
     auto process = [&] {
+        typename sketch::hll_t::HashType hasher;
+        std::vector<uint64_t> hashes;
         for (auto opt = stream.get(); opt != std::nullopt; opt = stream.get()) {
-            sketch::hll_t sketch(p);
             auto& [unitig_start, num_unitigs, cs_id, color_set] = opt.value();
+
+            hashes.clear();
+            hashes.reserve(num_unitigs);
             for (uint64_t unitig_id = unitig_start; unitig_id < unitig_start + num_unitigs;
                  ++unitig_id) {
-                sketch.addh(unitig_id);
+                hashes.push_back(hasher.hash(unitig_id));
             }
+
             for (const auto color : color_set) {
                 std::lock_guard lock(mutexes[color]);
-                merge_sketches(sketches[color], sketch);
+                for (const auto hash : hashes) {
+                    sketches[color].add(hash);
+                }
             }
 
             if (processed_sets.fetch_add(1) % 10000 == 0) {

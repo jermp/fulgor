@@ -59,59 +59,6 @@ struct hybrid {
             m_color_sets_builder.reserve(num_bits);
         }
 
-        [[deprecated("With the new ccdbg-builder this is not required. Method `encode` is better")]]
-        void encode_color_set(std::span<const uint32_t> color_set, const uint64_t color_set_id)  //
-        {
-            if (size() >= m_max_RAM_bytes) {
-                flush();
-            }
-
-            const uint64_t cs_size = color_set.size();
-            bits::bit_vector::builder bvb;
-            bits::util::write_delta(bvb, cs_size);
-            if (cs_size < m_sparse_set_threshold_size) {
-                encode_sparse(color_set, bvb);
-            } else if (cs_size < m_very_dense_set_threshold_size) {
-                encode_dense(color_set, bvb);
-            } else {
-                encode_very_dense(color_set, bvb);
-            }
-
-            // TODO: try to use a condition variable instead of the queue
-
-            {
-                std::shared_lock flush_lock(*m_flush_mutex);
-                std::lock_guard queue_lock(*m_queue_mutex);
-                m_num_total_integers += cs_size;
-                m_num_color_sets += 1;
-                if (color_set_id == m_curr_color_set_id) {
-                    m_color_sets_builder.append(bvb);
-                    m_offsets.push_back(m_base_offset + m_color_sets_builder.num_bits());
-                    ++m_curr_color_set_id;
-                    while (!m_csb_queue.empty() && m_curr_color_set_id == m_csb_queue.top().first) {
-                        auto& [_, csb] = m_csb_queue.top();
-                        m_queue_size -=
-                            8 + essentials::vec_bytes(csb.data()) + 16;  // first + bvb struct
-
-                        m_color_sets_builder.append(csb);
-                        m_csb_queue.pop();
-                        m_offsets.push_back(m_base_offset + m_color_sets_builder.num_bits());
-                        ++m_curr_color_set_id;
-                    }
-                    assert((m_csb_queue.empty() && m_queue_size == 0) ||
-                           (!m_csb_queue.empty() && m_queue_size > 0));
-                } else {
-                    m_queue_size +=
-                        8 + essentials::vec_bytes(bvb.data()) + 16;  // first + bvb struct
-                    m_csb_queue.emplace(color_set_id, std::move(bvb));
-                }
-            }
-
-            if (m_verbose && m_num_color_sets % 500000 == 0) {
-                std::cout << "  processed " << m_num_color_sets << " color sets" << std::endl;
-            }
-        }
-
         uint32_t encode(const std::span<const uint32_t> color_set)  //
         {
             if (size() >= m_max_RAM_bytes) {
@@ -150,21 +97,6 @@ struct hybrid {
         uint64_t size() const {
             return essentials::vec_bytes(m_color_sets_builder.data()) +
                    essentials::vec_bytes(m_offsets) + m_queue_size;
-        }
-
-        [[deprecated("Unused with external memory construction")]]
-        void append(hybrid::builder& hb) {
-            if (hb.m_num_color_sets == 0) return;
-            m_color_sets_builder.append(hb.m_color_sets_builder);
-            assert(m_offsets.size() > 0);
-            uint64_t delta = m_offsets.back();
-            m_offsets.reserve(m_offsets.size() + hb.m_offsets.size());
-            for (uint64_t i = 1; i != hb.m_offsets.size(); ++i) {
-                m_offsets.push_back(hb.m_offsets[i] + delta);
-            }
-            m_num_color_sets += hb.m_num_color_sets;
-            m_num_total_integers += hb.m_num_total_integers;
-            assert(m_num_color_sets == m_offsets.size() - 1);
         }
 
         [[deprecated("External memory construction requires build()")]]

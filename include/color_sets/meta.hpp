@@ -51,7 +51,8 @@ struct meta {
                 m_color_sets_builders.emplace_back(num_colors_in_partition,
                                                    m_partition_savers.back());
                 m_color_sets_builders[partition_id].set_verbose(m_verbose);
-                m_color_sets_builders[partition_id].set_max_RAM_bytes(m_max_RAM_bytes);
+                m_color_sets_builders[partition_id].set_max_RAM_bytes(
+                    64 * 1024);  // bigger than a page size.
             }
         }
 

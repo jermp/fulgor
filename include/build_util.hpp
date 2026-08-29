@@ -34,7 +34,6 @@ inline void build_reference_sketches(const uint64_t num_colors,
             }
 
             for (const auto color : color_set) {
-                std::lock_guard lock(mutexes[color]);
                 for (const auto hash : hashes) {
                     sketches[color].add(hash);
                 }

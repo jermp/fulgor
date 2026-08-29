@@ -455,8 +455,8 @@ uint64_t probabilistic_check(Index& index, double const file_prob, double const 
                             }
 
                             auto color_set = index.color_set(color_set_ids.front());
-                            while (*color_set < color) {
-                                ++color_set;
+                            for (uint64_t pos = 0; pos < color_set.size(); ++pos, ++color_set) {
+                                if (*color_set == color) break;
                             }
 
                             if (*color_set != color) {

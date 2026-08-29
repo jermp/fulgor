@@ -384,7 +384,6 @@ struct index<ColorSets>::differential_builder {
             sshash_config.k = dict.k();
             sshash_config.m = dict.m();
             assert(dict.canonical() == true);
-            sshash_config.canonical = dict.canonical();
             sshash_config.verbose = m_build_config.verbose;
             sshash_config.tmp_dirname = m_build_config.tmp_dirname;
             sshash_config.num_threads = m_build_config.num_threads;

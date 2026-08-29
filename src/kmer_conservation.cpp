@@ -13,7 +13,7 @@ void index<ColorSets>::kmer_conservation(
     if (sequence.length() < m_k2u.k()) return;
 
     kmer_conservation_info.clear();
-    sshash::streaming_query<sshash_type, true> query(&m_k2u);
+    sshash::streaming_query<sshash_type> query(&m_k2u);
     query.reset();
     const uint64_t num_kmers = sequence.length() - m_k2u.k() + 1;
     kmer_conservation_triple kct = {0, 0, 0};

@@ -13,7 +13,7 @@ void index<ColorSets>::kmer_matches(std::string const& sequence,
     const uint64_t num_kmers = sequence.length() - m_k2u.k() + 1;
     positive_kmers_in_sequence.resize(num_kmers, 0);
     std::fill(counts.begin(), counts.end(), 0);
-    sshash::streaming_query<sshash_type, true> query(&m_k2u);
+    sshash::streaming_query<sshash_type> query(&m_k2u);
     query.reset();
 
     for (uint64_t i = 0; i != num_kmers; ++i) {

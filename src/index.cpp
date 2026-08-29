@@ -238,7 +238,6 @@ void index<ColorSets>::loader::load_kmer_dictionary() {
     sshash::build_configuration sshash_config;
     sshash_config.k = m_k;
     sshash_config.m = m_config.m;
-    sshash_config.canonical = true;
     sshash_config.verbose = m_config.verbose;
     sshash_config.tmp_dirname = m_config.tmp_dirname;
     sshash_config.num_threads = m_config.num_threads;

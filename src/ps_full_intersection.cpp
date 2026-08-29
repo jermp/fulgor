@@ -338,7 +338,7 @@ void index<ColorSets>::fetch_color_set_ids(std::string const& sequence,
     std::vector<uint64_t> unitig_ids;
 
     { /* stream through */
-        sshash::streaming_query<sshash_type, true> query(&m_k2u);
+        sshash::streaming_query<sshash_type> query(&m_k2u);
         query.reset();
         const uint64_t num_kmers = sequence.length() - m_k2u.k() + 1;
         for (uint64_t i = 0, prev_unitig_id = -1; i != num_kmers; ++i) {

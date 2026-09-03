@@ -37,22 +37,17 @@ MESSAGE(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 MESSAGE(STATUS "Compiling for processor: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
 MESSAGE(STATUS "Compiling with flags:${CMAKE_CXX_FLAGS}")
 
-set(CITYHASH_SOURCES ${CMAKE_SOURCE_DIR}/external/sshash/external/cityhash/cityhash.cpp)
-
-### Fulgor ###
+### Subdirectories ###
 add_subdirectory(external/cdbg-builder cdbg_builder_bin)
+
+set(SSHASH_BUILD_EXECUTABLES OFF CACHE BOOL "" FORCE)
+add_subdirectory(external/sshash)
+
+### Fulgor Target ###
 add_executable(fulgor tools/fulgor.cpp)
 
-# Cleaned up: Only containing FULGOR's direct internal dependencies
 target_include_directories(fulgor PRIVATE
         .
-        external/sshash
-        external/sshash/external/pthash/include
-        external/sshash/external/pthash/external/bits/include
-        external/sshash/external/pthash/external/fastmod
-        external/sshash/external/pthash/external/xxHash
-        external/sshash/external/pthash/external/mm_file/include
-        external/sshash/external/pthash/external/bits/external/essentials/include
         external/FQFeeder/include
         external/sketch/include
         external/sketch/include/blaze
@@ -60,10 +55,10 @@ target_include_directories(fulgor PRIVATE
 
 target_link_libraries(fulgor
         PRIVATE
+        cdbg_builder_headers # provides cdbg headers.
+        sshash::sshash # provides sshash headers AND the single copy of bits.
         z
         ${CMAKE_DL_LIBS}
-        ${CITYHASH_SOURCES}
-        cdbg_builder_headers
 )
 
 if (UNIX)

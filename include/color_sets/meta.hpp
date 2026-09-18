@@ -479,7 +479,7 @@ private:
         visitor.visit(t.m_partition_endpoints);
     }
 
-    uint32_t m_num_colors;
+    uint32_t m_num_colors = 0;
     bits::compact_vector m_meta_color_sets;
     bits::elias_fano<false, false> m_meta_color_sets_offsets;
     essentials::owning_span<ColorSets> m_partial_color_sets;

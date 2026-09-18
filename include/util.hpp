@@ -82,7 +82,6 @@ struct kmer_conservation_triple {
 typedef uint32_t count_type;
 
 namespace util {
-
 void print_cmd(int argc, char** argv) {
     for (int i = 0; i != argc; ++i) std::cout << argv[i] << ' ';
     std::cout << std::endl;
@@ -431,6 +430,33 @@ private:
 
     inline static std::vector<std::pair<std::string, std::uint64_t>> breakdown;
 };
+
+constexpr auto make_dna_lut() {
+    std::array<bool, 256> lut{};
+    for (unsigned char c : {'A', 'C', 'G', 'T', 'U', 'a', 'c', 'g', 't', 'u'}) {
+        lut[c] = true;
+    }
+    return lut;
+}
+inline constexpr auto dna_lut = make_dna_lut();
+
+inline bool is_dna(std::string_view sv) noexcept {
+    return std::ranges::all_of(sv, [](char c) { return dna_lut[static_cast<unsigned char>(c)]; });
+}
+
+template <typename Index>
+void load_index(Index& index, const std::string& index_filename, const bool mmap,
+                const bool verbose) {
+    if (mmap) {
+        if (verbose) essentials::logger("*** START: memory mapping the index");
+        essentials::mmap(index, index_filename.c_str());
+        if (verbose) essentials::logger("*** DONE: memory mapping the index");
+    } else {
+        if (verbose) essentials::logger("*** START: loading the index");
+        essentials::load(index, index_filename.c_str());
+        if (verbose) essentials::logger("*** DONE: loading the index");
+    }
+}
 
 }  // namespace util
 }  // namespace fulgor

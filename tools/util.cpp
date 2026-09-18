@@ -1,3 +1,5 @@
+#include "include/util.hpp"
+
 #include <variant>
 
 using namespace fulgor;
@@ -34,18 +36,14 @@ void verify(std::string const& index_filename) {
 template <typename FulgorIndex>
 void print_stats(std::string const& index_filename) {
     FulgorIndex index;
-    essentials::logger("loading index from disk...");
-    essentials::mmap(index, index_filename.c_str());
-    essentials::logger("DONE");
+    util::load_index(index, index_filename, true, true);
     index.print_stats();
 }
 
 template <typename FulgorIndex>
 void print_filenames(std::string const& index_filename) {
     FulgorIndex index;
-    essentials::logger("loading index from disk...");
-    essentials::mmap(index, index_filename.c_str());
-    essentials::logger("DONE");
+    util::load_index(index, index_filename, true, true);
     for (uint64_t i = 0; i != index.num_colors(); ++i) {
         std::cout << i << '\t' << index.filename(i) << '\n';
     }
@@ -54,9 +52,7 @@ void print_filenames(std::string const& index_filename) {
 template <typename FulgorIndex>
 void dump(std::string const& index_filename, build_configuration const& build_config) {
     FulgorIndex index;
-    essentials::logger("loading index from disk...");
-    essentials::mmap(index, index_filename.c_str());
-    essentials::logger("DONE");
+    util::load_index(index, index_filename, true, true);
     index.dump(build_config);
 }
 
@@ -439,8 +435,8 @@ uint64_t probabilistic_check(Index& index, double const file_prob, double const 
 
                         for (uint64_t i = kmer_dis(gen); i < num_kmers; i += 1 + kmer_dis(gen)) {
                             std::string_view kmer_view(seq.data() + i, k);
-                            if (kmer_view.find('N') != std::string_view::npos) continue;
                             ++total_kmers_checked;
+                            if (!util::is_dna(kmer_view)) continue;
 
                             std::vector<uint32_t> color_set_ids;
                             index.fetch_color_set_ids(std::string(kmer_view), color_set_ids);
@@ -455,9 +451,7 @@ uint64_t probabilistic_check(Index& index, double const file_prob, double const 
                             }
 
                             auto color_set = index.color_set(color_set_ids.front());
-                            for (uint64_t pos = 0; pos < color_set.size(); ++pos, ++color_set) {
-                                if (*color_set == color) break;
-                            }
+                            color_set.next_geq(color);
 
                             if (*color_set != color) {
                                 std::lock_guard lock(out_mtx);
@@ -516,12 +510,16 @@ int probabilistic_check(int argc, char** argv) {
     parser.add(
         "file_prob",
         "Probability of each file to be checked. Value must be in (0, 1]. (1 means all files)",
-        "-q", true);
+        "-fp", true);
     parser.add(
         "kmer_prob",
         "Probability of each kmer to be checked. Value must be in (0, 1]. (1 means all kmers)",
-        "-p", true);
+        "-kp", true);
     parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
+    parser.add("mmap",
+               "Use memory mapping instead of loading the whole index in RAM. Use this option if "
+               "the index does not fit in memory. WARNING: significantly slows down query speed",
+               "--mmap", false, true);
     parser.add("verbose", "Verbose output during processing (default is false).", "--verbose",
                false, true);
     if (!parser.parse()) return 1;
@@ -531,6 +529,8 @@ int probabilistic_check(int argc, char** argv) {
     auto file_prob = parser.get<double>("file_prob");
     auto kmer_prob = parser.get<double>("kmer_prob");
     bool verbose = parser.get<bool>("verbose");
+    bool mmap = parser.get<bool>("mmap");
+
     uint64_t num_threads = parser.parsed("num_threads") ? parser.get<uint64_t>("num_threads") : 1;
 
     if (file_prob < 0.0 || file_prob > 1.0 || kmer_prob <= 0.0 || kmer_prob > 1.0) {
@@ -554,10 +554,9 @@ int probabilistic_check(int argc, char** argv) {
 
     uint64_t with_errors = 0;
     std::visit(
-        [&index_filename, &with_errors, file_prob, kmer_prob, num_threads, verbose](auto&& index) {
-            if (verbose) essentials::logger("*** START: loading the base index");
-            essentials::mmap(index, index_filename.c_str());
-            if (verbose) essentials::logger("*** DONE: loading the base index");
+        [&index_filename, &with_errors, file_prob, kmer_prob, num_threads, verbose,
+         mmap](auto&& index) {
+            util::load_index(index, index_filename, mmap, verbose);
 
             with_errors = probabilistic_check(index, file_prob, kmer_prob, num_threads, verbose);
         },

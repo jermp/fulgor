@@ -243,8 +243,6 @@ int pseudoalign(int argc, char** argv) {
                "to avoid printing status messages to stdout.",
                "-o", true);
     parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
-    parser.add("verbose", "Verbose output during query (default is false).", "--verbose", false,
-               true);
     parser.add("threshold",
                "Threshold for threshold_union algorithm. It must be a float in (0.0,1.0].", "-r",
                false);
@@ -257,6 +255,12 @@ int pseudoalign(int argc, char** argv) {
                "Format of the output file. Must either ascii, binary, compressed"
                " (default is ascii).",
                "--format", false);
+    parser.add("mmap",
+               "Use memory mapping instead of loading the whole index in RAM. Use this option if "
+               "the index does not fit in memory. WARNING: significantly slows down query speed",
+               "--mmap", false, true);
+    parser.add("verbose", "Verbose output during query (default is false).", "--verbose", false,
+               true);
     if (!parser.parse()) return 1;
 
     auto index_filename = parser.get<std::string>("index_filename");
@@ -264,6 +268,7 @@ int pseudoalign(int argc, char** argv) {
     auto output_filename = parser.get<std::string>("output_filename");
 
     bool deduplicate = parser.get<bool>("deduplicate");
+    bool mmap = parser.get<bool>("mmap");
     auto output_format = parser.parsed("format") ? parser.get<std::string>("format") : "ascii";
 
     uint64_t num_threads = 1;
@@ -345,10 +350,8 @@ int pseudoalign(int argc, char** argv) {
 
     std::visit(
         [&]<typename Index, typename Formatter>(Index&& index, Formatter&& formatter) {
-            if (verbose) essentials::logger("*** START: loading the index");
-            essentials::mmap(index, index_filename.c_str());
+            util::load_index(index, index_filename, mmap, verbose);
             if (verbose) {
-                essentials::logger("*** DONE: loading the index");
                 essentials::logger("performing queries from file '" + query_filename + "'...");
             }
 

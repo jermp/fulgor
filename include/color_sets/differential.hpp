@@ -7,7 +7,7 @@ struct differential {
 
     struct builder {
         explicit builder(const uint32_t num_colors = 0,
-                 build_configuration build_config = build_configuration())
+                         build_configuration build_config = build_configuration())
             : m_num_total_integers(0)
             , m_num_sets(0)
             , m_num_colors(num_colors)
@@ -338,7 +338,7 @@ private:
         visitor.visit(t.m_clusters_rank1_index);
     }
 
-    uint32_t m_num_colors;
+    uint32_t m_num_colors = 0;
     bits::elias_fano<false, false> m_representative_offsets, m_color_set_offsets;
     bits::bit_vector m_color_sets;
     bits::bit_vector m_clusters;

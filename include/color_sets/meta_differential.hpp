@@ -17,9 +17,7 @@ struct meta_differential {
 
     struct builder {
         explicit builder(build_configuration build_config = build_configuration())
-            : m_prev_docs(0)
-            , m_build_config(std::move(build_config))
-        {
+            : m_prev_docs(0), m_build_config(std::move(build_config)) {
             m_partition_sets_offsets.push_back(0);
             m_relative_colors_offsets.push_back(0);
         }
@@ -324,8 +322,8 @@ private:
         visitor.visit(t.m_partition_sets_partitions_rank1_index);
     }
 
-    uint32_t m_num_colors;
-    uint32_t m_num_partition_sets;
+    uint32_t m_num_colors = 0;
+    uint32_t m_num_partition_sets = 0;
     bits::elias_fano<false, false> m_partition_sets_offsets, m_relative_colors_offsets;
     std::vector<partition_endpoint> m_partition_endpoints;
     std::vector<differential> m_partial_color_sets;

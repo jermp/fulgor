@@ -186,9 +186,9 @@ int build(int argc, char** argv) {
     std::variant<hfur_index_t, mfur_index_t> index;
     if (build_config.meta_colored) {
         build_config.output_filename.replace_extension(constants::mfur_filename_extension);
-        index = mfur_index_t();
+        index.emplace<mfur_index_t>();
     } else {
-        index = hfur_index_t();
+        index.emplace<hfur_index_t>();
     }
 
     if (std::filesystem::exists(build_config.output_filename)) {
@@ -212,7 +212,7 @@ int build(int argc, char** argv) {
     }
 
     std::visit(
-        [&]<typename Index>(Index index_) {
+        [&]<typename Index>(Index& index_) {
             {
                 util::timed_phase timer("Building the index");
 
@@ -223,7 +223,8 @@ int build(int argc, char** argv) {
             }
 
             if (parser.get<bool>("stats")) {
-                essentials::mmap(index_, build_config.output_filename.c_str());
+                util::load_index(index_, build_config.output_filename.c_str(), true,
+                                 build_config.verbose);
                 index_.print_stats();
             }
 

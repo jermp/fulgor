@@ -7,19 +7,26 @@
   <img src="img/fulgor.png" width="350" alt="Logo">
 </picture>
 
-**Fulgor** is a *colored de Bruijn graph* index for large-scale matching and color queries, powered by [SSHash](https://github.com/jermp/sshash) and [GGCAT](https://github.com/algbio/GGCAT).
+**Fulgor** is a *colored de Bruijn graph* index for large-scale matching and color queries, powered
+by [SSHash](https://github.com/jermp/sshash).
 
 The Fulgor index is described in the following papers.
 
-- [**Fulgor: A Fast and Compact k-mer Index for Large-Scale Matching and Color Queries**](https://almob.biomedcentral.com/articles/10.1186/s13015-024-00251-9) (Algorithms for Molecular Biology, ALMOB 2024), and
-- [**Meta-colored compacted de Bruijn graphs**](https://link.springer.com/chapter/10.1007/978-1-0716-3989-4_9) (International Conference on Research in Computational Molecular Biology, RECOMB 2024).
-- [**Where the patterns are: repetition-aware compression for colored de Bruijn graphs**](https://www.liebertpub.com/doi/10.1089/cmb.2024.0714) (Journal of Computational Biology, JCB 2024).
+- [**Fulgor: A Fast and Compact k-mer Index for Large-Scale Matching and Color Queries
+  **](https://almob.biomedcentral.com/articles/10.1186/s13015-024-00251-9) (Algorithms for Molecular Biology, ALMOB
+  2024), and
+- [**Meta-colored compacted de Bruijn graphs**](https://link.springer.com/chapter/10.1007/978-1-0716-3989-4_9) (
+  International Conference on Research in Computational Molecular Biology, RECOMB 2024).
+- [**Where the patterns are: repetition-aware compression for colored de Bruijn graphs
+  **](https://www.liebertpub.com/doi/10.1089/cmb.2024.0714) (Journal of Computational Biology, JCB 2024).
 - [**Fast pseudoalignment queries on compressed
-colored de Bruijn graphs**](https://doi.org/10.4230/LIPIcs.WABI.2025.6) (International Conference on Algorithms for Bioinformatics, WABI 2025).
+  colored de Bruijn graphs**](https://doi.org/10.4230/LIPIcs.WABI.2025.6) (International Conference on Algorithms for
+  Bioinformatics, WABI 2025).
 
 Please, cite these papers if you use Fulgor.
 
 ### Table of contents
+
 * [Dependencies](#dependencies)
 * [Compiling the code](#compiling-the-code)
 * [Tools and usage](#tools-and-usage)
@@ -32,13 +39,6 @@ Please, cite these papers if you use Fulgor.
 
 Dependencies
 ------------
-
-#### GGCAT
-
-The code uses the [GGCAT](https://github.com/algbio/GGCAT) Rust library,
-so make sure you have Rust installed. If not, Rust can be installed as recommended [here](https://www.rust-lang.org/tools/install), with
-
-	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 #### zlib
 
@@ -69,7 +69,8 @@ and then do
 
 to pull all necessary submodules before compilation.
 
-To compile the code for a release environment (see file `CMakeLists.txt` for the used compilation flags), it is sufficient to do the following, within the parent `fulgor` directory:
+To compile the code for a release environment (see file `CMakeLists.txt` for the used compilation flags), it is
+sufficient to do the following, within the parent `fulgor` directory:
 
     mkdir build
     cd build
@@ -82,7 +83,6 @@ For a testing environment, use the following instead:
     cd debug_build
     cmake .. -D CMAKE_BUILD_TYPE=Debug -D FULGOR_USE_SANITIZERS=On
     make -j
-
 
 Tools and usage
 ---------------
@@ -114,10 +114,10 @@ Run `./fulgor help` to see a list of available tools.
 	Other:
 	  help               print this helper and exit gracefully
 
-For large-scale indexing, it could be necessary to increase the number of file descriptors that can be opened simultaneously:
+For large-scale indexing, it could be necessary to increase the number of file descriptors that can be opened
+simultaneously:
 
 	ulimit -n 2048
-
 
 Quick start
 -----------
@@ -141,7 +141,8 @@ to build an index that will be serialized to the file `test_data/salmonella_10.f
 Indexing an example Salmonella Enterica pangenome
 -------------------------------------------------
 
-In this example, we will build a Fulgor index, with k = 31, for the 4,546 Salmonella genomes that can be downloaded from [here](https://zenodo.org/record/1323684)
+In this example, we will build a Fulgor index, with k = 31, for the 4,546 Salmonella genomes that can be downloaded
+from [here](https://zenodo.org/record/1323684)
 with (assuming you have `wget` installed)
 
 	wget https://zenodo.org/records/1323684/files/Salmonella_enterica.zip
@@ -186,12 +187,12 @@ See the table below.
 
 | command               | output file             | size (GB) | compression factor |
 |:----------------------|:------------------------|:---------:|:------------------:|
-| `color --meta`        | `salmonella_4546.mfur`  | 0.11769   | 2.26               |
-| `color --diff`        | `salmonella_4546.dfur`  | 0.11076   | 2.40               |
-| `color --meta --diff` | `salmonella_4546.mdfur` | 0.09389   | 2.84               |
+| `color --meta`        | `salmonella_4546.mfur`  |  0.11769  |        2.26        |
+| `color --diff`        | `salmonella_4546.dfur`  |  0.11076  |        2.40        |
+| `color --meta --diff` | `salmonella_4546.mdfur` |  0.09389  |        2.84        |
 
-
-The following table is taken from the paper *"Where the patters are: repetition-aware compression for colored de Bruijn graphs"* and shows the size of the various Fulgor indexes on several larger pangenomes.
+The following table is taken from the paper *"Where the patters are: repetition-aware compression for colored de Bruijn
+graphs"* and shows the size of the various Fulgor indexes on several larger pangenomes.
 
 ![Index size](./img/fulgor_index_size.png)
 
@@ -199,13 +200,15 @@ The following table is taken from the paper *"Where the patters are: repetition-
 Pseudoalignment output format
 -----------------------------
 
-The tool `pseudoalign` writes the result to an output file, in plain text format, specified with the option `-o [output-filename]`.
+The tool `pseudoalign` writes the result to an output file, in plain text format, specified with the option
+`-o [output-filename]`.
 
 This file has one line for each mapped read, formatted as follows:
 
 	[read-id][TAB][list-lenght][TAB][list]
 
-where `[list]` is a TAB-separated list of increasing integers, of length `[list-length]`, representing the list of reference identifiers to which the read is mapped. (`[TAB]` is the character `\t`.)
+where `[list]` is a TAB-separated list of increasing integers, of length `[list-length]`, representing the list of
+reference identifiers to which the read is mapped. (`[TAB]` is the character `\t`.)
 
 #### Example
 
@@ -223,7 +226,8 @@ where `[list]` is a TAB-separated list of increasing integers, of length `[list-
 
 If pseudoalignment is performed against a **meta-colored**
 or a **differential-meta-colored** Fulgor index,
-the reference identifiers in the pseudoalignment output might **not** correspond to the ones assigned following the input-file order as specified with option `-l` during index construction.
+the reference identifiers in the pseudoalignment output might **not** correspond to the ones assigned following the
+input-file order as specified with option `-l` during index construction.
 This is because the meta-colored index re-assignes identifiers to references to improve index compression.
 
 In this case, the reference identifiers in the pseudoalignment output
@@ -233,7 +237,8 @@ are consistent with the ones returned by the `print-filenames` tool.
 Kmer conservation output format
 -------------------------------
 
-The tool `kmer-conservation` writes the result to an output file, in plain text format, specified with the option `-o [output-filename]`.
+The tool `kmer-conservation` writes the result to an output file, in plain text format, specified with the option
+`-o [output-filename]`.
 
 This file has one line for each processed read, formatted as follows:
 
@@ -258,13 +263,15 @@ where the variable `it` is the iterator and `it.size()` is the size of the color
 	SRR801268.987	1	(0 23 1)
 	SRR801268.988	1	(0 8 3)
 
-For example, in the second query, the triple `(12 6 3)` indicates that the 6 kmers starting at position 12 in the query all have color set id 3.
+For example, in the second query, the triple `(12 6 3)` indicates that the 6 kmers starting at position 12 in the query
+all have color set id 3.
 
 
 Kmer matches output format
 --------------------------
 
-The tool `kmer-matches` writes the result to an output file, in plain text format, specified with the option `-o [output-filename]`.
+The tool `kmer-matches` writes the result to an output file, in plain text format, specified with the option
+`-o [output-filename]`.
 
 This file begins with the line
 
@@ -277,8 +284,10 @@ where `[N]` is the number of colors in the index and then has one line for each 
 where
 
 - `[num-kmers-in-read]` is an integer,
-- `[matching-bitvector]` is a TAB-separated list of `0/1` digits, of length `[num-kmers-in-read]`: digit `i` is `1` is the `i`-th kmer of the read is present in the index, and `0` otherwise,
-- `[matches-per-color]` is a TAB-separated list of integers, of length [N]: the `i`-th integer is `x` if `x` kmers of the read are found in color `i`.
+- `[matching-bitvector]` is a TAB-separated list of `0/1` digits, of length `[num-kmers-in-read]`: digit `i` is `1` is
+  the `i`-th kmer of the read is present in the index, and `0` otherwise,
+- `[matches-per-color]` is a TAB-separated list of integers, of length [N]: the `i`-th integer is `x` if `x` kmers of
+  the read are found in color `i`.
 
 (`[TAB]` is the character `\t`.)
 
@@ -305,7 +314,9 @@ In particular, it outputs four files:
 
 where `[basename]` is a chosen output name.
 
-The file `[basename].metadata.txt` contains the following basic statistics (one per line and in the following order): the value of k, the number of distinct kmers, the number of colors, the number of unitigs, and the number of color sets, using a simple `key=value` format.
+The file `[basename].metadata.txt` contains the following basic statistics (one per line and in the following order):
+the value of k, the number of distinct kmers, the number of colors, the number of unitigs, and the number of color sets,
+using a simple `key=value` format.
 
 Example:
 
@@ -314,8 +325,6 @@ Example:
 	num_colors=4546
 	num_unitigs=1884865
 	num_color_sets=972178
-
-**Note**: The values of `num_unitigs` and `num_color_sets` could (slightly) change if the index is re-built because GGCAT does not compute *maximal* unitigs.
 
 The file `[basename].filenames.txt` lists all filenames **in order of color id**.
 The file has one line per filename.
@@ -335,11 +344,14 @@ Example:
 	/Users/giulio/Salmonella_enterica/Genomes/SAL_AA7196AA.fasta
 	(...)
 
-This means that color 0 corresponds to the file `.../SAL_AA7051AA.fasta`, color 1 to the file `../SAL_AA7053AA.fasta`, etc.
+This means that color 0 corresponds to the file `.../SAL_AA7051AA.fasta`, color 1 to the file `../SAL_AA7053AA.fasta`,
+etc.
 
-The file `[basename].color_sets.txt` lists the color sets, one per line. **There must be no duplicate color sets**. The order of the color sets in the file is used to (implicitly) assign consecutive ids to the color sets.
+The file `[basename].color_sets.txt` lists the color sets, one per line. **There must be no duplicate color sets**. The
+order of the color sets in the file is used to (implicitly) assign consecutive ids to the color sets.
 
-Each color set is written as `size=[n] [color-set]`, where `[n]` is its size, and `[color-set]` a space-separated list of `[n]` increasing integers.
+Each color set is written as `size=[n] [color-set]`, where `[n]` is its size, and `[color-set]` a space-separated list
+of `[n]` increasing integers.
 
 Example:
 
@@ -351,7 +363,8 @@ Example:
 Lastly, the file `[basename].unitigs.fa` contains the unitig sequences written in FASTA format.
 Each sequence has a header containing the id of the corresponding color set, called `color_set_id`.
 
-**Important**: Unitigs are sorted by `color_set_id`, i.e., That is, all unitigs having the same value of `color_set_id` appear consecutively.
+**Important**: Unitigs are sorted by `color_set_id`, i.e., That is, all unitigs having the same value of `color_set_id`
+appear consecutively.
 
 Example:
 

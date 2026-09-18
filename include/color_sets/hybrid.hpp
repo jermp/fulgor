@@ -484,9 +484,9 @@ private:
         visitor.visit(t.m_offsets);
     }
 
-    uint32_t m_num_colors;
-    uint32_t m_sparse_set_threshold_size;
-    uint32_t m_very_dense_set_threshold_size;
+    uint32_t m_num_colors = 0;
+    uint32_t m_sparse_set_threshold_size = 0;
+    uint32_t m_very_dense_set_threshold_size = 0;
 
     bits::bit_vector m_color_sets;
     bits::elias_fano<false, false> m_offsets;

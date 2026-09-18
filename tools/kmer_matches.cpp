@@ -57,23 +57,8 @@ void kmer_matches(FulgorIndex const& index,
 }
 
 template <typename FulgorIndex>
-int kmer_matches(std::string const& index_filename, std::string const& query_filename,
+int kmer_matches(FulgorIndex& index, std::string const& query_filename,
                  std::string const& output_filename, query_options& options) {
-    FulgorIndex index;
-    if (options.verbose) essentials::logger("loading index from disk...");
-    essentials::mmap(index, index_filename.c_str());
-    if (options.verbose) essentials::logger("DONE");
-
-    std::ifstream is(query_filename.c_str());
-    if (!is.good()) {
-        std::cerr << "error in opening the file '" + query_filename + "'" << std::endl;
-        return 1;
-    }
-
-    if (options.verbose) {
-        essentials::logger("performing queries from file '" + query_filename + "'...");
-    }
-
     essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> t;
     t.start();
 
@@ -132,6 +117,10 @@ int kmer_matches(int argc, char** argv) {
                "to avoid printing status messages to stdout.",
                "-o", true);
     parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
+    parser.add("mmap",
+               "Use memory mapping instead of loading the whole index in RAM. Use this option if "
+               "the index does not fit in memory. WARNING: significantly slows down query speed",
+               "--mmap", false, true);
     parser.add("verbose", "Verbose output during query (default is false).", "--verbose", false,
                true);
     if (!parser.parse()) return 1;
@@ -150,22 +139,42 @@ int kmer_matches(int argc, char** argv) {
     }
 
     bool verbose = parser.get<bool>("verbose");
+    bool mmap = parser.get<bool>("mmap");
     if (verbose) util::print_cmd(argc, argv);
 
     query_options options(verbose, num_threads);
 
+    std::variant<hfur_index_t, mfur_index_t, dfur_index_t, mdfur_index_t> index;
     if (is_meta_diff(index_filename)) {
-        return kmer_matches<mdfur_index_t>(index_filename, query_filename, output_filename,
-                                           options);
+        index.emplace<mdfur_index_t>();
     } else if (is_meta(index_filename)) {
-        return kmer_matches<mfur_index_t>(index_filename, query_filename, output_filename, options);
+        index.emplace<mfur_index_t>();
     } else if (is_diff(index_filename)) {
-        return kmer_matches<dfur_index_t>(index_filename, query_filename, output_filename, options);
+        index.emplace<dfur_index_t>();
     } else if (is_hybrid(index_filename)) {
-        return kmer_matches<hfur_index_t>(index_filename, query_filename, output_filename, options);
+        index.emplace<hfur_index_t>();
+    } else {
+        std::cerr << "Wrong index filename supplied." << std::endl;
+        return 1;
     }
 
-    std::cerr << "Wrong index filename supplied." << std::endl;
+    std::visit(
+        [&]<typename Index>(Index&& index) {
+            util::load_index(index, index_filename, mmap, verbose);
+            if (verbose) {
+                essentials::logger("performing queries from file '" + query_filename + "'...");
+            }
 
-    return 1;
+            std::ifstream is(query_filename.c_str());
+            if (!is.good()) {
+                std::cerr << "error in opening the file '" + query_filename + "'" << std::endl;
+                return 1;
+            }
+            is.close();
+
+            return kmer_matches<Index>(index, query_filename, output_filename, options);
+        },
+        index);
+    
+    return 0;
 }

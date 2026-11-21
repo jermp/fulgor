@@ -1,5 +1,9 @@
 #include "include/util.hpp"
 
+#include <fstream>
+#include <iostream>
+#include <limits>
+#include <stdexcept>
 #include <variant>
 
 using namespace fulgor;
@@ -585,84 +589,111 @@ int uncompress_psa_output(int argc, char** argv) {
                "to avoid printing status messages to stdout.",
                "-o", true);
     parser.add("format",
-               "Format of the output file. Must either ascii or binary"
-               " (default is binary).",
+               "Format of the output file: ascii or binary"
+               " (default is ascii).",
                "--format", false);
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
     auto output_filename = parser.get<std::string>("output_filename");
     auto output_format = parser.parsed("format") ? parser.get<std::string>("format") : "ascii";
 
-    auto formatter_var = [&]() -> std::variant<psa_ascii_formatter, psa_binary_formatter> {
-        if (output_format == "ascii") {
-            return std::variant<psa_ascii_formatter, psa_binary_formatter>{
-                std::in_place_type<psa_ascii_formatter>, output_filename};
-        }
-        if (output_format == "binary") {
-            return std::variant<psa_ascii_formatter, psa_binary_formatter>{
-                std::in_place_type<psa_binary_formatter>, output_filename};
-        }
-        throw std::invalid_argument("Unknown output format. Supported formats: ascii, binary.");
-    }();
+    try {
+        auto filename = parser.get<std::string>("input_filename");
 
-    auto filename = parser.get<std::string>("input_filename");
+        std::ifstream file(filename, std::ios::binary | std::ios::ate);
+        if (!file.is_open()) throw std::runtime_error("cannot open input file: " + filename);
+        const std::streamoff end = file.tellg();
+        constexpr uint64_t header_bytes = 3 * sizeof(uint64_t);
+        if (end < 0) throw std::runtime_error("cannot determine the size of: " + filename);
+        if (static_cast<uint64_t>(end) < header_bytes)
+            throw std::runtime_error("input file is too small: " + filename);
 
-    std::ifstream file(filename, std::ios::binary);
-    uint64_t num_colors, num_bits;
-    file.read(reinterpret_cast<char*>(&num_colors), sizeof(num_colors));
-    file.read(reinterpret_cast<char*>(&num_bits), sizeof(num_bits));
-    cdbg::streaming_bit_vector sbv(std::move(file), 8);
+        file.seekg(0, std::ios::beg);
+        uint64_t num_colors = 0, num_bits = 0, num_words = 0;
+        file.read(reinterpret_cast<char*>(&num_colors), sizeof(num_colors));
+        file.read(reinterpret_cast<char*>(&num_bits), sizeof(num_bits));
+        file.read(reinterpret_cast<char*>(&num_words), sizeof(num_words));
+        if (!file) throw std::runtime_error("truncated header in: " + filename);
+        if (num_colors == 0 || num_colors > std::numeric_limits<uint32_t>::max())
+            throw std::runtime_error("invalid num_colors in header: " + std::to_string(num_colors));
 
-    std::visit(
-        [&]<typename Formatter>(Formatter& formatter) {
-            auto buffer = formatter.buffer();
+        const uint64_t expected_words = num_bits / 64 + (num_bits % 64 != 0);
+        if (num_words != expected_words)
+            throw std::runtime_error("inconsistent num_bits/num_words in header");
+        const uint64_t file_bytes = static_cast<uint64_t>(end);
+        if (num_words > (file_bytes - header_bytes) / sizeof(uint64_t))
+            throw std::runtime_error("truncated compressed payload in: " + filename);
 
-            std::vector<uint32_t> result;
-            result.reserve(num_colors);
-            while (!sbv.eof()) {
-                const uint64_t query_id = sbv.read_delta();
-                const uint64_t cs_size = sbv.read_delta();
+        cdbg::streaming_bit_vector sbv(std::move(file), 8);
 
-                if (cs_size == 0) {
-                } else if (cs_size < 0.25 * num_colors) {
-                    uint32_t prev_val = sbv.read_delta();
-                    result.push_back(prev_val);
+        auto formatter_var = [&]() -> std::variant<psa_ascii_formatter, psa_binary_formatter> {
+            if (output_format == "ascii") {
+                return std::variant<psa_ascii_formatter, psa_binary_formatter>{
+                    std::in_place_type<psa_ascii_formatter>, output_filename};
+            }
+            if (output_format == "binary") {
+                return std::variant<psa_ascii_formatter, psa_binary_formatter>{
+                    std::in_place_type<psa_binary_formatter>, output_filename};
+            }
+            throw std::invalid_argument("Unknown output format. Supported formats: ascii, binary.");
+        }();
 
-                    for (uint64_t i = 1; i < cs_size; ++i) {
-                        auto val = static_cast<uint32_t>(sbv.read_delta() + prev_val + 1);
-                        result.push_back(val);
-                        prev_val = val;
-                    }
-                } else if (cs_size < 0.75 * num_colors) {
-                    const uint32_t init_pos = sbv.position();
-                    for (uint32_t i = 0; i < cs_size; ++i) {
-                        result.push_back(sbv.next() - init_pos);
-                    }
-                    sbv.skip_to(init_pos + num_colors);
-                } else {
-                    const uint64_t size = num_colors - cs_size;
-                    uint32_t curr = 0;
-                    uint32_t next = 0;
-                    for (uint64_t i = 0; i < size; ++i) {
-                        next += sbv.read_delta();
-                        while (curr < next) {
+        std::visit(
+            [&]<typename Formatter>(Formatter& formatter) {
+                auto buffer = formatter.buffer();
+
+                std::vector<uint32_t> result;
+                while (!sbv.eof()) {
+                    const uint64_t query_id = sbv.read_delta();
+                    const uint64_t cs_size = sbv.read_delta();
+                    if (query_id > std::numeric_limits<uint32_t>::max())
+                        throw std::runtime_error("invalid query id in compressed input");
+                    if (cs_size > num_colors)
+                        throw std::runtime_error("invalid color-set size in compressed input");
+                    result.clear();
+
+                    if (cs_size == 0) {
+                    } else if (cs_size < num_colors / 4) {
+                        uint32_t prev_val = sbv.read_delta();
+                        result.push_back(prev_val);
+                        for (uint64_t i = 1; i < cs_size; ++i) {
+                            auto val = static_cast<uint32_t>(sbv.read_delta() + prev_val + 1);
+                            result.push_back(val);
+                            prev_val = val;
+                        }
+                    } else if (cs_size < (3 * num_colors) / 4) {
+                        const uint32_t init_pos = sbv.position();
+                        for (uint32_t i = 0; i < cs_size; ++i) {
+                            result.push_back(sbv.next() - init_pos);
+                        }
+                        sbv.skip_to(init_pos + num_colors);
+                    } else {
+                        const uint64_t size = num_colors - cs_size;
+                        uint32_t curr = 0;
+                        uint32_t next = 0;
+                        for (uint64_t i = 0; i < size; ++i) {
+                            next += sbv.read_delta();
+                            while (curr < next) {
+                                result.push_back(curr);
+                                curr++;
+                            }
+                            curr = next + 1;
+                            ++next;
+                        }
+                        while (curr < num_colors) {
                             result.push_back(curr);
                             curr++;
                         }
-                        curr = next + 1;
-                        ++next;
                     }
-                    while (curr < num_colors) {
-                        result.push_back(curr);
-                        curr++;
-                    }
-                }
 
-                buffer.write(query_id, result);
-                result.clear();
-            }
-        },
-        formatter_var);
+                    buffer.write(static_cast<uint32_t>(query_id), result);
+                }
+            },
+            formatter_var);
+    } catch (std::exception const& e) {
+        std::cerr << "extract-output: " << e.what() << std::endl;
+        return 1;
+    }
 
     return 0;
 }

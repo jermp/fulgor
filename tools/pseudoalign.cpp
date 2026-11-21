@@ -88,7 +88,7 @@ void pseudoalign_orchestrator(FulgorIndex& index, QueryReader& query_reader, For
 }
 
 template <typename FulgorIndex, typename Formatter>
-void fetch_and_deduplicate_sets(const std::string& query_filename, Formatter& output_formatter,
+bool fetch_and_deduplicate_sets(const std::string& query_filename, Formatter& output_formatter,
                                 std::string& tmp_filename, FulgorIndex& index,
                                 ps_options& options) {
     auto output_buffer = output_formatter.buffer();
@@ -188,7 +188,12 @@ void fetch_and_deduplicate_sets(const std::string& query_filename, Formatter& ou
     }
 
     if (queries.empty()) {
-        return;
+        ifile.close();
+        std::remove(tmp_filename.c_str());
+        if (options.verbose) {
+            essentials::logger("no mapped reads; skipping pseudoalignment");
+        }
+        return false;
     }
 
     std::sort(queries.begin(), queries.end(),
@@ -228,6 +233,8 @@ void fetch_and_deduplicate_sets(const std::string& query_filename, Formatter& ou
     ofile.close();
 
     if (options.verbose) essentials::logger("*** DONE: deduplicating queries");
+
+    return true;
 }
 
 int pseudoalign(int argc, char** argv) {
@@ -360,10 +367,12 @@ int pseudoalign(int argc, char** argv) {
             }
             if constexpr (!std::same_as<BaseFormatter, std::monostate>) {
                 if (deduplicate) {
-                    fetch_and_deduplicate_sets(query_filename, formatter, tmp_filename, index,
-                                               options);
-                    preprocessed_query_reader query_reader(tmp_filename, num_threads);
-                    pseudoalign_orchestrator(index, query_reader, formatter, threshold, options);
+                    if (fetch_and_deduplicate_sets(query_filename, formatter, tmp_filename, index,
+                                                   options)) {
+                        preprocessed_query_reader query_reader(tmp_filename, num_threads);
+                        pseudoalign_orchestrator(index, query_reader, formatter, threshold,
+                                                 options);
+                    }
                 } else {
                     fastq_query_reader query_reader(query_filename, num_threads, index);
                     pseudoalign_orchestrator(index, query_reader, formatter, threshold, options);

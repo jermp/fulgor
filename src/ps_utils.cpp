@@ -118,12 +118,15 @@ struct psa_compressed_formatter {
         : m_file(output_filename)
         , m_num_colors(0)
         , m_sparse_set_threshold_size(0)
-        , m_very_dense_set_threshold_size(0) {}
+        , m_very_dense_set_threshold_size(0)
+        , m_last_word(0)
+        , m_total_bits(0) {}
 
     void set_num_colors(uint32_t num_colors) {
         assert(m_num_colors == 0);
         m_num_colors = num_colors;
-        m_file.write(reinterpret_cast<char*>(&m_num_colors), sizeof(uint64_t));
+        const uint64_t n = m_num_colors;
+        m_file.write(reinterpret_cast<const char*>(&n), sizeof(n));
         const uint64_t zero = 0;
         m_file.write(reinterpret_cast<const char*>(&zero), sizeof(uint64_t));
         m_file.write(reinterpret_cast<const char*>(&zero), sizeof(uint64_t));

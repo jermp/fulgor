@@ -359,8 +359,6 @@ int pseudoalign(int argc, char** argv) {
                 formatter.set_num_colors(index.num_colors());
             }
             if constexpr (!std::same_as<BaseFormatter, std::monostate>) {
-                std::ofstream out(output_filename);
-
                 if (deduplicate) {
                     fetch_and_deduplicate_sets(query_filename, formatter, tmp_filename, index,
                                                options);

@@ -198,7 +198,7 @@ void fetch_and_deduplicate_sets(const std::string& query_filename, Formatter& ou
               });
 
     auto curr = queries.begin();
-    auto next = curr++;
+    auto next = curr + 1;
     size_t identical_lists = 0;
     uint64_t identical_sizes = 0;
     while (next < queries.end()) {

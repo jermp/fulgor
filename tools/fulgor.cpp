@@ -104,6 +104,8 @@ int main(int argc, char** argv) {
               "print color set info for each positive kmer in query");
     tools.add("kmer-matches", kmer_matches,
               "print positive kmers per query and number of kmer matches per color");
+    tools.add("extract-output", uncompress_psa_output,
+              "convert pseudoalignment output to ascii or binary format");
 
     tools.add_section("Debug");
     tools.add("check", probabilistic_check,

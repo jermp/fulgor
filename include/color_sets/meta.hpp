@@ -285,6 +285,7 @@ struct meta {
 
     struct forward_iterator {
         using sentinel_type = iterator_sentinel;
+        using partition_type = ColorSets;
 
         forward_iterator(meta<ColorSets> const* ptr, uint64_t begin)
             : m_ptr(ptr)
@@ -398,6 +399,8 @@ struct meta {
             read_partition_id();
             update_partition();
         }
+
+        ColorSets::iterator_type curr_partition() { return m_curr_partition_it; }
 
         uint32_t partition_id() const { return m_partition_id; }
         uint32_t meta_color_set_size() const { return m_meta_color_set_size; }

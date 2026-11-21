@@ -113,6 +113,8 @@ struct meta_differential {
     };
 
     struct forward_iterator {
+        using partition_type = differential;
+
         forward_iterator(meta_differential const* ptr,  //
                          uint64_t begin_partition_set, uint64_t begin_rel)
             : m_ptr(ptr)

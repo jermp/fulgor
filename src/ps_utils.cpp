@@ -41,7 +41,7 @@ struct formatter_buffer {
 
 private:
     Formatter* m_formatter;
-    typename Formatter::buffer_t m_buffer;
+    Formatter::buffer_t m_buffer;
     uint32_t m_num_bytes;
 };
 
@@ -67,41 +67,6 @@ struct psa_ascii_formatter {
 
         ss << "\n";
         num_bytes += 1;  // newline
-        return num_bytes;
-    }
-
-    void flush(buffer_t& buffer, const uint32_t num_bytes) {
-        m_mut.lock();
-        m_file.write(buffer.str().data(), num_bytes);
-        m_mut.unlock();
-        buffer.str("");
-    }
-
-protected:
-    std::ofstream m_file;
-    std::mutex m_mut;
-};
-
-struct psa_slow_formatter {
-    typedef std::stringstream buffer_t;
-
-    explicit psa_slow_formatter(const std::string& output_filename) : m_file(output_filename) {}
-
-    formatter_buffer<psa_slow_formatter> buffer() { return formatter_buffer(this); }
-
-    uint32_t format(buffer_t& ss, uint32_t query_id, std::vector<uint32_t> const& colors) {
-        uint32_t num_bytes = 0;
-        ss << query_id << "\t" << colors.size();
-        num_bytes += util::num_digits(query_id) + 1 +
-                     util::num_digits(colors.size());  // query_id + tab + size
-
-        for (auto c : colors) {
-            ss << '\t' << c;
-            num_bytes += 1 + util::num_digits(c);  // tab + color
-        }
-        ss << "\n";
-        num_bytes += 1;  // newline
-
         return num_bytes;
     }
 
@@ -159,6 +124,9 @@ struct psa_compressed_formatter {
         assert(m_num_colors == 0);
         m_num_colors = num_colors;
         m_file.write(reinterpret_cast<char*>(&m_num_colors), sizeof(uint64_t));
+        const uint64_t zero = 0;
+        m_file.write(reinterpret_cast<const char*>(&zero), sizeof(uint64_t));
+        m_file.write(reinterpret_cast<const char*>(&zero), sizeof(uint64_t));
         m_sparse_set_threshold_size = 0.25 * m_num_colors;
         m_very_dense_set_threshold_size = 0.75 * m_num_colors;
     }
@@ -228,11 +196,33 @@ struct psa_compressed_formatter {
     }
 
     void flush(buffer_t& buffer, const uint32_t num_bytes) {
-        m_mut.lock();
-        const uint64_t num_bits = buffer.num_bits();
-        m_file.write(reinterpret_cast<const char*>(&num_bits), sizeof(uint64_t));
-        m_file.write(reinterpret_cast<const char*>(buffer.data().data()), num_bytes);
-        m_mut.unlock();
+        if (buffer.num_bits() == 0) {
+            return;
+        }
+
+        std::lock_guard lock(m_mut);
+        if (m_total_bits % 64 != 0) {
+            bits::bit_vector::builder tmp;
+            m_file.seekp(-8, std::ios_base::end);
+            tmp.append_bits(m_last_word, m_total_bits % 64);
+            tmp.append(buffer);
+
+            m_file.write(reinterpret_cast<const char*>(tmp.data().data()),
+                         tmp.data().size() * sizeof(uint64_t));
+            m_last_word = tmp.data().back();
+        } else {
+            m_file.write(reinterpret_cast<const char*>(buffer.data().data()),
+                         buffer.data().size() * sizeof(uint64_t));
+            m_last_word = buffer.data().back();
+        }
+        m_total_bits += buffer.num_bits();
+
+        const uint64_t num_words = (m_total_bits + 63) >> 6;
+        m_file.seekp(8);
+        m_file.write(reinterpret_cast<const char*>(&m_total_bits), sizeof(uint64_t));
+        m_file.write(reinterpret_cast<const char*>(&num_words), sizeof(uint64_t));
+        m_file.seekp(0, std::ios_base::end);
+
         buffer.clear();
     }
 
@@ -240,6 +230,7 @@ protected:
     std::ofstream m_file;
     std::mutex m_mut;
     uint32_t m_num_colors, m_sparse_set_threshold_size, m_very_dense_set_threshold_size;
+    uint64_t m_last_word, m_total_bits;
 };
 
 template <typename FulgorIndex>
@@ -348,9 +339,9 @@ struct preprocessed_query_reader {
                 batch->push_back(query);
 
                 if (batch->size() >= 10000) {
+                    this->in_flight += 1;
                     while (!this->m_queue.try_enqueue(batch)) {}
                     batch = new std::vector<query_t>();
-                    this->in_flight += 1;
                 }
 
                 query.clear();
@@ -362,8 +353,8 @@ struct preprocessed_query_reader {
             batch->push_back(query);
 
             if (!batch->empty()) {
-                this->m_queue.enqueue(batch);
                 this->in_flight += 1;
+                this->m_queue.enqueue(batch);
             }
             this->done = true;
         });
@@ -387,7 +378,9 @@ struct preprocessed_query_reader {
             while (!reader->done or (reader->in_flight > 0)) {
                 if (reader->m_queue.try_dequeue(sbatch)) break;
             }
-            if (sbatch != nullptr) { curr_query = sbatch->begin(); }
+            if (sbatch != nullptr) {
+                curr_query = sbatch->begin();
+            }
             if (reader->in_flight > 0) {
                 reader->in_flight -= 1;
                 return true;

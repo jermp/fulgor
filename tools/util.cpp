@@ -570,3 +570,99 @@ int probabilistic_check(int argc, char** argv) {
 
     return 0;
 }
+
+#include "src/ps_utils.cpp"
+
+int uncompress_psa_output(int argc, char** argv) {
+    cmd_line_parser::parser parser(argc, argv);
+    parser.add("input_filename", "The pseudoalignment file to uncompress.", "-i", true);
+    // parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
+    // parser.add("verbose", "Verbose output during processing (default is false).", "--verbose",
+    //            false, true);
+    parser.add("output_filename",
+               "File where output will be written. You can specify \"/dev/stdout\" to write "
+               "output to stdout. In this case, it is also recommended to use the --verbose flag "
+               "to avoid printing status messages to stdout.",
+               "-o", true);
+    parser.add("format",
+               "Format of the output file. Must either ascii or binary"
+               " (default is binary).",
+               "--format", false);
+    if (!parser.parse()) return 1;
+    util::print_cmd(argc, argv);
+    auto output_filename = parser.get<std::string>("output_filename");
+    auto output_format = parser.parsed("format") ? parser.get<std::string>("format") : "ascii";
+
+    auto formatter_var = [&]() -> std::variant<psa_ascii_formatter, psa_binary_formatter> {
+        if (output_format == "ascii") {
+            return std::variant<psa_ascii_formatter, psa_binary_formatter>{
+                std::in_place_type<psa_ascii_formatter>, output_filename};
+        }
+        if (output_format == "binary") {
+            return std::variant<psa_ascii_formatter, psa_binary_formatter>{
+                std::in_place_type<psa_binary_formatter>, output_filename};
+        }
+        throw std::invalid_argument("Unknown output format. Supported formats: ascii, binary.");
+    }();
+
+    auto filename = parser.get<std::string>("input_filename");
+
+    std::ifstream file(filename, std::ios::binary);
+    uint64_t num_colors, num_bits;
+    file.read(reinterpret_cast<char*>(&num_colors), sizeof(num_colors));
+    file.read(reinterpret_cast<char*>(&num_bits), sizeof(num_bits));
+    cdbg::streaming_bit_vector sbv(std::move(file), 8);
+
+    std::visit(
+        [&]<typename Formatter>(Formatter& formatter) {
+            auto buffer = formatter.buffer();
+
+            std::vector<uint32_t> result;
+            result.reserve(num_colors);
+            while (!sbv.eof()) {
+                const uint64_t query_id = sbv.read_delta();
+                const uint64_t cs_size = sbv.read_delta();
+
+                if (cs_size == 0) {
+                } else if (cs_size < 0.25 * num_colors) {
+                    uint32_t prev_val = sbv.read_delta();
+                    result.push_back(prev_val);
+
+                    for (uint64_t i = 1; i < cs_size; ++i) {
+                        auto val = static_cast<uint32_t>(sbv.read_delta() + prev_val + 1);
+                        result.push_back(val);
+                        prev_val = val;
+                    }
+                } else if (cs_size < 0.75 * num_colors) {
+                    const uint32_t init_pos = sbv.position();
+                    for (uint32_t i = 0; i < cs_size; ++i) {
+                        result.push_back(sbv.next() - init_pos);
+                    }
+                    sbv.skip_to(init_pos + num_colors);
+                } else {
+                    const uint64_t size = num_colors - cs_size;
+                    uint32_t curr = 0;
+                    uint32_t next = 0;
+                    for (uint64_t i = 0; i < size; ++i) {
+                        next += sbv.read_delta();
+                        while (curr < next) {
+                            result.push_back(curr);
+                            curr++;
+                        }
+                        curr = next + 1;
+                        ++next;
+                    }
+                    while (curr < num_colors) {
+                        result.push_back(curr);
+                        curr++;
+                    }
+                }
+
+                buffer.write(query_id, result);
+                result.clear();
+            }
+        },
+        formatter_var);
+
+    return 0;
+}

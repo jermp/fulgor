@@ -5,7 +5,6 @@
 
 #include "src/ps_full_intersection.cpp"
 #include "src/ps_threshold_union.cpp"
-#include "src/ps_utils.cpp"
 
 using namespace fulgor;
 

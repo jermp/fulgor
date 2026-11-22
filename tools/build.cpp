@@ -1,7 +1,10 @@
 using namespace fulgor;
 
-[[deprecated("Fix or remove")]] void meta_color(build_configuration& build_config,
-                                                const bool force)  //
+/* TODO(future work): building a meta-colored index from an existing .fur index is not
+   implemented. Restoring it requires a builder that partitions an index instead of building
+   from the raw cdbg stream; use `build --meta` for now. */
+[[deprecated("future work: build --meta instead")]] void meta_color(
+    build_configuration& build_config, const bool force)  //
 {
     build_config.output_filename.replace_extension(constants::mfur_filename_extension);
 
@@ -94,6 +97,9 @@ void meta_diff_color(build_configuration& build_config, const bool force)  //
     std::filesystem::path meta_filename = build_config.index_filename_to_partition;
     meta_filename.replace_extension(constants::mfur_filename_extension);
 
+    /* TODO(future work): meta construction from an existing index is not implemented. Once
+       meta_color() works, build it from a copy of build_config: it replaces output_filename
+       with .mfur, so the .mdfur built here would be saved to the .mfur path. */
     /* first build a meta-colored Fulgor index */
     if (!std::filesystem::exists(meta_filename)) {
         meta_color(build_config, force);
@@ -146,8 +152,6 @@ int build(int argc, char** argv) {
                "-g", false);
     parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
     parser.add("verbose", "Verbose output during construction.", "--verbose", false, true);
-    parser.add("check", "Check correctness after index construction (it might take some time).",
-               "--check", false, true);
     parser.add("force", "Re-build the index even when an index with the same name is found.",
                "--force", false, true);
     parser.add("meta", "Build a meta-colored index.", "--meta", false, true);
@@ -181,7 +185,6 @@ int build(int argc, char** argv) {
     build_config.k = k;
     build_config.m = m;
     build_config.verbose = parser.get<bool>("verbose");
-    build_config.check = parser.get<bool>("check");
     build_config.filenames_list = parser.get<std::string>("filenames_list");
     if (parser.get<uint64_t>("RAM")) {
         build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
@@ -249,8 +252,6 @@ int build(int argc, char** argv) {
             }
         },
         index);
-
-    // if (build_config.check) builder.check(index);
 
     // if (build_config.meta_colored and build_config.diff_colored) {
     //     meta_diff_color(build_config, force);

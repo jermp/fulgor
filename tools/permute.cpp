@@ -37,6 +37,9 @@ int permute(int argc, char** argv) {
     util::load_index(index, index_filename, false, false);
     essentials::logger("DONE");
 
+    /* TODO(future work): the permutation is not implemented. The permuter API referenced below
+       (permute(index), filenames()) no longer exists; the current permuter computes partitions
+       from the raw cdbg stream. Implement it against the current builders or remove the tool. */
     // permuter p(build_config);
     // p.permute(index); // FIXME
     // auto const& filenames = p.filenames(); // FIXME

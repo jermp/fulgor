@@ -133,7 +133,7 @@ From `fulgor/test_data`, do
 
 Then, from `fulgor/build`, run
 
-	./fulgor build -l ../test_data/salmonella_10_filenames.txt -o ../test_data/salmonella_10 -k 31 -m 19 -d tmp_dir -g 1 -t 1 --verbose --check
+	./fulgor build -l ../test_data/salmonella_10_filenames.txt -o ../test_data/salmonella_10 -k 31 -m 19 -d tmp_dir -g 1 -t 1 --verbose
 
 to build an index that will be serialized to the file `test_data/salmonella_10.fur`.
 
@@ -156,7 +156,7 @@ After download, create a list of all `.fasta` filenames with
 
 and, from `fulgor/build`, run
 
-	./fulgor build -l ~/salmonella_4546_filenames.txt -o ~/Salmonella_enterica/salmonella_4546 -k 31 -m 20 -d tmp_dir -g 8 -t 8 --verbose --check
+	./fulgor build -l ~/salmonella_4546_filenames.txt -o ~/Salmonella_enterica/salmonella_4546 -k 31 -m 20 -d tmp_dir -g 8 -t 8 --verbose
 
 which will create an index named `~/Salmonella_enterica/salmonella_4546.fur` of 0.266 GB.
 

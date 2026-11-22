@@ -405,8 +405,8 @@ struct hybrid {
                 while (value() < lower_bound) next();
             }
             assert(value() >= lower_bound);
-            assert(m_encoding_type != complement_delta_gaps ||
-                   m_curr_val == m_num_colors || m_curr_val < m_comp_val);
+            assert(m_encoding_type != complement_delta_gaps || m_curr_val == m_num_colors ||
+                   m_curr_val < m_comp_val);
         }
 
         uint32_t size() const { return m_size; }

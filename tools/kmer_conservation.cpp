@@ -129,7 +129,13 @@ int kmer_conservation(int argc, char** argv) {
     auto output_filename = parser.get<std::string>("output_filename");
 
     uint64_t num_threads = 1;
-    if (parser.parsed("num_threads")) num_threads = parser.get<uint64_t>("num_threads");
+    if (parser.parsed("num_threads")) {
+        num_threads = parser.get<uint64_t>("num_threads");
+        if (num_threads == 0) {
+            std::cerr << "Number of threads must be >= 1." << std::endl;
+            return 1;
+        }
+    }
     if (num_threads == 1) {
         num_threads += 1;
         std::cerr

@@ -170,6 +170,10 @@ int build(int argc, char** argv) {
     }
     if (parser.parsed("num_threads")) {
         build_config.num_threads = parser.get<uint64_t>("num_threads");
+        if (build_config.num_threads == 0) {
+            std::cerr << "Number of threads must be >= 1." << std::endl;
+            return 1;
+        }
     }
 
     auto k = parser.get<uint64_t>("k");
@@ -293,6 +297,10 @@ int color(int argc, char** argv) {
     }
     if (parser.parsed("num_threads")) {
         build_config.num_threads = parser.get<uint64_t>("num_threads");
+        if (build_config.num_threads == 0) {
+            std::cerr << "Number of threads must be >= 1." << std::endl;
+            return 1;
+        }
     }
     build_config.check = parser.get<bool>("check");
     build_config.meta_colored = parser.get<bool>("meta");

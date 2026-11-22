@@ -227,7 +227,7 @@ int verify(int argc, char** argv) {
     parser.add("index_filename", "The Fulgor index filename.", "-i", true);
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
-    auto index_filename = parser.get<std::string>("index_filename");
+    const auto index_filename = parser.get<std::string>("index_filename");
 
     const bool known_extension = is_meta(index_filename) || is_meta_diff(index_filename) ||
                                  is_diff(index_filename) || is_hybrid(index_filename);
@@ -244,7 +244,7 @@ int stats(int argc, char** argv) {
     parser.add("index_filename", "The Fulgor index filename.", "-i", true);
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
-    auto index_filename = parser.get<std::string>("index_filename");
+    const auto index_filename = parser.get<std::string>("index_filename");
     if (is_meta(index_filename)) {
         print_stats<mfur_index_t>(index_filename);
     } else if (is_meta_diff(index_filename)) {
@@ -292,11 +292,11 @@ int dump(int argc, char** argv) {
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
 
-    auto index_filename = parser.get<std::string>("index_filename");
-    std::string output_basename("");
+    const auto index_filename = parser.get<std::string>("index_filename");
+    std::string output_basename;
     if (parser.parsed("output_basename")) {
         output_basename = parser.get<std::string>("output_basename");
-        assert(output_basename.length() != 0);
+        assert(!output_basename.empty());
     }
 
     build_configuration build_config;
@@ -348,7 +348,7 @@ int load(int argc, char** argv) {
 
     build_configuration build_config;
 
-    auto m = parser.get<uint64_t>("m");
+    const auto m = parser.get<uint64_t>("m");
     build_config.m = m;
     if (parser.get<uint64_t>("RAM")) {
         build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
@@ -359,11 +359,15 @@ int load(int argc, char** argv) {
     }
     if (parser.parsed("num_threads")) {
         build_config.num_threads = parser.get<uint64_t>("num_threads");
+        if (build_config.num_threads == 0) {
+            std::cerr << "Number of threads must be >= 1." << std::endl;
+            return 1;
+        }
     }
     build_config.verbose = parser.get<bool>("verbose");
 
     build_config.base_filename = parser.get<std::string>("input_basename");
-    assert(build_config.base_filename.string().length() != 0);
+    assert(!build_config.base_filename.string().empty());
     build_config.output_filename = build_config.base_filename;
     if (parser.parsed("output_basename")) {
         build_config.output_filename = parser.get<std::string>("output_basename");
@@ -526,7 +530,14 @@ int probabilistic_check(int argc, char** argv) {
     bool verbose = parser.get<bool>("verbose");
     bool mmap = parser.get<bool>("mmap");
 
-    uint64_t num_threads = parser.parsed("num_threads") ? parser.get<uint64_t>("num_threads") : 1;
+    uint64_t num_threads = 1;
+    if (parser.parsed("num_threads")) {
+        num_threads = parser.get<uint64_t>("num_threads");
+        if (num_threads == 0) {
+            std::cerr << "Number of threads must be >= 1." << std::endl;
+            return 1;
+        }
+    }
 
     if (file_prob < 0.0 || file_prob > 1.0 || kmer_prob <= 0.0 || kmer_prob > 1.0) {
         throw std::invalid_argument(

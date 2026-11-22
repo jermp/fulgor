@@ -34,7 +34,7 @@ int permute(int argc, char** argv) {
 
     hfur_index_t index;
     essentials::logger("step 1. loading index to be partitioned...");
-    essentials::load(index, index_filename.c_str());
+    util::load_index(index, index_filename, false, false);
     essentials::logger("DONE");
 
     // permuter p(build_config);

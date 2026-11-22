@@ -16,6 +16,7 @@ struct index<ColorSets>::meta_differential_builder {
         if (idx.m_k2u.num_kmers() != 0) throw std::runtime_error("index already built");
 
         essentials::logger("step 1. loading index to be partitioned");
+        util::check_index_version(m_build_config.index_filename_to_partition);
         essentials::load(meta_index, m_build_config.index_filename_to_partition.c_str());
         essentials::logger("DONE");
         const uint32_t num_threads = m_build_config.num_threads;

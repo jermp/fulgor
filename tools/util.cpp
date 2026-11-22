@@ -24,17 +24,12 @@ bool is_hybrid(std::filesystem::path const& index_filename) {
     return index_filename.extension() == constants::hfur_filename_extension;
 }
 
-template <typename FulgorIndex>
-void verify(std::string const& index_filename) {
-    FulgorIndex index;
-    essentials::version_number vnum(constants::current_version_number::major,   //
-                                    constants::current_version_number::minor,   //
-                                    constants::current_version_number::patch);  //
-    essentials::loader l(index_filename.c_str());
-    l.visit(vnum);
+int verify(std::string const& index_filename) {
+    const auto vnum = util::read_version_number(index_filename);
     std::cout << "read version number = " << vnum.to_string() << std::endl;
     util::check_version_number(vnum);
     essentials::logger("OK: Fulgor index is compatible with current library version.");
+    return 0;
 }
 
 template <typename FulgorIndex>
@@ -233,19 +228,15 @@ int verify(int argc, char** argv) {
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
     auto index_filename = parser.get<std::string>("index_filename");
-    if (is_meta(index_filename)) {
-        verify<mfur_index_t>(index_filename);
-    } else if (is_meta_diff(index_filename)) {
-        verify<mdfur_index_t>(index_filename);
-    } else if (is_diff(index_filename)) {
-        verify<dfur_index_t>(index_filename);
-    } else if (is_hybrid(index_filename)) {
-        verify<hfur_index_t>(index_filename);
-    } else {
+
+    const bool known_extension = is_meta(index_filename) || is_meta_diff(index_filename) ||
+                                 is_diff(index_filename) || is_hybrid(index_filename);
+    if (!known_extension) {
         std::cerr << "Wrong filename supplied." << std::endl;
         return 1;
     }
-    return 0;
+
+    return verify(index_filename);
 }
 
 int stats(int argc, char** argv) {

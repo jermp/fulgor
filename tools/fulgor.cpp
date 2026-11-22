@@ -125,5 +125,10 @@ int main(int argc, char** argv) {
     }
     const auto tool = std::string(argv[1]);
 
-    return tools.run(tool, argc, argv);
+    try {
+        return tools.run(tool, argc, argv);
+    } catch (std::exception const& e) {
+        std::cerr << e.what() << std::endl;
+        return 1;
+    }
 }

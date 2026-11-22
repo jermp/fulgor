@@ -3,6 +3,9 @@
 #include <vector>
 #include <algorithm>  // for std::set_intersection
 #include <condition_variable>
+#include <cstdint>
+#include <fstream>
+#include <stdexcept>
 
 #include "external/smhasher/src/City.h"
 
@@ -93,6 +96,26 @@ void check_version_number(essentials::version_number const& vnum) {
     if (vnum.x != constants::current_version_number::major) {
         throw std::runtime_error("MAJOR index version mismatch: Fulgor index needs rebuilding");
     }
+}
+
+/* The builder appends the version number (3 bytes) at the end of an index file. */
+inline essentials::version_number read_version_number(std::string const& index_filename) {
+    std::ifstream in(index_filename, std::ios::binary | std::ios::ate);
+    if (!in) throw std::runtime_error("cannot open index file: " + index_filename);
+
+    const auto size = static_cast<std::streamoff>(in.tellg());
+    if (size < 3) throw std::runtime_error("file too small: " + index_filename);
+
+    in.seekg(size - 3);
+    uint8_t b[3];
+    in.read(reinterpret_cast<char*>(b), 3);
+    if (!in) throw std::runtime_error("cannot read the version number: " + index_filename);
+
+    return essentials::version_number(b[0], b[1], b[2]);
+}
+
+inline void check_index_version(std::string const& index_filename) {
+    check_version_number(read_version_number(index_filename));
 }
 
 template <typename ForwardIterator>
@@ -447,6 +470,7 @@ inline bool is_dna(std::string_view sv) noexcept {
 template <typename Index>
 void load_index(Index& index, const std::string& index_filename, const bool mmap,
                 const bool verbose) {
+    check_index_version(index_filename);
     if (mmap) {
         if (verbose) essentials::logger("*** START: memory mapping the index");
         essentials::mmap(index, index_filename.c_str());

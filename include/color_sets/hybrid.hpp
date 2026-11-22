@@ -392,14 +392,21 @@ struct hybrid {
            which is greater-than or equal-to lower_bound */
         void next_geq(const uint64_t lower_bound) {
             assert(lower_bound <= num_colors());
-            if (m_encoding_type == encoding_t::complement_delta_gaps) {
-                if (value() > lower_bound) return;
-                next_geq_comp_val(lower_bound);
-                m_curr_val = lower_bound + (m_comp_val == lower_bound);
+            if (m_encoding_type == complement_delta_gaps) {
+                if (value() >= lower_bound) return;
+
+                next_geq_comp_val(lower_bound);  // m_comp_val >= lower_bound (or num_colors)
+                m_curr_val = lower_bound;
+                while (m_curr_val < m_num_colors && m_curr_val == m_comp_val) {
+                    ++m_curr_val;
+                    next_comp();  // keeps m_comp_val ahead of m_curr_val
+                }
             } else {
                 while (value() < lower_bound) next();
             }
             assert(value() >= lower_bound);
+            assert(m_encoding_type != complement_delta_gaps ||
+                   m_curr_val == m_num_colors || m_curr_val < m_comp_val);
         }
 
         uint32_t size() const { return m_size; }
@@ -437,7 +444,10 @@ struct hybrid {
         void next_geq_comp_val(const uint64_t lower_bound) {
             while (m_comp_val < lower_bound) {
                 ++m_pos_in_comp_set;
-                if (m_pos_in_comp_set >= m_comp_set_size) break;
+                if (m_pos_in_comp_set >= m_comp_set_size) {  // saturate
+                    m_comp_val = m_num_colors;
+                    break;
+                }
                 m_prev_val = m_comp_val;
                 m_comp_val = bits::util::read_delta(m_it) + (m_prev_val + 1);
             }

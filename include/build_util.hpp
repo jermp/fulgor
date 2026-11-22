@@ -10,12 +10,11 @@ inline void build_reference_sketches(const uint64_t num_colors,
                                      std::string const& input_basename,
                                      std::string const& output_filename) {
     assert(num_threads > 0);
-    const uint64_t max_queue_size = num_threads * 2;
 
     std::vector sketches(num_colors, sketch::hll_t(p));  // 10^6 colors & p == 10 -> 1GB
     std::vector<std::mutex> mutexes(num_colors);
 
-    cdbg::unitigs_color_set_stream stream(input_basename, max_queue_size);
+    cdbg::unitigs_color_set_stream stream(input_basename);
     const cdbg::metadata metadata(cdbg::metadata_filename(input_basename));
 
     std::atomic<uint64_t> processed_sets = 0;
@@ -48,10 +47,12 @@ inline void build_reference_sketches(const uint64_t num_colors,
         }
     };
 
-    std::vector<std::thread> threads(num_threads - 1);
-    for (uint64_t thread_id = 0; thread_id != num_threads - 1; ++thread_id) {
-        threads[thread_id] = std::thread(process);
+    std::vector<std::thread> threads;
+    threads.reserve(num_threads - 1);
+    for (uint64_t thread_id = 1; thread_id != num_threads; ++thread_id) {
+        threads.emplace_back(process);
     }
+    process();  // the calling thread is worker 0
     for (auto& t : threads) {
         if (t.joinable()) t.join();
     }

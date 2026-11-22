@@ -213,8 +213,7 @@ struct meta_build_strategy {
                 }
             };
 
-            const uint64_t max_queue_size = m_build_config.num_threads * 2;
-            cdbg::unitigs_color_set_stream stream(cdbg_config.out_basename, max_queue_size);
+            cdbg::unitigs_color_set_stream stream(cdbg_config.out_basename);
 
             auto process_color_set = [this, &color_sets_builder, &num_written_meta_sets,
                                       &num_integers_in_metacolor_sets, &write_mutex, &q,
@@ -250,10 +249,12 @@ struct meta_build_strategy {
                 }
             };
 
-            std::vector<std::thread> threads(m_build_config.num_threads - 1);
-            for (uint64_t thread_id = 0; thread_id < m_build_config.num_threads - 1; ++thread_id) {
-                threads[thread_id] = std::thread(process_color_set);
+            std::vector<std::thread> threads;
+            threads.reserve(m_build_config.num_threads - 1);
+            for (uint64_t thread_id = 1; thread_id != m_build_config.num_threads; ++thread_id) {
+                threads.emplace_back(process_color_set);
             }
+            process_color_set();  // the calling thread is worker 0
             for (auto& thread : threads) {
                 if (thread.joinable()) thread.join();
             }

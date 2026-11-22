@@ -38,10 +38,11 @@ inline void build_reference_sketches(const uint64_t num_colors,
                 }
             }
 
-            if (processed_sets.fetch_add(1) % 10000 == 0) {
-                auto progress = std::format("\r[sketch-references] {}/{} ({:.2f}%)",
-                                            processed_sets.load(), metadata.num_color_sets,
-                                            100. * processed_sets / metadata.num_color_sets);
+            const uint64_t done = processed_sets.fetch_add(1) + 1;
+            if (done % 10000 == 0) {
+                auto progress =
+                    std::format("\r[sketch-references] {}/{} ({:.2f}%)", done,
+                                metadata.num_color_sets, 100. * done / metadata.num_color_sets);
                 std::cout << progress << std::flush;
             }
         }
@@ -57,7 +58,7 @@ inline void build_reference_sketches(const uint64_t num_colors,
         if (t.joinable()) t.join();
     }
 
-    assert(processed_sets < metadata.num_color_sets);
+    assert(processed_sets == metadata.num_color_sets);
     auto progress =
         std::format("\r[sketch-references] {}/{} ({:.2f}%)", processed_sets.load(),
                     metadata.num_color_sets, 100. * processed_sets / metadata.num_color_sets);

@@ -228,7 +228,7 @@ struct meta {
         std::vector<uint64_t> m_meta_color_sets_offsets;
         std::vector<partition_endpoint> m_partition_endpoints;
 
-        std::atomic<bool> m_is_flushing;
+        std::atomic<bool> m_is_flushing{false};
 
         std::string m_tmp_dirname;
         uint64_t m_max_RAM_bytes;

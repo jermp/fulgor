@@ -228,36 +228,40 @@ struct index<ColorSets>::meta_differential_builder {
             }
 
             std::sort(endpoints.begin(), endpoints.end());
-            builder.init_meta_color_partition_sets(endpoints.size());
+            assert(endpoints.front() == 0);
+            endpoints.push_back(num_color_sets);
+            builder.init_meta_color_partition_sets(endpoints.size() - 1);
 
-            uint64_t partition_set_id = 0;
-            for (uint64_t permuted_id = 0; permuted_id < num_color_sets; permuted_id++) {
-                uint64_t color_set_id = permutation[permuted_id];
+            for (uint64_t partition_set_id = 0; partition_set_id < endpoints.size() - 1;
+                 ++partition_set_id) {
+                const uint64_t begin = endpoints[partition_set_id];
+                if (begin >= num_color_sets) break;  // empty input
+                const uint64_t end = endpoints[partition_set_id + 1];
 
-                if (permuted_id == endpoints[partition_set_id]) {
-                    auto it = meta_index.color_set(color_set_id);
-                    uint32_t size = it.meta_color_set_size();
-                    std::vector<uint32_t> partition_set(size);
-                    for (uint32_t i = 0; i < size; ++i, it.next_partition_id()) {
-                        partition_set[i] = it.partition_id();
+                auto partition_it = meta_index.color_set(permutation[begin]);
+                const uint32_t partition_set_size = partition_it.meta_color_set_size();
+                std::vector<uint32_t> partition_set(partition_set_size);
+                for (uint32_t i = 0; i != partition_set_size;
+                     ++i, partition_it.next_partition_id()) {
+                    partition_set[i] = partition_it.partition_id();
+                }
+                builder.process_meta_color_partition_set(partition_set);
+
+                for (uint64_t permuted_id = begin; permuted_id < end; ++permuted_id) {
+                    auto color_it = meta_index.color_set(permutation[permuted_id]);
+                    const uint64_t size = color_it.meta_color_set_size();
+                    std::vector<uint32_t> relative_colors;
+                    relative_colors.reserve(size);
+
+                    for (uint64_t i = 0; i != size; ++i, color_it.next_partition_id()) {
+                        color_it.update_partition();
+                        const uint64_t partition_id = color_it.partition_id();
+                        relative_colors.push_back(
+                            partial_permutations[partition_id][color_it.meta_color() -
+                                                               color_it.num_color_sets_before()]);
                     }
-                    builder.process_meta_color_partition_set(partition_set);
-                    partition_set_id++;
+                    builder.process_metacolor_set(relative_colors);
                 }
-
-                auto it = meta_index.color_set(color_set_id);
-                const uint64_t size = it.meta_color_set_size();
-                std::vector<uint32_t> relative_colors;
-                relative_colors.reserve(size);
-
-                for (uint64_t i = 0; i < size; i++, it.next_partition_id()) {
-                    it.update_partition();
-                    uint64_t partition_id = it.partition_id();
-                    relative_colors.push_back(
-                        partial_permutations[partition_id]
-                                            [it.meta_color() - it.num_color_sets_before()]);
-                }
-                builder.process_metacolor_set(relative_colors);
             }
 
             builder.build(idx.m_color_sets);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "include/util.hpp"
+#include <atomic>
 #include <shared_mutex>
 
 namespace fulgor {
@@ -36,8 +37,8 @@ struct hybrid {
             m_num_bits = 0;
 
             m_curr_color_set_id = 0;
-            m_queue_size = 0;
             m_base_offset = 0;
+            refresh_bytes();
 
             m_saver = &saver;
 
@@ -86,6 +87,7 @@ struct hybrid {
 
                 m_color_sets_builder.append(bvb);
                 m_offsets.push_back(m_base_offset + m_color_sets_builder.num_bits());
+                refresh_bytes();
             }
 
             // if (m_verbose && m_num_color_sets % 500000 == 0) {
@@ -94,10 +96,7 @@ struct hybrid {
             return color_set_id;
         }
 
-        uint64_t size() const {
-            return essentials::vec_bytes(m_color_sets_builder.data()) +
-                   essentials::vec_bytes(m_offsets) + m_queue_size;
-        }
+        uint64_t size() const { return std::atomic_ref(m_bytes).load(std::memory_order_relaxed); }
 
         [[deprecated("External memory construction requires build()")]]
         void build(hybrid& h) {
@@ -161,11 +160,15 @@ struct hybrid {
         }
 
         void flush() {
-            if (m_color_sets_builder.data().empty()) return;
             if (m_is_flushing->exchange(true)) {
                 return;
             }
+
             const std::unique_lock lock(*m_flush_mutex);
+            if (m_color_sets_builder.data().empty()) {
+                *m_is_flushing = false;
+                return;
+            }
 
             const uint64_t pos = m_num_bits >> 6;
             const uint64_t final_num_bits = (pos << 6) + m_color_sets_builder.num_bits();
@@ -191,6 +194,7 @@ struct hybrid {
             if (remaining_bits > 0) {
                 m_color_sets_builder.append_bits(last_word, remaining_bits);
             }
+            refresh_bytes();
 
             *m_is_flushing = false;
         }
@@ -210,17 +214,25 @@ struct hybrid {
         bits::bit_vector::builder m_color_sets_builder;
         std::vector<uint64_t> m_offsets;
         uint64_t m_base_offset;
+        /* plain storage so the builder stays movable; accesses go through std::atomic_ref */
+        mutable uint64_t m_bytes = 0;
         std::priority_queue<std::pair<uint64_t, bits::bit_vector::builder>,
                             std::vector<std::pair<uint64_t, bits::bit_vector::builder>>,
                             util::compare_first>
             m_csb_queue;
-        uint64_t m_queue_size;
         uint64_t m_num_bits;
         std::streampos m_bitvector_start;
 
         util::external_saver* m_saver = nullptr;
         uint64_t m_max_RAM_bytes;
         bool m_verbose;
+
+        /* call while holding the queue lock (append) or the unique flush lock (flush/init) */
+        void refresh_bytes() {
+            std::atomic_ref(m_bytes).store(essentials::vec_bytes(m_color_sets_builder.data()) +
+                                               essentials::vec_bytes(m_offsets),
+                                           std::memory_order_relaxed);
+        }
 
         void encode_sparse(const std::span<const uint32_t> color_set,
                            bits::bit_vector::builder& bvb) const {

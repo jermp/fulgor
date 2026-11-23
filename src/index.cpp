@@ -160,7 +160,7 @@ void index<ColorSets>::loader::load_metadata() {
         } else if (key == "num_kmers") {
             m_num_kmers = std::strtoull(value_ptr, nullptr, 10);
         } else if (key == "num_colors") {
-            m_num_colors = static_cast<uint32_t>(std::strtoul(value_ptr, nullptr, 10));
+            m_num_colors = std::strtoull(value_ptr, nullptr, 10);
         } else if (key == "num_unitigs") {
             m_num_unitigs = std::strtoull(value_ptr, nullptr, 10);
         } else if (key == "num_color_sets") {
@@ -169,6 +169,8 @@ void index<ColorSets>::loader::load_metadata() {
     }
     in.close();
 
+    util::check_index_limits(m_num_colors, m_num_unitigs, m_num_color_sets);
+
     if (m_config.verbose) {
         std::cout << "k=" << m_k << ", num_kmers=" << m_num_kmers << ", num_colors=" << m_num_colors
                   << ", num_unitigs=" << m_num_unitigs << ", num_color_sets=" << m_num_color_sets
@@ -176,7 +178,6 @@ void index<ColorSets>::loader::load_metadata() {
     }
 
     assert(m_num_unitigs > 0);
-    assert(m_num_unitigs < (uint64_t(1) << 32));
 }
 
 template <typename ColorSets>

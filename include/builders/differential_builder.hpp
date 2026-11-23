@@ -199,9 +199,10 @@ private:
 
 template <typename ColorSets>
 struct index<ColorSets>::differential_builder {
-    differential_builder() {}
+    differential_builder() = default;
 
-    differential_builder(build_configuration const& build_config) : m_build_config(build_config) {}
+    explicit differential_builder(build_configuration build_config)
+        : m_build_config(std::move(build_config)) {}
 
     void build(index& idx) {
         if (idx.m_k2u.num_kmers() != 0) throw std::runtime_error("index already built");
@@ -209,8 +210,7 @@ struct index<ColorSets>::differential_builder {
         const uint32_t num_threads = m_build_config.num_threads;
 
         essentials::logger("step 1. loading index to be differentiated...");
-        util::check_index_version(m_build_config.index_filename_to_partition);
-        essentials::load(index, m_build_config.index_filename_to_partition.c_str());
+        util::load_index(index, m_build_config.index_filename_to_partition, false, false);
         essentials::logger("DONE");
 
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
@@ -238,7 +238,7 @@ struct index<ColorSets>::differential_builder {
             }
             const uint64_t load_per_thread = load / num_threads;
 
-            slice s = {0, 0};
+            slice s = {.begin = 0, .end = 0};
             uint64_t curr_load = 0;
             uint64_t prev_cluster = permutation[0].first;
             for (uint64_t i = 0; i < num_color_sets; ++i) {
@@ -265,7 +265,7 @@ struct index<ColorSets>::differential_builder {
 
                 std::vector<uint64_t> group_endpoints;
                 uint64_t curr_group = permutation[begin].first + 1;  // different from first group
-                for (uint64_t i = begin; i < end; i++) {
+                for (uint64_t i = begin; i < end; ++i) {
                     auto& [group_id, color_set_id] = permutation[i];
                     if (group_id != curr_group) {
                         group_endpoints.push_back(i);

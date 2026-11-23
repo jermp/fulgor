@@ -142,9 +142,9 @@ void diff_intersect(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
     const uint32_t num_iterators = iterators.size();
     uint32_t num_partitions = 1;
     {
-        uint32_t prev_partition = iterators[0].representative_begin();
+        uint64_t prev_partition = iterators[0].representative_begin();
         for (const auto& it : iterators) {
-            uint32_t partition_id = it.representative_begin();
+            const uint64_t partition_id = it.representative_begin();
             if (partition_id != prev_partition) {
                 prev_partition = partition_id;
                 ++num_partitions;
@@ -379,8 +379,8 @@ void index<ColorSets>::fetch_color_set_ids(std::string const& sequence,
     auto end_unitigs = std::unique(unitig_ids.begin(), unitig_ids.end());
     color_set_ids.reserve(end_unitigs - unitig_ids.begin());
     for (auto it = unitig_ids.begin(); it != end_unitigs; ++it) {
-        uint32_t unitig_id = *it;
-        uint32_t color_set_id = u2c(unitig_id);
+        const uint64_t unitig_id = *it;
+        uint32_t color_set_id = static_cast<uint32_t>(u2c(unitig_id));
         color_set_ids.push_back(color_set_id);
     }
 

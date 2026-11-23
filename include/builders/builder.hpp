@@ -29,6 +29,8 @@ struct hybrid_build_strategy {
         cdbg::builder cdbg_builder(cdbg_config);
 
         cdbg_builder.build();
+        util::check_index_limits(cdbg_builder.num_colors(), cdbg_builder.num_unitigs(),
+                                 cdbg_builder.num_color_sets());
         m_build_config.num_colors = cdbg_builder.num_colors();
     }
 

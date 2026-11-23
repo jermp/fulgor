@@ -1,17 +1,20 @@
 #pragma once
 
+#include <cstdint>
+#include <stdexcept>
+
 namespace fulgor {
 
 struct filenames {
     void build(std::vector<std::string> const& filenames) {
-        uint32_t offset = 0;
+        uint64_t offset = 0;
         std::vector<uint32_t> offsets;
         std::vector<char> chars;
-        offsets.push_back(offset);
+        offsets.push_back(0);
         for (auto const& f : filenames) {
             std::ranges::copy(f, std::back_inserter(chars));
             offset += f.size();
-            offsets.push_back(offset);
+            offsets.push_back(checked_offset(offset));
         }
         m_offsets = offsets;
         m_chars = chars;
@@ -24,8 +27,8 @@ struct filenames {
         if (!file.is_open()) {
             throw std::runtime_error("Could not open file: " + filepath);
         }
-        uint32_t offset = 0;
-        offsets.push_back(offset);
+        uint64_t offset = 0;
+        offsets.push_back(0);
 
         std::string line;
         while (std::getline(file, line)) {
@@ -35,7 +38,7 @@ struct filenames {
             chars.insert(chars.end(), line.begin(), line.end());
 
             offset += line.size();
-            offsets.push_back(offset);
+            offsets.push_back(checked_offset(offset));
         }
         m_offsets = offsets;
         m_chars = chars;
@@ -62,6 +65,14 @@ struct filenames {
     }
 
 private:
+    /* offsets are stored as 32-bit; reject a filename buffer that cannot be addressed */
+    static uint32_t checked_offset(const uint64_t offset) {
+        if (offset > UINT32_MAX) {
+            throw std::runtime_error("reference filenames exceed the 4 GiB offset limit");
+        }
+        return static_cast<uint32_t>(offset);
+    }
+
     template <typename Visitor, typename T>
     static void visit_impl(Visitor& visitor, T&& t) {
         visitor.visit(t.m_offsets);

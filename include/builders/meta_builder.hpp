@@ -160,6 +160,8 @@ struct meta_build_strategy {
         cdbg::builder cdbg_builder(cdbg_config);
 
         cdbg_builder.build();
+        util::check_index_limits(cdbg_builder.num_colors(), cdbg_builder.num_unitigs(),
+                                 cdbg_builder.num_color_sets());
         m_build_config.num_colors = cdbg_builder.num_colors();
         m_num_color_sets = cdbg_builder.num_color_sets();
     }
@@ -177,7 +179,7 @@ struct meta_build_strategy {
         }
 
         {
-            util::timed_phase timer(" step 2.3. build partial/meta color sets");
+            util::timed_phase sub_timer(" step 2.3. build partial/meta color sets");
 
             std::atomic<uint64_t> num_integers_in_metacolor_sets = 0;
             typename ColorSets::builder color_sets_builder(

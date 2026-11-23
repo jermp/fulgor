@@ -98,6 +98,26 @@ void check_version_number(essentials::version_number const& vnum) {
     }
 }
 
+/* The index stores counts, ids and offsets as 32-bit values; validate them once at the
+   boundary where they enter the system (after the cdbg build, or when loading an index). */
+inline void check_index_limits(uint64_t num_colors, uint64_t num_unitigs,
+                               uint64_t num_color_sets) {
+    std::string exceeded;
+    auto check = [&exceeded](uint64_t value, char const* name) {
+        if (value > UINT32_MAX) {
+            if (!exceeded.empty()) exceeded += ", ";
+            exceeded += std::string(name) + "=" + std::to_string(value);
+        }
+    };
+    check(num_colors, "num_colors");
+    check(num_unitigs, "num_unitigs");
+    check(num_color_sets, "num_color_sets");
+    if (!exceeded.empty()) {
+        throw std::runtime_error("32-bit index limit exceeded: " + exceeded + " (max " +
+                                 std::to_string(UINT32_MAX) + ")");
+    }
+}
+
 /* The builder appends the version number (3 bytes) at the end of an index file. */
 inline essentials::version_number read_version_number(std::string const& index_filename) {
     std::ifstream in(index_filename, std::ios::binary | std::ios::ate);
@@ -480,6 +500,8 @@ void load_index(Index& index, const std::string& index_filename, const bool mmap
         essentials::load(index, index_filename.c_str());
         if (verbose) essentials::logger("*** DONE: loading the index");
     }
+
+    check_index_limits(index.num_colors(), index.num_unitigs(), index.num_color_sets());
 }
 
 }  // namespace util

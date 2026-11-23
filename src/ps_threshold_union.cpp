@@ -139,9 +139,9 @@ void merge_diff(std::vector<Iterator>& iterators, std::vector<uint32_t>& colors,
         partition_size++;
         score += it.score;
 
-        bool is_last_in_partition = iterator_id + 1 == num_iterators ||
-                                    iterators[iterator_id + 1].item.representative_begin() !=
-                                        it.item.representative_begin();
+        const bool is_last_in_partition = iterator_id + 1 == num_iterators ||
+                                          iterators[iterator_id + 1].item.representative_begin() !=
+                                              it.item.representative_begin();
 
         if (partition_size == 1 && is_last_in_partition) {
             for (uint32_t i = 0; i < it.item.size(); ++i, it.item.next()) {
@@ -226,7 +226,6 @@ void merge_metadiff(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
         it.item.change_partition();
     }
     for (auto partition_id : partition_ids) {
-        uint32_t num_partition_colors = 0;
         uint32_t lower_bound = 0;
         uint32_t num_sets = 0;
         for (auto& it : iterators) {
@@ -238,20 +237,20 @@ void merge_metadiff(std::vector<Iterator>& iterators, std::vector<uint32_t>& col
         }
 
         std::sort(iterators.begin(), iterators.end(), [&](const Iterator& a, const Iterator& b) {
-            uint32_t a_part = a.item.partition_id();
-            uint32_t b_part = b.item.partition_id();
+            const uint32_t a_part = a.item.partition_id();
+            const uint32_t b_part = b.item.partition_id();
             if (a_part == partition_id && b_part == partition_id) {
-                uint32_t a_repr = a.item.partition_it().representative_begin();
-                uint32_t a_meta = a.item.meta_color();
-                uint32_t b_repr = b.item.partition_it().representative_begin();
-                uint32_t b_meta = b.item.meta_color();
+                const uint64_t a_repr = a.item.partition_it().representative_begin();
+                const uint32_t a_meta = a.item.meta_color();
+                const uint64_t b_repr = b.item.partition_it().representative_begin();
+                const uint32_t b_meta = b.item.meta_color();
                 return a_meta < b_meta || (a_meta == b_meta && a_repr < b_repr);
             }
             return a_part < b_part;
         });
 
         lower_bound = iterators.front().item.partition_min_color();
-        num_partition_colors = iterators.front().item.partition_it().num_colors();
+        const uint32_t num_partition_colors = iterators.front().item.partition_it().num_colors();
 
         uint32_t partition_score = 0;
         uint32_t partition_size = 0;
@@ -357,32 +356,30 @@ void index<ColorSets>::pseudoalign_threshold_union(std::string const& sequence,
     /* deduplicate unitig_ids */
     std::sort(unitig_ids.begin(), unitig_ids.end(),
               [](auto const& x, auto const& y) { return x.item < y.item; });
-    uint32_t prev_unitig_id = -1;
-    for (uint64_t i = 0; i != unitig_ids.size(); ++i) {
-        uint32_t unitig_id = unitig_ids[i].item;
+    uint64_t prev_unitig_id = UINT64_MAX;
+    for (auto& [unitig_id, score] : unitig_ids) {
         if (unitig_id != prev_unitig_id) {
-            uint32_t color_set_id = u2c(unitig_id);
-            color_set_ids.push_back({color_set_id, unitig_ids[i].score});
+            uint32_t color_set_id = static_cast<uint32_t>(u2c(unitig_id));
+            color_set_ids.push_back({.item = color_set_id, .score = score});
             prev_unitig_id = unitig_id;
         } else {
             assert(!color_set_ids.empty());
-            color_set_ids.back().score += unitig_ids[i].score;
+            color_set_ids.back().score += score;
         }
     }
 
     /* deduplicate color_set_ids */
     std::sort(color_set_ids.begin(), color_set_ids.end(),
               [](auto const& x, auto const& y) { return x.item < y.item; });
-    uint32_t prev_color_set_id = -1;
-    for (uint64_t i = 0; i != color_set_ids.size(); ++i) {
-        uint64_t color_set_id = color_set_ids[i].item;
+    uint64_t prev_color_set_id = UINT64_MAX;
+    for (auto& [color_set_id, score] : color_set_ids) {
         if (color_set_id != prev_color_set_id) {
             auto fwd_it = m_color_sets.color_set(color_set_id);
-            iterators.push_back({fwd_it, color_set_ids[i].score});
+            iterators.push_back({fwd_it, score});
             prev_color_set_id = color_set_id;
         } else {
             assert(!iterators.empty());
-            iterators.back().score += color_set_ids[i].score;
+            iterators.back().score += score;
         }
     }
 

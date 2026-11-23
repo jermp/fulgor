@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "include/index.hpp"
 #include "include/build_util.hpp"
 
@@ -7,17 +9,16 @@ namespace fulgor {
 
 template <typename ColorSets>
 struct index<ColorSets>::meta_differential_builder {
-    meta_differential_builder() {}
+    meta_differential_builder() = default;
 
-    meta_differential_builder(build_configuration const& build_config)
-        : m_build_config(build_config) {}
+    explicit meta_differential_builder(build_configuration build_config)
+        : m_build_config(std::move(build_config)) {}
 
     void build(index& idx) {
         if (idx.m_k2u.num_kmers() != 0) throw std::runtime_error("index already built");
 
         essentials::logger("step 1. loading index to be partitioned");
-        util::check_index_version(m_build_config.index_filename_to_partition);
-        essentials::load(meta_index, m_build_config.index_filename_to_partition.c_str());
+        util::load_index(meta_index, m_build_config.index_filename_to_partition, false, false);
         essentials::logger("DONE");
         const uint32_t num_threads = m_build_config.num_threads;
 
@@ -51,8 +52,9 @@ struct index<ColorSets>::meta_differential_builder {
                 auto const& permutation = dp.permutation();
                 partial_permutations[meta_partition_id].resize(num_partition_color_sets);
 
-                essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
-                timer.start();
+                essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds>
+                    sub_timer;
+                sub_timer.start();
 
                 struct slice {
                     uint64_t begin, end;
@@ -96,7 +98,7 @@ struct index<ColorSets>::meta_differential_builder {
                     std::vector<uint64_t> group_endpoints;
                     uint64_t curr_group =
                         permutation[begin].first + 1;  // different from first group
-                    for (uint64_t i = begin; i < end; i++) {
+                    for (uint64_t i = begin; i < end; ++i) {
                         auto& [group_id, color_set_id] = permutation[i];
                         if (group_id != curr_group) {
                             group_endpoints.push_back(i);
@@ -155,10 +157,10 @@ struct index<ColorSets>::meta_differential_builder {
                 thread_builders[0].build(d);
                 builder.process_partition(d);
 
-                timer.stop();
+                sub_timer.stop();
                 std::cout << "  ** building the color sets for partition " << meta_partition_id
-                          << " took " << timer.elapsed() << " seconds / " << timer.elapsed() / 60
-                          << " minutes" << std::endl;
+                          << " took " << sub_timer.elapsed() << " seconds / "
+                          << sub_timer.elapsed() / 60 << " minutes" << std::endl;
             }
 
             timer.stop();
@@ -188,10 +190,10 @@ struct index<ColorSets>::meta_differential_builder {
 
                 std::sort(permutation.begin() + start, permutation.begin() + end,
                           [&](const int a, const int b) {
-                              auto& it_a = iterators[a];
-                              auto& it_b = iterators[b];
-                              uint32_t val_a = it_a.partition_id();
-                              uint32_t val_b = it_b.partition_id();
+                              const auto& it_a = iterators[a];
+                              const auto& it_b = iterators[b];
+                              const uint32_t val_a = it_a.partition_id();
+                              const uint32_t val_b = it_b.partition_id();
 
                               return val_a < val_b;
                           });

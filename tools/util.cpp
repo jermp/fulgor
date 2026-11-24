@@ -293,10 +293,12 @@ int dump(int argc, char** argv) {
     util::print_cmd(argc, argv);
 
     const auto index_filename = parser.get<std::string>("index_filename");
-    std::string output_basename;
+    std::filesystem::path output_basename;
     if (parser.parsed("output_basename")) {
         output_basename = parser.get<std::string>("output_basename");
-        assert(!output_basename.empty());
+    }
+    if (output_basename.empty()) {
+        output_basename = std::filesystem::path(index_filename).stem();
     }
 
     build_configuration build_config;
@@ -539,9 +541,9 @@ int probabilistic_check(int argc, char** argv) {
         }
     }
 
-    if (file_prob < 0.0 || file_prob > 1.0 || kmer_prob <= 0.0 || kmer_prob > 1.0) {
+    if (file_prob <= 0.0 || file_prob > 1.0 || kmer_prob <= 0.0 || kmer_prob > 1.0) {
         throw std::invalid_argument(
-            "Probabilities must be within valid bounds (0 < kmer_prob <= 1).");
+            "Probabilities must be within valid bounds (0 < file_prob, kmer_prob <= 1).");
     }
 
     std::variant<hfur_index_t, mdfur_index_t, mfur_index_t, dfur_index_t> index;

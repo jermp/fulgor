@@ -288,7 +288,7 @@ struct index<ColorSets>::meta_differential_builder {
             d.build(u2c);
 
             const uint64_t num_unitigs = u2c.num_bits();
-            bits::bit_vector::builder u2c_builder(num_unitigs + 1, 0);
+            bits::bit_vector::builder u2c_builder(num_unitigs, 0);
 
             auto const& dict = meta_index.get_k2u();
             const uint64_t k = dict.k();
@@ -328,6 +328,7 @@ struct index<ColorSets>::meta_differential_builder {
             assert(pos == num_unitigs);
             out.close();
             u2c_builder.build(idx.m_u2c);
+            assert(idx.m_u2c.num_bits() == num_unitigs);
             idx.m_u2c_rank1_index.build(idx.m_u2c);
 
             /* build a new sshash::dictionary on the permuted unitigs */

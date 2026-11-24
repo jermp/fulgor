@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
               "convert pseudoalignment output to ascii or binary format");
 
     tools.add_section("Debug");
-    tools.add("check", probabilistic_check,
+    tools.add("check", check,
               "perform an in-depth check to verify that an index was built correctly");
     tools.add("verify", verify, "verify that index works correctly with current library version");
     tools.add("stats", stats, "print index statistics");

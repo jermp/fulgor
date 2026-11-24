@@ -37,7 +37,6 @@ using namespace fulgor;
     essentials::load(index, build_config.output_filename.c_str());
 
     if (build_config.verbose) index.print_stats();
-    // if (build_config.check) builder.check(index);
 }
 
 void diff_color(build_configuration& build_config, const bool force)  //
@@ -73,9 +72,6 @@ void diff_color(build_configuration& build_config, const bool force)  //
 
     if (build_config.verbose) {
         index.print_stats();
-    }
-    if (build_config.check) {
-        builder.check(index);
     }
 }
 
@@ -128,9 +124,6 @@ void meta_diff_color(build_configuration& build_config, const bool force)  //
 
     if (build_config.verbose) {
         index.print_stats();
-    }
-    if (build_config.check) {
-        builder.check(index);
     }
 }
 
@@ -278,8 +271,6 @@ int color(int argc, char** argv) {
                    std::to_string(constants::default_ram_limit_in_GiB) + ").",
                "-g", false);
     parser.add("verbose", "Verbose output during construction.", "--verbose", false, true);
-    parser.add("check", "Check correctness after index construction (it might take some time).",
-               "--check", false, true);
     parser.add("force", "Re-build the index even when an index with the same name is found.",
                "--force", false, true);
     parser.add("meta", "Build a meta-colored index.", "--meta", false, true);
@@ -303,7 +294,6 @@ int color(int argc, char** argv) {
             return 1;
         }
     }
-    build_config.check = parser.get<bool>("check");
     build_config.meta_colored = parser.get<bool>("meta");
     build_config.diff_colored = parser.get<bool>("diff");
     build_config.verbose = parser.get<bool>("verbose");

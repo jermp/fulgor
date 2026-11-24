@@ -12,7 +12,6 @@ inline void build_reference_sketches(const uint64_t num_colors,
     assert(num_threads > 0);
 
     std::vector sketches(num_colors, sketch::hll_t(p));  // 10^6 colors & p == 10 -> 1GB
-    std::vector<std::mutex> mutexes(num_colors);
 
     cdbg::unitigs_color_set_stream stream(input_basename);
     const cdbg::metadata metadata(cdbg::metadata_filename(input_basename));

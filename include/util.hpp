@@ -46,7 +46,6 @@ struct build_configuration {
         , tmp_dirname(constants::default_tmp_dirname)
         //
         , verbose(false)
-        , check(false)
         //
         , meta_colored(false)
         , diff_colored(false)  //
@@ -66,7 +65,6 @@ struct build_configuration {
     std::filesystem::path index_filename_to_partition;
 
     bool verbose;
-    bool check;
 
     bool meta_colored;
     bool diff_colored;

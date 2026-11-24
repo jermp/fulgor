@@ -179,7 +179,7 @@ using 8 parallel threads and writing the mapping output to `/dev/null`.
 
 To partition the index to obtain a meta-colored Fulgor index, then do:
 
-	./fulgor color -i ~/Salmonella_enterica/salmonella_4546.fur -d tmp_dir --meta --check
+	./fulgor color -i ~/Salmonella_enterica/salmonella_4546.fur -d tmp_dir --meta
 
 We can change the option `--meta` to `--diff` to create a differential-colored index, or use
 both options, `--meta --diff`, to create a meta-differential-colored index.

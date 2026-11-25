@@ -229,7 +229,7 @@ int load(int argc, char** argv) {
 
 template <typename Index>
 uint64_t check(Index& index, double const file_prob, double const kmer_prob,
-                             uint32_t const num_threads, const bool verbose) {
+               uint32_t const num_threads, const bool verbose) {
     const uint64_t k = index.k();
     const uint32_t num_colors = index.num_colors();
 
@@ -357,7 +357,8 @@ int check(int argc, char** argv) {
     parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
     parser.add("mmap",
                "Use memory mapping instead of loading the whole index in RAM. Use this option if "
-               "the index does not fit in memory. WARNING: significantly slows down query speed",
+               "the index does not fit in memory. WARNING: significantly slows down query speed. "
+               "Not supported for meta-differential indexes.",
                "--mmap", false, true);
     parser.add("verbose", "Verbose output during processing (default is false).", "--verbose",
                false, true);

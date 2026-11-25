@@ -119,7 +119,8 @@ int kmer_matches(int argc, char** argv) {
     parser.add("num_threads", "Number of threads (default is 1).", "-t", false);
     parser.add("mmap",
                "Use memory mapping instead of loading the whole index in RAM. Use this option if "
-               "the index does not fit in memory. WARNING: significantly slows down query speed",
+               "the index does not fit in memory. WARNING: significantly slows down query speed. "
+               "Not supported for meta-differential indexes.",
                "--mmap", false, true);
     parser.add("verbose", "Verbose output during query (default is false).", "--verbose", false,
                true);
@@ -181,6 +182,6 @@ int kmer_matches(int argc, char** argv) {
             return kmer_matches<Index>(index, query_filename, output_filename, options);
         },
         index);
-    
+
     return 0;
 }

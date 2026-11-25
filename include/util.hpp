@@ -98,8 +98,7 @@ void check_version_number(essentials::version_number const& vnum) {
 
 /* The index stores counts, ids and offsets as 32-bit values; validate them once at the
    boundary where they enter the system (after the cdbg build, or when loading an index). */
-inline void check_index_limits(uint64_t num_colors, uint64_t num_unitigs,
-                               uint64_t num_color_sets) {
+inline void check_index_limits(uint64_t num_colors, uint64_t num_unitigs, uint64_t num_color_sets) {
     std::string exceeded;
     auto check = [&exceeded](uint64_t value, char const* name) {
         if (value > UINT32_MAX) {
@@ -486,12 +485,21 @@ inline bool is_dna(std::string_view sv) noexcept {
 }
 
 template <typename Index>
-void load_index(Index& index, const std::string& index_filename, const bool mmap,
-                const bool verbose) {
+void load_index(Index& index, const std::string& index_filename, bool mmap, const bool verbose) {
     check_index_version(index_filename);
+
+    if (mmap && Index::color_sets_type::type == META_DIFF) {
+        std::cerr << "warning: --mmap is not supported for meta-differential indexes; "
+                     "loading into RAM instead"
+                  << std::endl;
+        mmap = false;
+    }
+
     if (mmap) {
         if (verbose) essentials::logger("*** START: memory mapping the index");
-        essentials::mmap(index, index_filename.c_str());
+        if (essentials::mmap(index, index_filename.c_str()) == 0) {
+            throw std::runtime_error("cannot mmap index file: " + index_filename);
+        }
         if (verbose) essentials::logger("*** DONE: memory mapping the index");
     } else {
         if (verbose) essentials::logger("*** START: loading the index");

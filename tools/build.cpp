@@ -179,8 +179,13 @@ int build(int argc, char** argv) {
     build_config.m = m;
     build_config.verbose = parser.get<bool>("verbose");
     build_config.filenames_list = parser.get<std::string>("filenames_list");
-    if (parser.get<uint64_t>("RAM")) {
-        build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
+    if (parser.parsed("RAM")) {
+        const uint64_t ram_limit = parser.get<uint64_t>("RAM");
+        if (ram_limit == 0) {
+            std::cerr << "-g must be > 0" << std::endl;
+            return 1;
+        }
+        build_config.ram_limit_in_GiB = ram_limit;
     }
 
     std::variant<hfur_index_t, mfur_index_t> index;
@@ -298,8 +303,13 @@ int color(int argc, char** argv) {
     build_config.diff_colored = parser.get<bool>("diff");
     build_config.verbose = parser.get<bool>("verbose");
     const bool force = parser.get<bool>("force");
-    if (parser.get<uint64_t>("RAM")) {
-        build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
+    if (parser.parsed("RAM")) {
+        const uint64_t ram_limit = parser.get<uint64_t>("RAM");
+        if (ram_limit == 0) {
+            std::cerr << "-g must be > 0" << std::endl;
+            return 1;
+        }
+        build_config.ram_limit_in_GiB = ram_limit;
     }
 
     if (build_config.meta_colored && build_config.diff_colored &&

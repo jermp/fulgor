@@ -1,3 +1,4 @@
+#include <limits>   // for std::numeric_limits
 #include <numeric>  // for std::accumulate
 
 #include "include/index.hpp"
@@ -349,6 +350,11 @@ void index<ColorSets>::pseudoalign_threshold_union(std::string const& sequence,
     assert(num_positive_kmers_in_sequence ==
            std::accumulate(unitig_ids.begin(), unitig_ids.end(), uint64_t(0),
                            [](uint64_t curr_sum, auto const& u) { return curr_sum + u.score; }));
+
+    if (num_positive_kmers_in_sequence >
+        static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
+        throw std::runtime_error("read has too many positive kmers for 32-bit score accumulators");
+    }
 
     std::vector<scored_id> color_set_ids;
     std::vector<scored<typename ColorSets::iterator_type>> iterators;

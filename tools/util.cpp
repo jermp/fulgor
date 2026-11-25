@@ -185,8 +185,13 @@ int load(int argc, char** argv) {
 
     const auto m = parser.get<uint64_t>("m");
     build_config.m = m;
-    if (parser.get<uint64_t>("RAM")) {
-        build_config.ram_limit_in_GiB = parser.get<uint64_t>("RAM");
+    if (parser.parsed("RAM")) {
+        const uint64_t ram_limit = parser.get<uint64_t>("RAM");
+        if (ram_limit == 0) {
+            std::cerr << "-g must be > 0" << std::endl;
+            return 1;
+        }
+        build_config.ram_limit_in_GiB = ram_limit;
     }
     if (parser.parsed("tmp_dirname")) {
         build_config.tmp_dirname = parser.get<std::string>("tmp_dirname");

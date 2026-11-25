@@ -1,7 +1,15 @@
 #pragma once
 
 #include <cstdint>
+#include <fstream>
+#include <iterator>
+#include <ranges>
 #include <stdexcept>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "external/sshash/external/pthash/external/bits/external/essentials/include/essentials.hpp"
 
 namespace fulgor {
 

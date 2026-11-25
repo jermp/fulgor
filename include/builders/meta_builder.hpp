@@ -1,6 +1,7 @@
 #pragma once
 
-#include "stream.hpp"
+#include "external/cdbg-builder/include/stream.hpp"
+#include "external/cdbg-builder/include/builder.hpp"
 #include "external/kmeans/include/kmeans.hpp"
 #include "include/index.hpp"
 #include "include/build_util.hpp"

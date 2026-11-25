@@ -1,19 +1,33 @@
 #pragma once
 
-#include <vector>
 #include <algorithm>  // for std::set_intersection
+#include <array>
+#include <charconv>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <filesystem>
+#include <format>
 #include <fstream>
+#include <iostream>
+#include <iterator>
+#include <limits>
+#include <mutex>
+#include <optional>
+#include <ranges>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <system_error>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
-#include "external/smhasher/src/City.h"
+#include "external/sshash/external/cityhash/cityhash.hpp"
 
 #include "external/FQFeeder/include/blockingconcurrentqueue.h"
 
-#include <ranges>
+#include "external/sshash/external/pthash/external/bits/external/essentials/include/essentials.hpp"
 
 namespace fulgor {
 
@@ -85,14 +99,16 @@ struct kmer_conservation_triple {
 typedef uint32_t count_type;
 
 namespace util {
-void print_cmd(int argc, char** argv) {
+inline void print_cmd(int argc, char** argv) {
     for (int i = 0; i != argc; ++i) std::cout << argv[i] << ' ';
     std::cout << std::endl;
 }
 
-std::string filename(std::string const& path) { return path.substr(path.find_last_of("/\\") + 1); }
+inline std::string filename(std::string const& path) {
+    return path.substr(path.find_last_of("/\\") + 1);
+}
 
-void check_version_number(essentials::version_number const& vnum) {
+inline void check_version_number(essentials::version_number const& vnum) {
     if (vnum.x != constants::current_version_number::major) {
         throw std::runtime_error("MAJOR index version mismatch: Fulgor index needs rebuilding");
     }
@@ -241,7 +257,8 @@ bool check_union(std::vector<ForwardIterator>& iterators,                     //
     return true;
 }
 
-__uint128_t hash128(char const* bytes, uint64_t num_bytes, const uint64_t seed = 1234567890) {
+inline __uint128_t hash128(char const* bytes, uint64_t num_bytes,
+                           const uint64_t seed = 1234567890) {
     auto ret = cityhash::CityHash128WithSeed(bytes, num_bytes, {seed, seed});
     __uint128_t out = 0;
     out += __uint128_t(ret.first);
@@ -276,20 +293,17 @@ inline int num_digits(const uint32_t n) {
     return 1;
 }
 
-inline void vec_to_tsv(std::vector<uint32_t> const& vec, std::string& s) {
+template <typename T>
+void vec_to_tsv(std::vector<T> const& vec, std::string& s) {
     s.clear();
-    s.reserve(vec.size() * 12);
-    char buffer[32];
-    buffer[31] = '\t';
-    uint32_t tmp;
-    for (uint32_t x : vec) {
-        int len = 0;
-        do {
-            tmp = x / 10;
-            buffer[30 - len++] = '0' + (x - tmp * 10);
-            x = tmp;
-        } while (x > 0);
-        s.append(buffer + 31 - len, len + 1);
+    if (vec.empty()) return;
+    s.reserve(vec.size() * (std::numeric_limits<T>::digits10 + 2));
+    char buffer[std::numeric_limits<T>::digits10 + 3];
+    for (T x : vec) {
+        auto [ptr, ec] = std::to_chars(buffer, buffer + sizeof(buffer), x);
+        if (ec != std::errc()) throw std::runtime_error("vec_to_tsv: conversion failed");
+        s.append(buffer, ptr);
+        s.push_back('\t');
     }
     s.pop_back();
 }

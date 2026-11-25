@@ -317,6 +317,9 @@ struct preprocessed_query_reader {
 
     preprocessed_query_reader(std::string const& query_filename, uint64_t num_threads)
         : m_query_file(query_filename), m_queue(3 * num_threads) {
+        if (!m_query_file.is_open()) {
+            throw std::runtime_error("cannot open preprocessed query file: " + query_filename);
+        }
         constexpr uint64_t batch_thresh = 10000;
 
         m_producer = std::thread([this]() -> void {

@@ -47,6 +47,7 @@ void hybrid::print_stats() const  //
     uint64_t integers = 0;
     uint64_t bits = 0;
     const uint64_t total_bits = num_bits();
+    uint64_t prev_color_set_size_upper_bound = 0;
     for (uint64_t i = 0, curr_color_set_size_upper_bound = 0; i != num_buckets; ++i) {
         if (i == num_buckets - 1) {
             curr_color_set_size_upper_bound = m_num_colors;
@@ -61,12 +62,13 @@ void hybrid::print_stats() const  //
             std::cout << std::format(
                 "  #color_sets of size > {} and <= {}: {} ({:.6f}%) "
                 "-- #ints: {} ({:.6f}%) -- bits/int: {:.6f} ({:.6f}%)\n",
-                curr_color_set_size_upper_bound - bucket_size, curr_color_set_size_upper_bound,
+                prev_color_set_size_upper_bound, curr_color_set_size_upper_bound,
                 num_color_sets_per_bucket[i],
                 (num_color_sets_per_bucket[i] * 100.0) / num_color_sets(), n,
                 (n * 100.0) / num_total_integers, static_cast<double>(num_bits_per_bucket[i]) / n,
                 static_cast<double>(num_bits_per_bucket[i]) / total_bits * 100.0);
         }
+        prev_color_set_size_upper_bound = curr_color_set_size_upper_bound;
     }
     assert(integers == num_total_integers);
     assert(std::accumulate(num_color_sets_per_bucket.begin(), num_color_sets_per_bucket.end(),

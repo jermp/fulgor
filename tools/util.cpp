@@ -184,7 +184,11 @@ int load(int argc, char** argv) {
     build_configuration build_config;
 
     const auto m = parser.get<uint64_t>("m");
-    build_config.m = m;
+    if (m == 0 || m > kmer_type::max_m) {
+        std::cerr << "m must be in [1, " << kmer_type::max_m << "]" << std::endl;
+        return 1;
+    }
+    build_config.m = static_cast<uint32_t>(m);
     if (parser.parsed("RAM")) {
         const uint64_t ram_limit = parser.get<uint64_t>("RAM");
         if (ram_limit == 0) {

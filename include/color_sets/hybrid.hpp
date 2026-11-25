@@ -10,12 +10,12 @@ struct hybrid {
     static constexpr index_t type = HYBRID;
 
     struct builder {
-        explicit builder() : m_max_RAM_bytes(1 << 30), m_verbose(false) { init(0, *m_saver); }
+        builder() = default;
 
         explicit builder(const uint64_t num_colors, util::external_saver& saver,
                          const build_configuration& build_config)
             : m_max_RAM_bytes(build_config.ram_limit_in_GiB << 30)
-            , m_verbose(build_config.ram_limit_in_GiB) {
+            , m_verbose(build_config.verbose) {
             init(num_colors, saver);
         }
 
@@ -224,8 +224,8 @@ struct hybrid {
         std::streampos m_bitvector_start;
 
         util::external_saver* m_saver = nullptr;
-        uint64_t m_max_RAM_bytes;
-        bool m_verbose;
+        uint64_t m_max_RAM_bytes = 1 << 30;
+        bool m_verbose = false;
 
         /* call while holding the queue lock (append) or the unique flush lock (flush/init) */
         void refresh_bytes() {

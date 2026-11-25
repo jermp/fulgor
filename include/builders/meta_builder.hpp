@@ -36,21 +36,22 @@ struct permuter {
             util::timed_phase timer_(" step 2.2. cluster sketches");
             timer.start();
 
-            std::ifstream in(m_build_config.tmp_filename("sketches.bin"), std::ios::binary);
-            if (!in.is_open()) throw std::runtime_error("error in opening file");
-
             std::vector<kmeans::point> points;
-            uint64_t num_bytes_per_point = 0;
             uint64_t num_points = 0;
-            in.read(reinterpret_cast<char*>(&num_bytes_per_point), sizeof(uint64_t));
-            in.read(reinterpret_cast<char*>(&num_points), sizeof(uint64_t));
-            points.resize(num_points, kmeans::point(num_bytes_per_point));
-            for (auto& point : points) {
-                in.read(reinterpret_cast<char*>(point.data()), num_bytes_per_point);
-            }
-            in.close();
+            {
+                util::file_guard sketches_guard(m_build_config.tmp_filename("sketches.bin"));
+                std::ifstream in(sketches_guard.path.c_str(), std::ios::binary);
+                if (!in.is_open()) throw std::runtime_error("error in opening file");
 
-            std::remove(m_build_config.tmp_filename("sketches.bin").c_str());
+                uint64_t num_bytes_per_point = 0;
+                in.read(reinterpret_cast<char*>(&num_bytes_per_point), sizeof(uint64_t));
+                in.read(reinterpret_cast<char*>(&num_points), sizeof(uint64_t));
+                points.resize(num_points, kmeans::point(num_bytes_per_point));
+                for (auto& point : points) {
+                    in.read(reinterpret_cast<char*>(point.data()), num_bytes_per_point);
+                }
+                in.close();
+            }
 
             kmeans::clustering_parameters params;
 
@@ -187,6 +188,7 @@ struct meta_build_strategy {
                 m_build_config.ram_limit_in_GiB << 30, m_build_config.verbose);
 
             std::string metacolor_sets_filename = m_build_config.tmp_filename("metacolor_sets.bin");
+            util::file_guard metacolor_sets_guard(metacolor_sets_filename);
             std::ofstream metacolor_sets_ofstream(metacolor_sets_filename,
                                                   std::ios::binary | std::ios::trunc);
             if (!metacolor_sets_ofstream.is_open()) {
@@ -293,7 +295,6 @@ struct meta_build_strategy {
             }
 
             metacolor_set_in.close();
-            std::remove(metacolor_sets_filename.c_str());
             color_sets_builder.build();
 
             try {

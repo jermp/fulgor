@@ -138,27 +138,29 @@ private:
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
         timer.start();
 
-        std::ifstream in(filename, std::ios::binary);
-        if (!in.is_open()) throw std::runtime_error("error in opening file");
-
         std::vector<kmeans::point> points;
         std::vector<uint64_t> group_color_set_ids;
-        uint64_t num_bytes_per_point = 0;
         uint64_t num_points = 0;
-        uint64_t num_colors = 0;
-        in.read(reinterpret_cast<char*>(&num_bytes_per_point), sizeof(uint64_t));
-        in.read(reinterpret_cast<char*>(&num_colors), sizeof(uint64_t));
-        in.read(reinterpret_cast<char*>(&num_points), sizeof(uint64_t));
-        points.resize(num_points, kmeans::point(num_bytes_per_point));
-        group_color_set_ids.resize(num_points);
-        for (uint64_t i = 0; i != num_points; ++i) {
-            in.read(reinterpret_cast<char*>(&group_color_set_ids[i]), sizeof(uint64_t));
+        {
+            util::file_guard sketch_guard(filename);
+            std::ifstream in(filename, std::ios::binary);
+            if (!in.is_open()) throw std::runtime_error("error in opening file");
+
+            uint64_t num_bytes_per_point = 0;
+            uint64_t num_colors = 0;
+            in.read(reinterpret_cast<char*>(&num_bytes_per_point), sizeof(uint64_t));
+            in.read(reinterpret_cast<char*>(&num_colors), sizeof(uint64_t));
+            in.read(reinterpret_cast<char*>(&num_points), sizeof(uint64_t));
+            points.resize(num_points, kmeans::point(num_bytes_per_point));
+            group_color_set_ids.resize(num_points);
+            for (uint64_t i = 0; i != num_points; ++i) {
+                in.read(reinterpret_cast<char*>(&group_color_set_ids[i]), sizeof(uint64_t));
+            }
+            for (auto& point : points) {
+                in.read(reinterpret_cast<char*>(point.data()), num_bytes_per_point);
+            }
+            in.close();
         }
-        for (auto& point : points) {
-            in.read(reinterpret_cast<char*>(point.data()), num_bytes_per_point);
-        }
-        in.close();
-        std::remove(filename.c_str());
 
         {
             essentials::timer<std::chrono::high_resolution_clock, std::chrono::milliseconds> timer;
@@ -331,6 +333,7 @@ struct index<ColorSets>::differential_builder {
 
             const std::string permuted_unitigs_filename =
                 m_build_config.tmp_filename("permuted_unitigs.fa");
+            util::file_guard permuted_unitigs_guard(permuted_unitigs_filename);
             std::ofstream out(permuted_unitigs_filename.c_str());
             if (!out.is_open()) throw std::runtime_error("cannot open output file");
 
@@ -394,11 +397,6 @@ struct index<ColorSets>::differential_builder {
             sshash_config.print();
             idx.m_k2u.build(permuted_unitigs_filename, sshash_config);
             assert(idx.get_k2u().num_kmers() == dict.num_kmers());
-            try {  // remove unitig file
-                std::remove(permuted_unitigs_filename.c_str());
-            } catch (std::exception const& e) {
-                std::cerr << e.what() << std::endl;
-            }
 
             timer.stop();
             std::cout << "** permuting unitigs and rebuilding k2u took " << timer.elapsed()

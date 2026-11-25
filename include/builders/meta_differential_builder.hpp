@@ -282,6 +282,7 @@ struct index<ColorSets>::meta_differential_builder {
 
             const std::string permuted_unitigs_filename =
                 m_build_config.tmp_filename("permuted_unitigs.fa");
+            util::file_guard permuted_unitigs_guard(permuted_unitigs_filename);
             std::ofstream out(permuted_unitigs_filename.c_str());
             if (!out.is_open()) throw std::runtime_error("cannot open output file");
 
@@ -344,11 +345,6 @@ struct index<ColorSets>::meta_differential_builder {
             sshash_config.print();
             idx.m_k2u.build(permuted_unitigs_filename, sshash_config);
             assert(idx.get_k2u().num_kmers() == dict.num_kmers());
-            try {  // remove unitig file
-                std::remove(permuted_unitigs_filename.c_str());
-            } catch (std::exception const& e) {
-                std::cerr << e.what() << std::endl;
-            }
 
             timer.stop();
             std::cout << "** building u2c and k2u took " << timer.elapsed() << " seconds / "

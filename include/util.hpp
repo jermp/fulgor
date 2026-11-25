@@ -4,8 +4,10 @@
 #include <algorithm>  // for std::set_intersection
 #include <condition_variable>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <stdexcept>
+#include <system_error>
 
 #include "external/smhasher/src/City.h"
 
@@ -346,6 +348,23 @@ private:
     std::mutex mtx;
     std::condition_variable cv_push;
     size_t max_capacity;
+};
+
+/* Removes `path` when the guard goes out of scope: normal return, early return or exception. */
+struct file_guard {
+    std::filesystem::path path;
+
+    explicit file_guard(std::filesystem::path filename) : path(std::move(filename)) {}
+
+    ~file_guard() {
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+    }
+
+    file_guard(file_guard const&) = delete;
+    file_guard& operator=(file_guard const&) = delete;
+    file_guard(file_guard&&) = delete;
+    file_guard& operator=(file_guard&&) = delete;
 };
 
 class external_saver {

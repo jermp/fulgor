@@ -173,10 +173,18 @@ int build(int argc, char** argv) {
         }
     }
 
-    auto k = parser.get<uint64_t>("k");
-    auto m = parser.get<uint64_t>("m");
-    build_config.k = k;
-    build_config.m = m;
+    const auto k = parser.get<uint64_t>("k");
+    const auto m = parser.get<uint64_t>("m");
+    if (k == 0 || k > kmer_type::max_k) {
+        std::cerr << "k must be in [1, " << kmer_type::max_k << "]" << std::endl;
+        return 1;
+    }
+    if (m == 0 || m > kmer_type::max_m || m >= k) {
+        std::cerr << "m must satisfy 0 < m < k and m <= " << kmer_type::max_m << std::endl;
+        return 1;
+    }
+    build_config.k = static_cast<uint32_t>(k);
+    build_config.m = static_cast<uint32_t>(m);
     build_config.verbose = parser.get<bool>("verbose");
     build_config.filenames_list = parser.get<std::string>("filenames_list");
     if (parser.parsed("RAM")) {

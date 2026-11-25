@@ -1,5 +1,7 @@
 #include <iostream>
 #include <fstream>
+#include <filesystem>
+#include <random>
 #include <sstream>
 #include <variant>
 
@@ -7,6 +9,18 @@
 #include "src/ps_threshold_union.cpp"
 
 using namespace fulgor;
+
+namespace {
+
+std::string make_tmp_filename() {
+    std::random_device rd;
+    std::filesystem::path p = std::filesystem::temp_directory_path() /
+                              ("fulgor-psa-" + std::to_string(rd()) + "-" +
+                               std::to_string(rd()) + ".tmp");
+    return p.string();
+}
+
+}  // namespace
 
 template <typename FulgorIndex, typename Formatter, typename QueryReader>
 void pseudoalign_worker(FulgorIndex const& index, QueryReader& query_reader, Formatter& formatter,
@@ -89,12 +103,15 @@ void pseudoalign_orchestrator(FulgorIndex& index, QueryReader& query_reader, For
 
 template <typename FulgorIndex, typename Formatter>
 bool fetch_and_deduplicate_sets(const std::string& query_filename, Formatter& output_formatter,
-                                std::string& tmp_filename, FulgorIndex& index,
+                                const std::string& tmp_filename, FulgorIndex& index,
                                 ps_options& options) {
     auto output_buffer = output_formatter.buffer();
     if (options.verbose) essentials::logger("*** START: fetching color set ids");
 
     std::ofstream tmp_file(tmp_filename, std::ios::binary);
+    if (!tmp_file.is_open()) {
+        throw std::runtime_error("cannot create temporary query file: " + tmp_filename);
+    }
     auto query_filenames = std::vector({query_filename});
     fastx_parser::FastxParser<fastx_parser::ReadSeq> rparser(query_filenames, options.num_threads,
                                                              options.num_threads - 1);
@@ -166,6 +183,9 @@ bool fetch_and_deduplicate_sets(const std::string& query_filename, Formatter& ou
     if (options.verbose) essentials::logger("*** START: deduplicating queries");
 
     std::ifstream ifile(tmp_filename, std::ios::binary);
+    if (!ifile.is_open()) {
+        throw std::runtime_error("cannot open temporary query file: " + tmp_filename);
+    }
     std::vector<std::vector<uint32_t>> queries;
     queries.reserve(num_fetched_reads);
 
@@ -189,7 +209,6 @@ bool fetch_and_deduplicate_sets(const std::string& query_filename, Formatter& ou
 
     if (queries.empty()) {
         ifile.close();
-        std::remove(tmp_filename.c_str());
         if (options.verbose) {
             essentials::logger("no mapped reads; skipping pseudoalignment");
         }
@@ -223,6 +242,9 @@ bool fetch_and_deduplicate_sets(const std::string& query_filename, Formatter& ou
               << identical_sizes << " set ids)\n";
     ifile.close();
     std::ofstream ofile(tmp_filename, std::ios::trunc | std::ios::binary);
+    if (!ofile.is_open()) {
+        throw std::runtime_error("cannot create deduplicated query file: " + tmp_filename);
+    }
     for (auto& query : queries) {
         uint32_t s = query.size();
         ofile.write(reinterpret_cast<char*>(&s), sizeof(s));
@@ -345,7 +367,8 @@ int pseudoalign(int argc, char** argv) {
         return 1;
     }
 
-    std::string tmp_filename = "queries.tmp";
+    util::file_guard tmp_guard(make_tmp_filename());
+    std::string tmp_filename = tmp_guard.path.string();
     ps_options options(ps_alg, verbose, num_threads);
 
     if (verbose) {
@@ -387,8 +410,6 @@ int pseudoalign(int argc, char** argv) {
             }
         },
         index, formatter);
-
-    std::remove(tmp_filename.c_str());
 
     return 0;
 }

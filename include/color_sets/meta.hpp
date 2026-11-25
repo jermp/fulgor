@@ -1,7 +1,20 @@
 #pragma once
+#include <algorithm>
+#include <bit>
+#include <cstdint>
 #include <future>
+#include <stdexcept>
 
 namespace fulgor {
+
+/* The flat meta color-set array stores partial-set ids in [0, N-1] and per-set size prefixes in
+   [1, P]; derive the width from both ranges. */
+inline uint64_t meta_color_set_width(const uint64_t num_partial_color_sets,
+                                     const uint64_t num_partitions) {
+    const uint64_t max_value =
+        std::max<uint64_t>(num_partial_color_sets - 1, num_partitions);
+    return std::max<uint64_t>(1, std::bit_width(max_value));
+}
 
 template <typename ColorSets>
 struct meta {
@@ -64,8 +77,9 @@ struct meta {
                 num_partial_color_sets += dict.size();
                 m_partial_sets_starts.push_back(num_partial_color_sets);
             }
-            m_meta_color_sets_builder.resize(num_integers_in_metacolor_sets,
-                                             std::ceil(std::log2(num_partial_color_sets)));
+            m_meta_color_sets_builder.resize(
+                num_integers_in_metacolor_sets,
+                meta_color_set_width(num_partial_color_sets, m_hashes.size()));
             m_partition_endpoints.reserve(m_hashes.size() + 1);
 
             assert(m_partition_starts.size() == m_partial_sets_starts.size());

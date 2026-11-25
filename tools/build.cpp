@@ -278,7 +278,10 @@ int color(int argc, char** argv) {
     parser.add("verbose", "Verbose output during construction.", "--verbose", false, true);
     parser.add("force", "Re-build the index even when an index with the same name is found.",
                "--force", false, true);
-    parser.add("meta", "Build a meta-colored index.", "--meta", false, true);
+    parser.add("meta",
+               "Build a meta-colored index. Not yet implemented: use `build --meta` on the input "
+               "files instead.",
+               "--meta", false, true);
     parser.add("diff", "Build a differential-colored index.", "--diff", false, true);
 
     if (!parser.parse()) return 1;

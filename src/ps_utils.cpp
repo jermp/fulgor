@@ -1,6 +1,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <vector>
 
@@ -319,7 +320,7 @@ struct preprocessed_query_reader {
         constexpr uint64_t batch_thresh = 10000;
 
         m_producer = std::thread([this]() -> void {
-            auto* batch = new std::vector<query_t>();
+            auto batch = std::make_unique<std::vector<query_t>>();
             batch->reserve(batch_thresh);
             uint32_t list_len = 0, query_id;
 
@@ -343,8 +344,8 @@ struct preprocessed_query_reader {
 
                 if (batch->size() >= 10000) {
                     this->in_flight += 1;
-                    while (!this->m_queue.try_enqueue(batch)) {}
-                    batch = new std::vector<query_t>();
+                    while (!this->m_queue.try_enqueue(std::move(batch))) {}
+                    batch = std::make_unique<std::vector<query_t>>();
                 }
 
                 query.clear();
@@ -357,7 +358,7 @@ struct preprocessed_query_reader {
 
             if (!batch->empty()) {
                 this->in_flight += 1;
-                this->m_queue.enqueue(batch);
+                this->m_queue.enqueue(std::move(batch));
             }
             this->done = true;
         });
@@ -393,17 +394,22 @@ struct preprocessed_query_reader {
 
     private:
         preprocessed_query_reader* reader;
-        std::vector<query_t>* sbatch;
+        std::unique_ptr<std::vector<query_t>> sbatch;
         std::vector<query_t>::iterator curr_query;
     };
 
     query_group get_query_group() { return query_group(this); }
 
-    ~preprocessed_query_reader() { m_producer.join(); }
+    ~preprocessed_query_reader() {
+        m_producer.join();
+        // free any batch that was enqueued but never consumed (e.g. early stop)
+        std::unique_ptr<std::vector<query_t>> leftover;
+        while (m_queue.try_dequeue(leftover)) {}
+    }
 
 private:
     std::ifstream m_query_file;
-    moodycamel::BlockingConcurrentQueue<std::vector<query_t>*> m_queue;
+    moodycamel::BlockingConcurrentQueue<std::unique_ptr<std::vector<query_t>>> m_queue;
     std::thread m_producer;
     std::atomic<bool> done{false};
     std::atomic<uint32_t> in_flight{0};

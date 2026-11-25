@@ -103,6 +103,7 @@ Run `./fulgor help` to see a list of available tools.
 	  pseudoalign        perform pseudoalignment to an index
 	  kmer-conservation  print color set info for each positive kmer in query
 	  kmer-matches       print positive kmers per query and number of kmer matches per color
+	  extract-output     convert pseudoalignment output to ascii or binary format
 
 	Debug:
 	  check              perform an in-depth check to verify that an index was built correctly
@@ -110,9 +111,12 @@ Run `./fulgor help` to see a list of available tools.
 	  stats              print index statistics
 	  print-filenames    print all reference filenames
 	  dump               write unitigs and color sets of an index in text format
+	  load               build an index from dump output
 
 	Other:
 	  help               print this helper and exit gracefully
+
+**Note:** `permute` is not yet implemented (it currently writes an empty output file).
 
 For large-scale indexing, it could be necessary to increase the number of file descriptors that can be opened
 simultaneously:
@@ -185,6 +189,11 @@ We can change the option `--meta` to `--diff` to create a differential-colored i
 both options, `--meta --diff`, to create a meta-differential-colored index.
 See the table below.
 
+**Note:** building a meta-colored index from an existing `.fur` index (`color --meta`) is not yet
+implemented. Use `build --meta` on the input files to produce the `.mfur`.
+`color --diff` works as shown. `color --meta --diff` requires an existing `.mfur` (produced by
+`build --meta`) next to the input.
+
 | command               | output file             | size (GB) | compression factor |
 |:----------------------|:------------------------|:---------:|:------------------:|
 | `color --meta`        | `salmonella_4546.mfur`  |  0.11769  |        2.26        |
@@ -203,12 +212,13 @@ Pseudoalignment output format
 The tool `pseudoalign` writes the result to an output file, in plain text format, specified with the option
 `-o [output-filename]`.
 
-This file has one line for each mapped read, formatted as follows:
+This file has one line for each read, formatted as follows:
 
-	[read-id][TAB][list-lenght][TAB][list]
+	[read-id][TAB][list-length][TAB][list]
 
 where `[list]` is a TAB-separated list of increasing integers, of length `[list-length]`, representing the list of
 reference identifiers to which the read is mapped. (`[TAB]` is the character `\t`.)
+Reads that do not map to any reference are written with an empty list (`[list-length]` is `0`).
 
 #### Example
 
@@ -309,7 +319,7 @@ In particular, it outputs four files:
 
 - `[basename].metadata.txt`
 - `[basename].filenames.txt`
-- `[basename].color_sets.txt`
+- `[basename].color_sets.fa`
 - `[basename].unitigs.fa`
 
 where `[basename]` is a chosen output name.
@@ -347,7 +357,7 @@ Example:
 This means that color 0 corresponds to the file `.../SAL_AA7051AA.fasta`, color 1 to the file `../SAL_AA7053AA.fasta`,
 etc.
 
-The file `[basename].color_sets.txt` lists the color sets, one per line. **There must be no duplicate color sets**. The
+The file `[basename].color_sets.fa` lists the color sets, one per line. **There must be no duplicate color sets**. The
 order of the color sets in the file is used to (implicitly) assign consecutive ids to the color sets.
 
 Each color set is written as `size=[n] [color-set]`, where `[n]` is its size, and `[color-set]` a space-separated list

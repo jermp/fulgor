@@ -119,7 +119,7 @@ int dump(int argc, char** argv) {
     parser.add("index_filename", "The Fulgor index filename.", "-i", true);
     parser.add("output_basename",
                "Output basename. If the supplied basename is F, the output will consist in four "
-               "files: F.unitigs.fa, F.color_sets.txt, F.filenames.txt, and F.metadata.txt. (If "
+               "files: F.unitigs.fa, F.color_sets.fa, F.filenames.txt, and F.metadata.txt. (If "
                "this is not supplied, the basename of the index is used instead.)",
                "-o", false);
     if (!parser.parse()) return 1;
@@ -161,7 +161,7 @@ int load(int argc, char** argv) {
     parser.add(
         "input_basename",
         "Input basename. If the supplied basename is F, the program attempts to read four files: "
-        "F.unitigs.fa, F.color_sets.txt, F.filenames.txt, and F.metadata.txt. (These files are the "
+        "F.unitigs.fa, F.color_sets.fa, F.filenames.txt, and F.metadata.txt. (These files are the "
         "output of the `dump` tool.)",
         "-i", true);
     parser.add("output_basename",

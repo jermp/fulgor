@@ -236,23 +236,26 @@ struct index<ColorSets>::differential_builder {
             for (uint32_t color_set_id = 0; color_set_id < num_color_sets; ++color_set_id) {
                 load += index.color_set(color_set_id).size();
             }
-            const uint64_t load_per_thread = load / num_threads;
+            const uint64_t load_per_thread = std::max<uint64_t>(1, load / num_threads);
 
             slice s = {.begin = 0, .end = 0};
             uint64_t curr_load = 0;
             uint64_t prev_cluster = permutation[0].first;
             for (uint64_t i = 0; i < num_color_sets; ++i) {
                 auto& [cluster_id, color_set_id] = permutation[i];
-                if (cluster_id != prev_cluster && curr_load >= load_per_thread) {
+                if (cluster_id != prev_cluster && curr_load >= load_per_thread &&
+                    thread_slices.size() + 1 < num_threads) {
                     s.end = i;
                     thread_slices.push_back(s);
                     s.begin = i;
                     curr_load = 0;
                 }
                 curr_load += index.color_set(color_set_id).size();
+                prev_cluster = cluster_id;
             }
             s.end = num_color_sets;
             thread_slices.push_back(s);
+            assert(thread_slices.size() <= num_threads);
 
             std::vector<typename ColorSets::builder> thread_builders(
                 thread_slices.size(), typename ColorSets::builder(num_colors));
@@ -261,7 +264,6 @@ struct index<ColorSets>::differential_builder {
             auto encode_color_sets = [&](uint64_t thread_id) {
                 auto& color_sets_builder = thread_builders[thread_id];
                 auto& [begin, end] = thread_slices[thread_id];
-                color_sets_builder.reserve_num_bits(16 * essentials::GB * 8);
 
                 std::vector<uint64_t> group_endpoints;
                 uint64_t curr_group = permutation[begin].first + 1;  // different from first group

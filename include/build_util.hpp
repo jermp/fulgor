@@ -117,7 +117,7 @@ void build_colors_sketches_sliced(
     };
     std::vector<slice> thread_slices;
 
-    uint64_t load_per_thread = load / num_threads;
+    const uint64_t load_per_thread = std::max<uint64_t>(1, load / num_threads);
     {
         slice s;
         s.begin = 0;
@@ -127,7 +127,8 @@ void build_colors_sketches_sliced(
             auto color_id = filtered_colors_ids[i];
             auto it = index.color_set(color_id);
             curr_load += it.size();
-            if (curr_load >= load_per_thread || i == partition_size - 1) {
+            if ((curr_load >= load_per_thread && thread_slices.size() + 1 < num_threads) ||
+                i == partition_size - 1) {
                 s.end = i + 1;
                 thread_slices.push_back(s);
                 s.begin = i + 1;

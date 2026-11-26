@@ -1,11 +1,17 @@
 #pragma once
 #include <algorithm>
 #include <bit>
+#include <condition_variable>
 #include <cstdint>
-#include <future>
+#include <memory>
+#include <mutex>
 #include <stdexcept>
 
 #include "include/profiling.hpp"
+
+#if defined(__GLIBC__)
+#include <malloc.h>
+#endif
 
 namespace fulgor {
 
@@ -52,13 +58,17 @@ struct meta {
 
             const uint32_t num_partitions = partition_starts.size() - 1;
             m_partitions_mutex.reserve(num_partitions);
+            m_partitions_cv.reserve(num_partitions);
             m_partition_savers.reserve(num_partitions);
             m_hashes.resize(num_partitions);
             m_hash_bucket_bytes.assign(num_partitions, 0);
+            m_in_flight.resize(num_partitions);
+            m_waiters.assign(num_partitions, 0);
             m_partition_starts = partition_starts;
 
             for (uint64_t partition_id = 0; partition_id < num_partitions; ++partition_id) {
-                m_partitions_mutex.push_back(std::make_unique<std::shared_mutex>());
+                m_partitions_mutex.push_back(std::make_unique<std::mutex>());
+                m_partitions_cv.push_back(std::make_unique<std::condition_variable>());
 
                 m_partition_savers.emplace_back(partition_filename(partition_id));
                 const uint32_t num_colors_in_partition =
@@ -74,23 +84,17 @@ struct meta {
 
         void init_meta_color_sets_builder(const uint64_t num_integers_in_metacolor_sets)  //
         {
+            const uint32_t num_partitions = m_hashes.size();
+
             uint64_t num_partial_color_sets = 0;
             m_partial_sets_starts.push_back(0);
-            for (auto& dict : m_hashes) {
-                num_partial_color_sets += dict.size();
+            for (auto& ids : m_hashes) {
+                num_partial_color_sets += ids.size();
                 m_partial_sets_starts.push_back(num_partial_color_sets);
             }
-            m_meta_color_sets_builder.resize(
-                num_integers_in_metacolor_sets,
-                meta_color_set_width(num_partial_color_sets, m_hashes.size()));
-            m_partition_endpoints.reserve(m_hashes.size() + 1);
-
-            const uint64_t mc_bits =
-                num_integers_in_metacolor_sets *
-                meta_color_set_width(num_partial_color_sets, m_hashes.size());
-            m_g_metacolor.set(((mc_bits + 63) / 64) * sizeof(uint64_t));
 
             assert(m_partition_starts.size() == m_partial_sets_starts.size());
+            m_partition_endpoints.reserve(num_partitions + 1);
             for (uint32_t partition_id = 0; partition_id != m_partition_starts.size();
                  ++partition_id) {
                 m_partition_endpoints.push_back(
@@ -99,6 +103,24 @@ struct meta {
             m_g_partial_starts.set(m_partial_sets_starts.capacity() * sizeof(uint32_t) +
                                    m_partition_endpoints.capacity() *
                                        sizeof(partition_endpoint));
+
+            const uint64_t width = meta_color_set_width(num_partial_color_sets, num_partitions);
+            const uint64_t mc_bits = num_integers_in_metacolor_sets * width;
+
+            /* The dedup maps are no longer needed: encoding is finished and
+               every later step works from m_partial_sets_starts. Release them
+               before allocating the full meta color-set array, so the two big
+               structures do not peak together. */
+            std::vector<hash_id_map>().swap(m_hashes);
+            std::vector<std::vector<__uint128_t>>().swap(m_in_flight);
+            std::vector<uint64_t>().swap(m_hash_bucket_bytes);
+            m_g_hashes.set(0);
+#if defined(__GLIBC__)
+            ::malloc_trim(0);
+#endif
+
+            m_g_metacolor.set(((mc_bits + 63) / 64) * sizeof(uint64_t));
+            m_meta_color_sets_builder.resize(num_integers_in_metacolor_sets, width);
         }
 
         [[deprecated("External memory construction makes this useless")]]
@@ -243,10 +265,12 @@ struct meta {
         std::vector<util::external_saver> m_partition_savers;
         util::external_saver* m_saver = nullptr;
 
-        std::vector<std::unique_ptr<std::shared_mutex>> m_partitions_mutex;
-        using hash_id_map =
-            std::unordered_map<__uint128_t, std::shared_future<uint32_t>, util::hasher_uint128_t>;
-        std::vector<hash_id_map> m_hashes;  // (hash, id)
+        std::vector<std::unique_ptr<std::mutex>> m_partitions_mutex;
+        std::vector<std::unique_ptr<std::condition_variable>> m_partitions_cv;
+        using hash_id_map = std::unordered_map<__uint128_t, uint32_t, util::hasher_uint128_t>;
+        std::vector<hash_id_map> m_hashes;                  // completed: hash -> partial-set id
+        std::vector<std::vector<__uint128_t>> m_in_flight;  // hashes currently being encoded
+        std::vector<uint32_t> m_waiters;  // waiting threads per partition (under its mutex)
         std::vector<uint32_t> m_partition_starts;
         std::vector<uint32_t> m_partial_sets_starts;
 
@@ -277,35 +301,44 @@ struct meta {
                                           std::span<uint32_t> partial_color_set) {
             assert(partition_id < m_color_sets_builders.size());
             assert(!partial_color_set.empty());
-            uint32_t partial_color_set_id;
+
             auto partition_begin = m_partition_starts[partition_id];
             auto hash = util::hash128(reinterpret_cast<char const*>(partial_color_set.data()),
                                       partial_color_set.size() * sizeof(uint32_t));
-            bool requires_compression = false;
-            std::promise<uint32_t> promise;
-            std::shared_future future = promise.get_future();
 
-            {
-                std::lock_guard lock(*m_partitions_mutex[partition_id]);
-                const auto it = m_hashes[partition_id].find(hash);
+            auto& partition_mutex = *m_partitions_mutex[partition_id];
+            auto& partition_cv = *m_partitions_cv[partition_id];
+            auto& ids = m_hashes[partition_id];
+            auto& in_flight = m_in_flight[partition_id];
 
-                if (it == m_hashes[partition_id].cend()) {
-                    m_hashes[partition_id].insert({hash, future});
-                    requires_compression = true;
-                    /* profiling: approximate this unordered_map's resident bytes */
-                    const uint64_t node_bytes =
-                        sizeof(hash_id_map::value_type) + 2 * sizeof(void*);
-                    const uint64_t bucket_bytes =
-                        m_hashes[partition_id].bucket_count() * sizeof(void*);
-                    m_g_hashes.add(static_cast<int64_t>(node_bytes));
-                    m_g_hashes.add(static_cast<int64_t>(bucket_bytes) -
-                                   static_cast<int64_t>(m_hash_bucket_bytes[partition_id]));
-                    m_hash_bucket_bytes[partition_id] = bucket_bytes;
-                } else {
-                    future = it->second;
+            /*
+             * Fast path: an already-encoded partial set is returned under the
+             * partition lock, without waiting for unrelated encodes.
+             *
+             * If the same hash is currently being encoded by another thread,
+             * wait on a partition-wide condition variable; in_flight holds at
+             * most one hash per currently-encoding thread. The owner inserts
+             * the id and erases the in-flight marker under the same lock, so a
+             * waiter either sees the id or is guaranteed to be woken.
+             */
+            std::unique_lock<std::mutex> lock(partition_mutex);
+            for (;;) {
+                auto it = ids.find(hash);
+                if (it != ids.end()) return it->second;
+
+                if (std::find(in_flight.begin(), in_flight.end(), hash) == in_flight.end()) {
+                    in_flight.push_back(hash);
+                    break;  // this thread owns the encode
                 }
+
+                ++m_waiters[partition_id];
+                partition_cv.wait(lock);
+                --m_waiters[partition_id];
             }
-            if (requires_compression) {
+            lock.unlock();
+
+            uint32_t partial_color_set_id = 0;
+            try {
                 std::ranges::transform(
                     partial_color_set, partial_color_set.begin(),
                     [partition_begin](const uint32_t n) { return n - partition_begin; });
@@ -315,10 +348,29 @@ struct meta {
                 m_g_partial.add(static_cast<int64_t>(
                                     m_color_sets_builders[partition_id].size()) -
                                 static_cast<int64_t>(partial_before));
-                promise.set_value(partial_color_set_id);
-            } else {
-                partial_color_set_id = future.get();
+            } catch (...) {
+                lock.lock();
+                in_flight.erase(std::find(in_flight.begin(), in_flight.end(), hash));
+                const bool wake = m_waiters[partition_id] != 0;
+                lock.unlock();
+                if (wake) partition_cv.notify_all();
+                throw;
             }
+
+            lock.lock();
+            ids.emplace(hash, partial_color_set_id);
+            /* profiling: approximate this unordered_map's resident bytes */
+            const uint64_t node_bytes = sizeof(hash_id_map::value_type) + 2 * sizeof(void*);
+            const uint64_t bucket_bytes = ids.bucket_count() * sizeof(void*);
+            m_g_hashes.add(static_cast<int64_t>(node_bytes));
+            m_g_hashes.add(static_cast<int64_t>(bucket_bytes) -
+                           static_cast<int64_t>(m_hash_bucket_bytes[partition_id]));
+            m_hash_bucket_bytes[partition_id] = bucket_bytes;
+            in_flight.erase(std::find(in_flight.begin(), in_flight.end(), hash));
+            const bool wake = m_waiters[partition_id] != 0;
+            lock.unlock();
+            /* Only wake when somebody is actually waiting on this partition. */
+            if (wake) partition_cv.notify_all();
 
             /*  Note: at this stage, partial_color_set_id is relative
              *  to its partition (is not global yet). */

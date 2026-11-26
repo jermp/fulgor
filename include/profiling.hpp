@@ -106,10 +106,10 @@ inline uint64_t heap_live_bytes() {
 #if defined(__GLIBC__) && defined(__GLIBC_PREREQ)
 #if __GLIBC_PREREQ(2, 33)
     struct mallinfo2 mi = ::mallinfo2();
-    return static_cast<uint64_t>(mi.uordblks);
+    return static_cast<uint64_t>(mi.uordblks) + static_cast<uint64_t>(mi.hblkhd);
 #else
     struct mallinfo mi = ::mallinfo();
-    return static_cast<uint64_t>(mi.uordblks);
+    return static_cast<uint64_t>(mi.uordblks) + static_cast<uint64_t>(mi.hblkhd);
 #endif
 #elif defined(__APPLE__)
     // malloc_zone_statistics would need a specific zone; not worth it for a
@@ -145,10 +145,22 @@ struct gauge {
         note_peak(v);
     }
     void add(int64_t d) {
-        const uint64_t v =
-            m_value.fetch_add(static_cast<uint64_t>(d), std::memory_order_relaxed) +
-            static_cast<uint64_t>(d);
-        if (d > 0) note_peak(v);
+        if (d == 0) return;
+        if (d > 0) {
+            const uint64_t v =
+                m_value.fetch_add(static_cast<uint64_t>(d), std::memory_order_relaxed) +
+                static_cast<uint64_t>(d);
+            note_peak(v);
+            return;
+        }
+        /* Saturating subtract: never wrap below zero (a diagnostic gauge must
+           not turn a small negative delta into 2^64-8). */
+        const uint64_t dec = static_cast<uint64_t>(-(d + 1)) + 1;
+        uint64_t cur = m_value.load(std::memory_order_relaxed);
+        for (;;) {
+            const uint64_t next = cur > dec ? cur - dec : 0;
+            if (m_value.compare_exchange_weak(cur, next, std::memory_order_relaxed)) return;
+        }
     }
     uint64_t get() const { return m_value.load(std::memory_order_relaxed); }
     uint64_t peak() const { return m_peak.load(std::memory_order_relaxed); }

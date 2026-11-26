@@ -20,17 +20,17 @@ struct permuter {
     explicit permuter(build_configuration const& build_config)
         : m_build_config(build_config), m_num_partitions(0), m_max_partition_size(0) {}
 
-    void compute_permutation(uint32_t num_colors) {
+    void compute_permutation(uint32_t num_colors, std::string const& cdbg_basename) {
         m_num_colors = num_colors;
         essentials::timer<std::chrono::high_resolution_clock, std::chrono::seconds> timer;
 
         {
             util::timed_phase timer_(" step 2.1. build sketches");
             constexpr uint64_t p = 10;  // use 2^p bytes per HLL sketch
-            build_reference_sketches(
-                num_colors, p, m_build_config.num_threads,
-                m_build_config.tmp_filename(m_build_config.output_filename.filename()),
-                m_build_config.tmp_filename("sketches.bin"));
+            m_g_sketches.set(static_cast<uint64_t>(num_colors) << p);
+            build_reference_sketches(num_colors, p, m_build_config.num_threads, cdbg_basename,
+                                     m_build_config.tmp_filename("sketches.bin"));
+            m_g_sketches.set(0);
         }
 
         {
@@ -52,6 +52,10 @@ struct permuter {
                     in.read(reinterpret_cast<char*>(point.data()), num_bytes_per_point);
                 }
                 in.close();
+
+                uint64_t point_bytes = points.capacity() * sizeof(kmeans::point);
+                for (auto const& point : points) point_bytes += point.capacity();
+                m_g_points.set(point_bytes);
             }
 
             kmeans::clustering_parameters params;
@@ -67,6 +71,7 @@ struct permuter {
             params.set_random_seed(seed);
             params.set_num_threads(m_build_config.num_threads);
             auto clustering_data = kmeans::kmeans_divisive(points.begin(), points.end(), params);
+            m_g_clusters.set(clustering_data.clusters.size() * sizeof(uint32_t));
 
             timer.stop();
             std::cout << "** clustering sketches took " << timer.elapsed() << " seconds / "
@@ -76,6 +81,7 @@ struct permuter {
             m_num_partitions = clustering_data.num_clusters;
 
             m_partition_starts.resize(m_num_partitions + 1, 0);
+            m_g_partition_starts.set(m_partition_starts.capacity() * sizeof(uint32_t));
             for (auto c : clustering_data.clusters) m_partition_starts[c] += 1;
 
             /* take prefix sums */
@@ -90,12 +96,15 @@ struct permuter {
             /* build permutation */
             auto counts = m_partition_starts;  // copy
             m_permutation.resize(num_colors);
+            m_g_permutation.set(m_permutation.capacity() * sizeof(uint32_t));
             assert(clustering_data.clusters.size() == num_colors);
             for (uint64_t i = 0; i != num_colors; ++i) {
                 uint32_t cluster_id = clustering_data.clusters[i];
                 m_permutation[i] = counts[cluster_id];
                 counts[cluster_id] += 1;
             }
+            m_g_points.set(0);
+            m_g_clusters.set(0);
         }
     }
 
@@ -137,6 +146,13 @@ private:
     uint64_t m_max_partition_size;
     std::vector<uint32_t> m_permutation;
     std::vector<uint32_t> m_partition_starts;
+
+    /* ---- profiling (construction-profiling branch) ---- */
+    prof::gauge m_g_sketches{"permuter.sketches"};
+    prof::gauge m_g_points{"permuter.points"};
+    prof::gauge m_g_clusters{"permuter.clusters"};
+    prof::gauge m_g_permutation{"permuter.permutation"};
+    prof::gauge m_g_partition_starts{"permuter.partition_starts"};
 };
 
 template <typename ColorSets>
@@ -147,14 +163,68 @@ struct meta_build_strategy {
         , permuter_(build_config) {}
 
     void build_cdbg() {
+        prof::phase_guard phase("step 1: cdbg");
         util::timed_phase timer("step 1. build colored compacted dBG.");
+
+        /* Cache the whole cdbg output under a stable name so repeated
+           profiling runs skip cdbg construction and go straight to the meta
+           color-set ("compression") step.  k/m are in the name; the input list
+           length is validated against metadata.txt. */
+        const std::string stem = m_build_config.output_filename.filename().string();
+        const std::string cache_basename =
+            m_build_config
+                .tmp_filename(std::format("{}.k{}m{}.cdbg", stem, m_build_config.k,
+                                          m_build_config.m))
+                .string();
+
         cdbg_config.filenames_list = m_build_config.filenames_list;
-        cdbg_config.out_basename =
-            m_build_config.tmp_filename(m_build_config.output_filename.filename());
+        cdbg_config.out_basename = cache_basename;
         cdbg_config.k = m_build_config.k;
         cdbg_config.m = m_build_config.m;
         cdbg_config.num_threads = m_build_config.num_threads;
         cdbg_config.max_ram_gb = m_build_config.ram_limit_in_GiB;
+
+        auto exists_nonempty = [](std::string const& p) {
+            std::error_code ec;
+            auto sz = std::filesystem::file_size(p, ec);
+            return !ec && sz > 0;
+        };
+
+        bool reuse = !m_build_config.fresh_cdbg;
+        if (reuse) {
+            reuse = exists_nonempty(cdbg::metadata_filename(cache_basename)) &&
+                    exists_nonempty(cdbg::fa_filename(cache_basename)) &&
+                    exists_nonempty(cdbg::u2c_filename(cache_basename)) &&
+                    exists_nonempty(cdbg::cs_filename(cache_basename));
+            if (reuse) {
+                try {
+                    cdbg::metadata md(cdbg::metadata_filename(cache_basename));
+                    uint64_t num_lines = 0;
+                    std::ifstream in(m_build_config.filenames_list);
+                    std::string line;
+                    while (std::getline(in, line)) {
+                        if (!line.empty()) ++num_lines;
+                    }
+                    reuse = md.k == m_build_config.k && md.num_colors == num_lines;
+                } catch (std::exception const& e) {
+                    std::cerr << "[cdbg cache] cannot read cached metadata: " << e.what()
+                              << std::endl;
+                    reuse = false;
+                }
+            }
+        }
+
+        if (reuse) {
+            cdbg::metadata md(cdbg::metadata_filename(cache_basename));
+            std::cout << "[cdbg cache] HIT " << cache_basename << ".*" << std::endl;
+            util::check_index_limits(md.num_colors, md.num_unitigs, md.num_color_sets);
+            m_build_config.num_colors = md.num_colors;
+            m_num_color_sets = md.num_color_sets;
+            return;
+        }
+
+        std::cout << "[cdbg cache] MISS " << cache_basename
+                  << ".* -> building (slow path)" << std::endl;
         uint64_t curr_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                                std::chrono::system_clock::now().time_since_epoch())
                                .count();
@@ -169,8 +239,12 @@ struct meta_build_strategy {
     }
 
     void build_color_sets() {
+        prof::phase_guard phase("step 2: meta color sets");
         util::timed_phase timer("step 2. compute partition and permutation");
-        permuter_.compute_permutation(m_build_config.num_colors);
+        {
+            prof::phase_guard p("step 2.1-2.2: sketches + kmeans");
+            permuter_.compute_permutation(m_build_config.num_colors, cdbg_config.out_basename);
+        }
 
         const uint32_t num_colors = m_build_config.num_colors;
         const uint64_t num_partitions = permuter_.num_partitions();
@@ -181,7 +255,14 @@ struct meta_build_strategy {
         }
 
         {
+            prof::phase_guard phase23("step 2.3: encode meta color sets");
             util::timed_phase sub_timer(" step 2.3. build partial/meta color sets");
+
+            prof::gauge g_queue{"meta.queue"};
+            prof::gauge g_progress{"progress.color_sets"};
+            prof::gauge g_temp{"meta.temp_metacolor_bound"};
+            g_temp.set(static_cast<uint64_t>(m_build_config.num_threads) * num_partitions * 2 *
+                       sizeof(uint32_t));
 
             std::atomic<uint64_t> num_integers_in_metacolor_sets = 0;
             typename ColorSets::builder color_sets_builder(
@@ -198,6 +279,7 @@ struct meta_build_strategy {
             using QueueElem = std::pair<uint64_t, std::vector<uint32_t>>;
             // TODO: capacity based on max RAM?
             util::bounded_priority_queue<QueueElem, util::compare_first> q(1 << 10);
+            q.set_gauge(&g_queue);
             std::mutex write_mutex;
             std::atomic<uint64_t> num_written_meta_sets = 0;
             std::atomic<uint64_t> num_processed_sets = 0;
@@ -222,7 +304,8 @@ struct meta_build_strategy {
 
             auto process_color_set = [this, &color_sets_builder, &num_written_meta_sets,
                                       &num_integers_in_metacolor_sets, &write_mutex, &q,
-                                      &flush_meta_queue, &stream, &num_processed_sets] {
+                                      &flush_meta_queue, &stream, &num_processed_sets,
+                                      &g_progress] {
                 for (auto opt = stream.get(); opt != std::nullopt; opt = stream.get()) {
                     auto& [unitig_start, num_unitigs, cs_id, color_set] = opt.value();
                     permuter_.apply(color_set);
@@ -245,6 +328,7 @@ struct meta_build_strategy {
                         flush_meta_queue();
                     }
 
+                    g_progress.set(num_processed_sets.load(std::memory_order_relaxed));
                     if (num_processed_sets.fetch_add(1) % 10000 == 0) {
                         auto progress = std::format("\r[encode-sets] {}/{} ({:.2f}%)",
                                                     num_processed_sets.load(), m_num_color_sets,
@@ -298,35 +382,34 @@ struct meta_build_strategy {
             metacolor_set_in.close();
             color_sets_builder.build();
 
-            try {
-                std::remove(cdbg_config.cs_filename().c_str());
-            } catch (std::exception const& e) {
-                std::cerr << e.what() << std::endl;
-            }
+            /* construction-profiling: keep cdbg_config.cs_filename() cached */
         }
     }
 
     void build_u2c() {
+        prof::phase_guard phase("step 3: u2c");
         util::timed_phase timer("step 3. copy u2c and build rank1_index");
+
+        prof::gauge g_u2c{"u2c.bitvector"};
+        prof::gauge g_rank{"u2c.rank1"};
 
         bits::bit_vector u2c;
         bits::rank9 u2c_rank1_index;
         essentials::load(u2c, cdbg_config.u2c_filename().c_str());
+        g_u2c.set(u2c.num_bytes());
         u2c_rank1_index.build(u2c);
+        g_rank.set(u2c_rank1_index.num_bytes());
         m_saver.visit(u2c);
         m_saver.visit(u2c_rank1_index);
 
         std::cout << "m_u2c.num_bits() = " << u2c.num_bits() << std::endl;
         std::cout << "m_u2c_rank1_index.num_ones() = " << u2c_rank1_index.num_ones() << std::endl;
 
-        try {  // remove u2c file
-            std::remove(cdbg_config.u2c_filename().c_str());
-        } catch (std::exception const& e) {
-            std::cerr << e.what() << std::endl;
-        }
+        /* construction-profiling: keep cdbg_config.u2c_filename() cached */
     }
 
     void build_kmer_dictionary() {
+        prof::phase_guard phase("step 4: sshash");
         util::timed_phase timer("step 4. build SSHash");
 
         sshash::build_configuration sshash_config;
@@ -337,27 +420,27 @@ struct meta_build_strategy {
         sshash_config.num_threads = m_build_config.num_threads;
         sshash_config.print();
 
+        prof::gauge g_k2u{"sshash.k2u"};
         sshash::dictionary_type k2u;
         k2u.build(cdbg_config.fa_filename(), sshash_config);
+        g_k2u.set(k2u.num_bits() / 8);
         m_saver.visit(k2u);
 
-        try {  // remove unitig file
-            std::remove(cdbg_config.fa_filename().c_str());
-        } catch (std::exception const& e) {
-            std::cerr << e.what() << std::endl;
-        }
+        /* construction-profiling: keep cdbg_config.fa_filename() cached */
     }
 
     void build_filenames() {
+        prof::phase_guard phase("step 5: filenames");
         util::timed_phase timer("step 5. permute and write filenames");
-        m_saver.visit(permuter_.permuted_filenames());
+        prof::gauge g_filenames{"filenames"};
+        filenames fn = permuter_.permuted_filenames();
+        g_filenames.set(fn.num_bits() / 8);
+        m_saver.visit(fn);
     }
 
     ~meta_build_strategy() {
-        std::remove(cdbg_config.cs_filename().c_str());
-        std::remove(cdbg_config.fa_filename().c_str());
-        std::remove(cdbg_config.u2c_filename().c_str());
-        std::remove(cdbg_config.metadata_filename().c_str());
+        /* construction-profiling: leave the cdbg cache in place so the next run
+           can skip cdbg construction entirely. */
     }
 
     util::external_saver& saver() { return m_saver; }

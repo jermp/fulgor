@@ -29,6 +29,8 @@
 
 #include "external/sshash/external/pthash/external/bits/external/essentials/include/essentials.hpp"
 
+#include "include/profiling.hpp"
+
 namespace fulgor {
 
 enum index_t { HYBRID, DIFF, META, META_DIFF };
@@ -65,6 +67,7 @@ struct build_configuration {
         //
         , meta_colored(false)
         , diff_colored(false)  //
+        , fresh_cdbg(false)   //
     {}
 
     uint32_t k;            // kmer length
@@ -84,6 +87,7 @@ struct build_configuration {
 
     bool meta_colored;
     bool diff_colored;
+    bool fresh_cdbg;  // ignore a cached cdbg build and reconstruct it
 
     std::filesystem::path tmp_filename(const std::string& filename) const {
         return tmp_dirname / filename;
@@ -331,14 +335,18 @@ public:
     explicit bounded_priority_queue(const size_t capacity, Compare c = Compare())
         : comp(c), max_capacity(capacity) {}
 
+    void set_gauge(prof::gauge* g) { m_gauge = g; }
+
     void push(T item) {
         std::unique_lock lock(mtx);
         cv_push.wait(lock, [this, &item] {
             return heap.size() < max_capacity || (!heap.empty() && comp(heap.front(), item));
         });
 
+        const uint64_t extra = entry_bytes(item);
         heap.push_back(std::move(item));
         std::push_heap(heap.begin(), heap.end(), comp);
+        if (m_gauge) m_gauge->add(static_cast<int64_t>(extra));
     }
 
     template <typename Predicate>
@@ -349,19 +357,31 @@ public:
         }
         std::pop_heap(heap.begin(), heap.end(), comp);
 
+        const uint64_t extra = entry_bytes(heap.back());
         out_item = std::move(heap.back());
         heap.pop_back();
+        if (m_gauge) m_gauge->add(-static_cast<int64_t>(extra));
 
         cv_push.notify_all();
         return true;
     }
 
 private:
+    static uint64_t entry_bytes(T const& item) {
+        uint64_t bytes = sizeof(T);
+        if constexpr (requires { item.second.capacity(); }) {
+            bytes += item.second.capacity() *
+                     sizeof(typename std::remove_reference_t<decltype(item.second)>::value_type);
+        }
+        return bytes;
+    }
+
     std::vector<T> heap;
     Compare comp;
     std::mutex mtx;
     std::condition_variable cv_push;
     size_t max_capacity;
+    prof::gauge* m_gauge = nullptr;
 };
 
 /* Removes `path` when the guard goes out of scope: normal return, early return or exception. */

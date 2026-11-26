@@ -5,6 +5,8 @@
 #include <future>
 #include <stdexcept>
 
+#include "include/profiling.hpp"
+
 namespace fulgor {
 
 /* The flat meta color-set array stores partial-set ids in [0, N-1] and per-set size prefixes in
@@ -52,6 +54,7 @@ struct meta {
             m_partitions_mutex.reserve(num_partitions);
             m_partition_savers.reserve(num_partitions);
             m_hashes.resize(num_partitions);
+            m_hash_bucket_bytes.assign(num_partitions, 0);
             m_partition_starts = partition_starts;
 
             for (uint64_t partition_id = 0; partition_id < num_partitions; ++partition_id) {
@@ -82,12 +85,20 @@ struct meta {
                 meta_color_set_width(num_partial_color_sets, m_hashes.size()));
             m_partition_endpoints.reserve(m_hashes.size() + 1);
 
+            const uint64_t mc_bits =
+                num_integers_in_metacolor_sets *
+                meta_color_set_width(num_partial_color_sets, m_hashes.size());
+            m_g_metacolor.set(((mc_bits + 63) / 64) * sizeof(uint64_t));
+
             assert(m_partition_starts.size() == m_partial_sets_starts.size());
             for (uint32_t partition_id = 0; partition_id != m_partition_starts.size();
                  ++partition_id) {
                 m_partition_endpoints.push_back(
                     {m_partition_starts[partition_id], m_partial_sets_starts[partition_id]});
             }
+            m_g_partial_starts.set(m_partial_sets_starts.capacity() * sizeof(uint32_t) +
+                                   m_partition_endpoints.capacity() *
+                                       sizeof(partition_endpoint));
         }
 
         [[deprecated("External memory construction makes this useless")]]
@@ -143,6 +154,7 @@ struct meta {
             }
             m_offset += size + 1;
             m_meta_color_sets_offsets.push_back(m_offset);
+            m_g_offsets.set(m_meta_color_sets_offsets.capacity() * sizeof(uint64_t));
         }
 
         void flush() {
@@ -153,6 +165,7 @@ struct meta {
             for (auto& builder : m_color_sets_builders) {
                 builder.flush();
             }
+            m_g_partial.set(num_bytes());
             m_is_flushing = false;
         }
 
@@ -248,6 +261,14 @@ struct meta {
         uint64_t m_max_RAM_bytes;
         bool m_verbose;
 
+        /* ---- profiling (construction-profiling branch) ---- */
+        std::vector<uint64_t> m_hash_bucket_bytes;  // per-partition bucket array estimate
+        prof::gauge m_g_hashes{"meta.hashes"};
+        prof::gauge m_g_partial{"meta.partial_builders"};
+        prof::gauge m_g_metacolor{"meta.metacolor_builder"};
+        prof::gauge m_g_offsets{"meta.offsets"};
+        prof::gauge m_g_partial_starts{"meta.partial_sets_starts"};
+
         std::string partition_filename(const uint64_t partition_id) const {
             return m_tmp_dirname + "/partial_sets_" + std::to_string(partition_id) + ".bin";
         }
@@ -271,6 +292,15 @@ struct meta {
                 if (it == m_hashes[partition_id].cend()) {
                     m_hashes[partition_id].insert({hash, future});
                     requires_compression = true;
+                    /* profiling: approximate this unordered_map's resident bytes */
+                    const uint64_t node_bytes =
+                        sizeof(hash_id_map::value_type) + 2 * sizeof(void*);
+                    const uint64_t bucket_bytes =
+                        m_hashes[partition_id].bucket_count() * sizeof(void*);
+                    m_g_hashes.add(static_cast<int64_t>(node_bytes));
+                    m_g_hashes.add(static_cast<int64_t>(bucket_bytes) -
+                                   static_cast<int64_t>(m_hash_bucket_bytes[partition_id]));
+                    m_hash_bucket_bytes[partition_id] = bucket_bytes;
                 } else {
                     future = it->second;
                 }
@@ -279,8 +309,12 @@ struct meta {
                 std::ranges::transform(
                     partial_color_set, partial_color_set.begin(),
                     [partition_begin](const uint32_t n) { return n - partition_begin; });
+                const uint64_t partial_before = m_color_sets_builders[partition_id].size();
                 partial_color_set_id =
                     m_color_sets_builders[partition_id].encode(partial_color_set);
+                m_g_partial.add(static_cast<int64_t>(
+                                    m_color_sets_builders[partition_id].size()) -
+                                static_cast<int64_t>(partial_before));
                 promise.set_value(partial_color_set_id);
             } else {
                 partial_color_set_id = future.get();

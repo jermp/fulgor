@@ -149,6 +149,9 @@ int build(int argc, char** argv) {
                "--force", false, true);
     parser.add("meta", "Build a meta-colored index.", "--meta", false, true);
     parser.add("stats", "Prints index stats after construction.", "--stats", false, true);
+    parser.add("fresh_cdbg",
+               "Ignore a cached cdbg build and reconstruct it (construction-profiling branch).",
+               "--fresh-cdbg", false, true);
 
     if (!parser.parse()) return 1;
     util::print_cmd(argc, argv);
@@ -187,6 +190,7 @@ int build(int argc, char** argv) {
     build_config.m = static_cast<uint32_t>(m);
     build_config.verbose = parser.get<bool>("verbose");
     build_config.filenames_list = parser.get<std::string>("filenames_list");
+    build_config.fresh_cdbg = parser.get<bool>("fresh_cdbg");
     if (parser.parsed("RAM")) {
         const uint64_t ram_limit = parser.get<uint64_t>("RAM");
         if (ram_limit == 0) {
@@ -223,6 +227,9 @@ int build(int argc, char** argv) {
             return 1;
         }
     }
+
+    prof::session prof_session(build_config.output_filename,
+                               build_config.ram_limit_in_GiB << 30);
 
     std::visit(
         [&]<typename Index>(Index& index_) {
